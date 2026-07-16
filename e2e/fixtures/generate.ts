@@ -7,6 +7,8 @@
  * Produces, into this folder:
  *   - transcript.txt  — a fake lecture transcript on deadlocks (plain text)
  *   - slides.pdf      — a hand-built 3-page PDF about SQL JOINs (raw PDF objects, no deps)
+ *   - slides.pptx     — a minimal 2-slide OOXML deck about normalisation (zip via fflate)
+ *   - essay.docx      — a minimal OOXML document about the testing pyramid (zip via fflate)
  *   - note-photo.png  — a 1200x900 white bitmap with rendered "handwritten-ish" lecture
  *                        notes text about OS scheduling, drawn via Windows System.Drawing
  *
@@ -17,6 +19,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { zipSync, strToU8 } from 'fflate';
 
 const FIXTURES_DIR = __dirname;
 
@@ -212,6 +215,163 @@ async function writeAndVerifySlidesPdf(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// 2b. slides.pptx + essay.docx — minimal OOXML files (a docx/pptx is just a zip
+//     of XML parts). Built with fflate (already in the dependency tree) and
+//     verified with officeparser — the same library the import route uses.
+// ---------------------------------------------------------------------------
+
+function xmlEscape(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+const PPTX_SLIDES: Array<{ title: string; bullets: string[] }> = [
+  {
+    title: 'Lecture 8: Database Normalisation',
+    bullets: [
+      'Normalisation removes redundancy and update anomalies from a schema.',
+      'First Normal Form: every column holds a single atomic value.',
+      'Second Normal Form: no partial dependency on part of a composite key.',
+    ],
+  },
+  {
+    title: 'Third Normal Form',
+    bullets: [
+      'Third Normal Form: no transitive dependency through a non-key column.',
+      'Every non-key attribute depends on the key, the whole key, and nothing but the key.',
+      'Denormalisation trades redundancy for fewer joins in read-heavy systems.',
+    ],
+  },
+];
+
+function pptxSlideXml(slide: { title: string; bullets: string[] }): string {
+  const titlePara = `<a:p><a:r><a:t>${xmlEscape(slide.title)}</a:t></a:r></a:p>`;
+  const bulletParas = slide.bullets.map(b => `<a:p><a:r><a:t>${xmlEscape(b)}</a:t></a:r></a:p>`).join('');
+  return (
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"` +
+    ` xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"` +
+    ` xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">` +
+    `<p:cSld><p:spTree>` +
+    `<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>` +
+    `<p:sp><p:nvSpPr><p:cNvPr id="2" name="Content"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr/>` +
+    `<p:txBody><a:bodyPr/><a:lstStyle/>${titlePara}${bulletParas}</p:txBody></p:sp>` +
+    `</p:spTree></p:cSld></p:sld>`
+  );
+}
+
+function buildPptx(): Buffer {
+  const contentTypes =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+    `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+    `<Default Extension="xml" ContentType="application/xml"/>` +
+    `<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>` +
+    PPTX_SLIDES.map((_, i) =>
+      `<Override PartName="/ppt/slides/slide${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`,
+    ).join('') +
+    `</Types>`;
+
+  const rootRels =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>` +
+    `</Relationships>`;
+
+  const presentation =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"` +
+    ` xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"` +
+    ` xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">` +
+    `<p:sldIdLst>` +
+    PPTX_SLIDES.map((_, i) => `<p:sldId id="${256 + i}" r:id="rId${i + 1}"/>`).join('') +
+    `</p:sldIdLst></p:presentation>`;
+
+  const presRels =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+    PPTX_SLIDES.map((_, i) =>
+      `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${i + 1}.xml"/>`,
+    ).join('') +
+    `</Relationships>`;
+
+  const files: Record<string, Uint8Array> = {
+    '[Content_Types].xml': strToU8(contentTypes),
+    '_rels/.rels': strToU8(rootRels),
+    'ppt/presentation.xml': strToU8(presentation),
+    'ppt/_rels/presentation.xml.rels': strToU8(presRels),
+  };
+  PPTX_SLIDES.forEach((s, i) => {
+    files[`ppt/slides/slide${i + 1}.xml`] = strToU8(pptxSlideXml(s));
+  });
+  return Buffer.from(zipSync(files, { level: 6 }));
+}
+
+const DOCX_PARAGRAPHS = [
+  'The Testing Pyramid',
+  'A healthy test suite has many fast unit tests, fewer integration tests, and a small number of end-to-end tests.',
+  'Unit tests exercise one function or class in isolation and run in milliseconds.',
+  'Integration tests verify that real components such as a repository and a database work together correctly.',
+  'End-to-end tests drive the whole system as a user would, so they are reserved for critical user journeys.',
+  'Inverting the pyramid produces a slow, flaky suite that developers quickly learn to ignore.',
+];
+
+function buildDocx(): Buffer {
+  const contentTypes =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+    `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+    `<Default Extension="xml" ContentType="application/xml"/>` +
+    `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>` +
+    `</Types>`;
+
+  const rootRels =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>` +
+    `</Relationships>`;
+
+  const body = DOCX_PARAGRAPHS.map(p => `<w:p><w:r><w:t>${xmlEscape(p)}</w:t></w:r></w:p>`).join('');
+  const document =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+    `<w:body>${body}</w:body></w:document>`;
+
+  return Buffer.from(
+    zipSync(
+      {
+        '[Content_Types].xml': strToU8(contentTypes),
+        '_rels/.rels': strToU8(rootRels),
+        'word/document.xml': strToU8(document),
+      },
+      { level: 6 },
+    ),
+  );
+}
+
+async function writeAndVerifyOfficeFixtures(): Promise<void> {
+  const pptxPath = path.join(FIXTURES_DIR, 'slides.pptx');
+  const docxPath = path.join(FIXTURES_DIR, 'essay.docx');
+  fs.writeFileSync(pptxPath, buildPptx());
+  fs.writeFileSync(docxPath, buildDocx());
+
+  // Verify with officeparser — the exact library server/src/lib/extract.ts uses.
+  const { parseOffice } = await import('officeparser');
+  const pptxAst = await parseOffice(pptxPath, { extractAttachments: false });
+  const pptxText = pptxAst.toText();
+  if (!/normalisation/i.test(pptxText)) {
+    throw new Error(`slides.pptx: officeparser did not extract expected text (got ${pptxText.length} chars)`);
+  }
+  console.log(`[fixtures] slides.pptx OK — ${pptxText.length} chars extracted, mentions "normalisation"`);
+
+  const docxAst = await parseOffice(docxPath, { extractAttachments: false });
+  const docxText = docxAst.toText();
+  if (!/testing pyramid/i.test(docxText)) {
+    throw new Error(`essay.docx: officeparser did not extract expected text (got ${docxText.length} chars)`);
+  }
+  console.log(`[fixtures] essay.docx OK — ${docxText.length} chars extracted, mentions "testing pyramid"`);
+}
+
+// ---------------------------------------------------------------------------
 // 3. note-photo.png — rendered lecture-notes text via Windows System.Drawing
 // ---------------------------------------------------------------------------
 
@@ -279,6 +439,7 @@ async function main(): Promise<void> {
   console.log('[fixtures] transcript.txt OK');
 
   await writeAndVerifySlidesPdf();
+  await writeAndVerifyOfficeFixtures();
 
   writeNotePhotoPng();
 

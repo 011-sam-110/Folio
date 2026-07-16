@@ -240,7 +240,7 @@ async function main() {
     await shot('04-editor-note.png', async () => {
       await page.goto(`${BASE_URL}/note/${bigONote.id}`, { waitUntil: 'load' });
       await page.waitForSelector('[data-testid="note-editor"]', { timeout: 15_000 });
-      await page.waitForSelector('.folio-prosemirror h1', { timeout: 15_000 });
+      await page.waitForSelector('.folio-prosemirror h1, .folio-prosemirror h2', { timeout: 15_000 });
       await page.screenshot({ path: path.join(OUT_DIR, '04-editor-note.png'), fullPage: true });
     });
 
@@ -358,7 +358,7 @@ async function main() {
     await shot('09-editor-dark.png', async () => {
       await setTheme(page, 'dark');
       await page.waitForSelector('[data-testid="note-editor"]', { timeout: 15_000 });
-      await page.waitForSelector('.folio-prosemirror h1', { timeout: 15_000 });
+      await page.waitForSelector('.folio-prosemirror h1, .folio-prosemirror h2', { timeout: 15_000 });
       await page.screenshot({ path: path.join(OUT_DIR, '09-editor-dark.png'), fullPage: true });
     });
     await setTheme(page, 'light');
