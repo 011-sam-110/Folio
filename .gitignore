@@ -7,5 +7,6 @@ data/uploads/
 .env
 test-results/
 playwright-report/
+docs/review-pack/
 .vite/
 .claude/
