@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.log
+data/*.db
+data/*.db-*
+data/uploads/
+.env
+test-results/
+playwright-report/
+.vite/

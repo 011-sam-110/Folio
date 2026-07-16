@@ -1,0 +1,51 @@
+{
+  "name": "web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@floating-ui/dom": "^1.8.0",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@tiptap/extension-code-block-lowlight": "^3.28.0",
+    "@tiptap/extension-details": "^3.28.0",
+    "@tiptap/extension-drag-handle-react": "^3.28.0",
+    "@tiptap/extension-highlight": "^3.28.0",
+    "@tiptap/extension-image": "^3.28.0",
+    "@tiptap/extension-mathematics": "^3.28.0",
+    "@tiptap/extension-table": "^3.28.0",
+    "@tiptap/extension-task-item": "^3.28.0",
+    "@tiptap/extension-task-list": "^3.28.0",
+    "@tiptap/extension-typography": "^3.28.0",
+    "@tiptap/extension-unique-id": "^3.28.0",
+    "@tiptap/extensions": "^3.28.0",
+    "@tiptap/pm": "^3.28.0",
+    "@tiptap/react": "^3.28.0",
+    "@tiptap/starter-kit": "^3.28.0",
+    "@tiptap/suggestion": "^3.28.0",
+    "@types/supertest": "^7.2.1",
+    "dompurify": "^3.4.12",
+    "katex": "^0.17.0",
+    "lowlight": "^3.3.0",
+    "marked": "^18.0.6",
+    "officeparser": "^7.3.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.1",
+    "supertest": "^7.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "oxlint": "^1.71.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1"
+  }
+}
