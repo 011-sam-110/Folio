@@ -65,8 +65,14 @@ All AI endpoints return 502 `{ error, attempts? }` if every model fails. Long-ru
 
 ## Study — routes/study.ts (SM-2 lite)
 - `GET /api/study/queue?limit=20` → `{ cards: [{ id, noteId, noteTitle, question, answer, dueAt, reps }] , due, total }` (due = due_at <= now, not suspended)
+- `GET /api/study/cards` → `{ cards: [{ id, noteId, noteTitle, question, answer, dueAt, reps, suspended }] }` — ALL cards including suspended and not-yet-due, newest first. (Patch A: the Browse/manage tab needs the whole deck, which `/queue` — due-only — cannot supply.)
 - `POST /api/study/review` `{ cardId, rating: 'again'|'hard'|'good'|'easy' }` → `{ card, nextDueAt }`
-  - again: reps=0, interval=0 (due now +1min), ease-0.2 (min 1.3); hard: interval*1.2, ease-0.15; good: reps+1, interval = reps==1?1d: interval*ease; easy: interval*(ease+0.15)*1.3, ease+0.15. Log to review_log.
+  - A card is "new" when `interval_days == 0 && reps == 0`.
+  - again: reps=0, interval=0 (due now +1min), ease-0.2 (min 1.3).
+  - hard: ease-0.15 (min 1.3). New card → interval stays 0, reps stays 0, due in 10 minutes (short relearning step). Established card → reps+1, interval*1.2.
+  - good: reps+1, interval = reps==1?1d: interval*ease.
+  - easy: ease+0.15. New card → interval jumps to 4d, reps→1. Established card → reps+1, interval*(ease+0.15)*1.3.
+  - Log every review to review_log. (Patch B: new-card hard/easy branches + hard/easy now increment reps on established cards.)
 - `GET /api/study/stats` → `{ due, total, reviewedToday, byNote: [{ noteId, noteTitle, total, due }] }`
 - `PATCH /api/study/cards/:id` `{ question?, answer?, suspended? }` → `{ card }`
 - `DELETE /api/study/cards/:id` → `{ ok: true }`

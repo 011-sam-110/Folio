@@ -47,12 +47,15 @@ async function ensureAiHealthy(request: APIRequestContext): Promise<void> {
 }
 
 async function openAiMenuAction(page: import('@playwright/test').Page, actionPattern: RegExp): Promise<void> {
-  await page.getByRole('button', { name: /^ai\b/i }).click();
-  const item = page
-    .getByRole('menuitem', { name: actionPattern })
-    .or(page.getByRole('button', { name: actionPattern }))
-    .or(page.getByText(actionPattern));
-  await item.first().click();
+  // Scope to <main>: a notebook whose NAME contains the action word (e.g. "E2E AI
+  // Flashcards Notebook") would otherwise make the sidebar's "Change emoji for
+  // <notebook>" button — or the breadcrumb link — match `actionPattern` first, so
+  // we'd open the emoji picker instead of the AI dropdown item. The sidebar lives in
+  // <nav>, excluded from main. The AI dropdown (DropdownButton.tsx) renders its items
+  // inline as <button>s inside main, so a button-role match is unambiguous there.
+  const main = page.getByRole('main');
+  await main.getByRole('button', { name: /^ai\b/i }).click();
+  await main.getByRole('button', { name: actionPattern }).first().click();
 }
 
 test.describe('AI features (real gateway)', () => {
@@ -70,16 +73,18 @@ test.describe('AI features (real gateway)', () => {
 
     await openAiMenuAction(page, /summarize/i);
 
-    const preview = page.getByTestId(TESTIDS.aiPreviewModal).or(page.getByRole('dialog'));
-    await expect(preview.first()).toBeVisible({ timeout: 15_000 });
-
+    // The AI preview modal only mounts once the (real) summarize call returns, which
+    // can legitimately take up to ~90s — the disabled "AI…" button is the in-flight
+    // signal until then. Poll the modal's own testid for non-empty markdown so a
+    // single budget covers both "modal appeared" and "content rendered".
+    const preview = page.getByTestId(TESTIDS.aiPreviewModal);
     await expect
       .poll(
         async () => {
-          const text = await preview.first().textContent();
+          const text = await preview.textContent({ timeout: 2_000 }).catch(() => '');
           return (text ?? '').trim().length;
         },
-        { timeout: 90_000, message: 'AI summarize preview never rendered non-empty markdown' },
+        { timeout: 95_000, message: 'AI summarize preview never rendered non-empty markdown' },
       )
       .toBeGreaterThan(20);
   });
@@ -97,6 +102,8 @@ test.describe('AI features (real gateway)', () => {
     await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
 
     await openAiMenuAction(page, /flashcard/i);
+    // The AI menu asks "How many?" before generating — pick a count.
+    await page.locator('.folio-flashcard-count').getByRole('button', { name: '8' }).click();
 
     await expect(page.getByText(/\d+\s*cards?\s*added|flashcards?\s*(created|added|generated)/i)).toBeVisible({
       timeout: 90_000,

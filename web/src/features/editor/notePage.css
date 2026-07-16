@@ -421,10 +421,13 @@
 .folio-history-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.25);
   z-index: 90;
   display: flex;
   justify-content: flex-end;
+  /* Non-modal side drawer: the backdrop must not swallow clicks aimed at the
+     editor, so the student can keep editing / comparing while History is open.
+     Only the panel itself is interactive. */
+  pointer-events: none;
 }
 
 .folio-history-panel {
@@ -438,6 +441,7 @@
   flex-direction: column;
   padding: 18px;
   overflow-y: auto;
+  pointer-events: auto;
 }
 
 .folio-history-head {

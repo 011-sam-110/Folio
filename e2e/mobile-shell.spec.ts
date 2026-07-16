@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateNote, apiCreateNotebook, editorBody, exact, typeInEditor, uniqueName } from './utils';
+import { apiCreateNote, apiCreateNotebook, editorBody, exact, sidebarNav, typeInEditor, uniqueName } from './utils';
 
 test.describe('Mobile shell (Pixel 7)', () => {
   test('is usable at 390px: drawer opens via hamburger, a note opens, and the editor is typable', async ({
@@ -13,11 +13,12 @@ test.describe('Mobile shell (Pixel 7)', () => {
 
     await page.goto('/');
 
-    const hamburger = page.getByRole('button', { name: /menu|open sidebar|navigation|toggle sidebar/i });
+    // Narrow enough to not collide with note cards whose titles contain "menu".
+    const hamburger = page.getByRole('button', { name: /open menu|open sidebar|toggle sidebar/i });
     await expect(hamburger).toBeVisible({ timeout: 10_000 });
     await hamburger.click();
 
-    const notebookLink = page.getByRole('link', { name: exact(notebook.name) });
+    const notebookLink = sidebarNav(page).getByRole('link', { name: exact(notebook.name) });
     await expect(notebookLink).toBeVisible({ timeout: 10_000 });
     await notebookLink.click();
     await page.waitForURL(/\/notebook\//, { timeout: 10_000 });

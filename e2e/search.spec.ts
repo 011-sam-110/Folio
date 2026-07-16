@@ -71,11 +71,16 @@ test.describe('Search', () => {
     // Give the debounced search a moment to fire and settle.
     await page.waitForTimeout(600);
 
-    // No error toast (Toast.tsx renders `.folio-toast.error`, role="status") and
-    // the palette itself is still up and usable.
+    // No error toast (Toast.tsx renders `.folio-toast.error`, role="status") — this
+    // is the surface QuickSwitcher uses to report a failed search — and no inline
+    // error copy inside the palette itself. The error-text check is scoped to the
+    // switcher dialog on purpose: a page-wide bare "500" substring match false-fires
+    // on legitimate accumulated content (word counts, ids, timestamps, snippets) once
+    // the DB has grown, which is not what "the search errored" means.
     await expect(page.locator('.folio-toast.error')).toHaveCount(0);
-    await expect(page.getByText(/something went wrong|unexpected error|500/i)).toHaveCount(0);
-    await expect(page.getByTestId(TESTIDS.quickSwitcher)).toBeVisible();
+    const palette = page.getByTestId(TESTIDS.quickSwitcher);
+    await expect(palette.getByText(/something went wrong|unexpected error|search failed/i)).toHaveCount(0);
+    await expect(palette).toBeVisible();
 
     await page.keyboard.press('Escape');
     await expect(page.getByTestId(TESTIDS.quickSwitcher)).not.toBeVisible();

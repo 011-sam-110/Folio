@@ -100,7 +100,7 @@ export default function DashboardPage() {
         </header>
 
         {data.continueNote && (
-          <Link to={`/note/${data.continueNote.id}`} className="dash__hero">
+          <Link to={`/note/${data.continueNote.id}`} className="dash__hero" data-testid="continue-card">
             <div className="dash__hero-label">Continue where you left off</div>
             <div className="dash__hero-title">{data.continueNote.title || 'Untitled'}</div>
             {data.continueNote.snippet && <div className="dash__hero-snippet">{data.continueNote.snippet}</div>}
@@ -125,7 +125,7 @@ export default function DashboardPage() {
               hint="Create a note from a notebook in the sidebar, or import a photo of your lecture notes."
             />
           ) : (
-            <div className="note-grid">
+            <div className="note-grid" data-testid="recent-notes">
               {data.recent.map((n) => (
                 <NoteCard key={n.id} note={n} onClick={() => navigate(`/note/${n.id}`)} />
               ))}
@@ -138,7 +138,7 @@ export default function DashboardPage() {
             <div className="dash__section-head">
               <h2 className="dash__section-title">Pinned</h2>
             </div>
-            <div className="note-strip">
+            <div className="note-strip" data-testid="pinned-strip">
               {data.pinned.map((n) => (
                 <NoteCard key={n.id} note={n} onClick={() => navigate(`/note/${n.id}`)} />
               ))}
@@ -193,7 +193,7 @@ export default function DashboardPage() {
 
         <div className="rail-card">
           <div className="rail-card__title">Stats</div>
-          <div className="rail-stats">
+          <div className="rail-stats" data-testid="dashboard-stats">
             {plural(data.stats.notes, 'note')} · {numberFmt(data.stats.words)} words
             <br />
             {plural(data.stats.notebooks, 'notebook')}

@@ -7,6 +7,7 @@ import { api } from '../../lib/api';
 import type { Note } from '../../lib/types';
 import Spinner from '../../components/Spinner';
 import { getCachedNote, setCachedNote } from './wikilinkCache';
+import { flushActiveNote } from './autosaveBus';
 
 export default function WikilinkView({ node }: NodeViewProps) {
   const navigate = useNavigate();
@@ -49,9 +50,13 @@ export default function WikilinkView({ node }: NodeViewProps) {
     setShow(false);
   }
 
-  function handleClick(e: MouseEvent) {
+  async function handleClick(e: MouseEvent) {
     e.preventDefault();
-    if (noteId) navigate(`/note/${noteId}`);
+    if (!noteId) return;
+    // Persist any pending edit to the current note (e.g. the link just created)
+    // before navigating, so the destination's backlinks/content reflect it.
+    await flushActiveNote();
+    navigate(`/note/${noteId}`);
   }
 
   return (

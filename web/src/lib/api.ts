@@ -87,6 +87,7 @@ export const api = {
 
   // study
   studyQueue: (limit = 20) => http<{ cards: Flashcard[]; due: number; total: number }>(`/api/study/queue?limit=${limit}`),
+  studyCards: () => http<{ cards: Flashcard[] }>('/api/study/cards'),
   review: (cardId: string, rating: 'again' | 'hard' | 'good' | 'easy') => http<{ card: Flashcard; nextDueAt: string }>('/api/study/review', json('POST', { cardId, rating })),
   studyStats: () => http<StudyStats>('/api/study/stats'),
   updateCard: (id: string, b: Partial<{ question: string; answer: string; suspended: boolean }>) => http<{ card: Flashcard }>(`/api/study/cards/${id}`, json('PATCH', b)),

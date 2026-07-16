@@ -47,7 +47,7 @@ const SlashMenu = forwardRef<SuggestionListHandle, SlashMenuProps>(({ items, com
   const sections = SECTION_ORDER.filter((s) => items.some((i) => i.section === s));
 
   return (
-    <div className="folio-suggestion-menu folio-slash-menu" role="listbox">
+    <div className="folio-suggestion-menu folio-slash-menu" role="listbox" data-testid="slash-menu">
       {sections.map((section) => (
         <div key={section} className="folio-suggestion-section">
           <div className="folio-suggestion-section-label">{section}</div>
@@ -63,6 +63,7 @@ const SlashMenu = forwardRef<SuggestionListHandle, SlashMenuProps>(({ items, com
                   role="option"
                   aria-selected={idx === selected}
                   className={`folio-suggestion-item${idx === selected ? ' active' : ''}`}
+                  data-testid="slash-menu-item"
                   onMouseEnter={() => setSelected(idx)}
                   onClick={() => command(item)}
                 >

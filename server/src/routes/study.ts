@@ -62,6 +62,14 @@ router.get('/queue', (req, res) => {
   res.json({ cards: cards.map(flashcardDto), due, total });
 });
 
+// GET /api/study/cards — ALL cards (incl. suspended and not-yet-due), newest first.
+// Distinct from /queue (which is the due, non-suspended review set) so the Browse
+// tab can manage the whole deck.
+router.get('/cards', (_req, res) => {
+  const cards = db.prepare(`${withNoteTitleSql} ORDER BY f.created_at DESC`).all() as FlashcardRow[];
+  res.json({ cards: cards.map(flashcardDto) });
+});
+
 type Rating = 'again' | 'hard' | 'good' | 'easy';
 const RATINGS: Rating[] = ['again', 'hard', 'good', 'easy'];
 const MIN_EASE = 1.3;
@@ -94,9 +102,16 @@ router.post('/review', (req, res) => {
       break;
     }
     case 'hard': {
-      interval = interval * 1.2;
       ease = Math.max(MIN_EASE, ease - 0.15);
-      dueAt = new Date(now + interval * 86_400_000).toISOString();
+      if (reps === 0 && interval === 0) {
+        // Brand-new card graded 'hard': short 10-minute relearning step, still "new".
+        interval = 0;
+        dueAt = new Date(now + 600_000).toISOString();
+      } else {
+        reps = reps + 1;
+        interval = interval * 1.2;
+        dueAt = new Date(now + interval * 86_400_000).toISOString();
+      }
       break;
     }
     case 'good': {
@@ -107,8 +122,15 @@ router.post('/review', (req, res) => {
     }
     case 'easy': {
       const bumped = ease + 0.15;
-      interval = interval * bumped * 1.3;
       ease = bumped;
+      if (reps === 0 && interval === 0) {
+        // Brand-new card graded 'easy': jump straight to a 4-day interval, count the first rep.
+        reps = 1;
+        interval = 4;
+      } else {
+        reps = reps + 1;
+        interval = interval * bumped * 1.3;
+      }
       dueAt = new Date(now + interval * 86_400_000).toISOString();
       break;
     }

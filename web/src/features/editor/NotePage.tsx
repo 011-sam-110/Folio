@@ -18,6 +18,7 @@ import AiPreviewModal from './AiPreviewModal';
 import DropdownButton from './DropdownButton';
 import ImportModal from '../import/ImportModal';
 import { useAutosave } from './useAutosave';
+import { setActiveFlush } from './autosaveBus';
 import { markdownToSafeHtml } from './markdown';
 import type { OutlineItem } from './outline';
 import './notePage.css';
@@ -135,17 +136,36 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
   const titleRef = useRef(title);
   titleRef.current = title;
 
+  // Snapshot of the latest editable content, refreshed on every title/doc change.
+  // The autosave flush reads THIS (not the live editor) so a pending save still
+  // completes on blur/unmount even after the editor instance has been torn down
+  // (e.g. the user inserts a wikilink and immediately clicks it to navigate away).
+  const pendingRef = useRef<{ title: string; contentJson: unknown; contentText: string } | null>(null);
+
+  const capturePending = useCallback(() => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    pendingRef.current = {
+      title: titleRef.current,
+      contentJson: ed.getJSON(),
+      contentText: ed.getText({ blockSeparator: '\n' }),
+    };
+  }, []);
+
   const autosave = useAutosave(
     note.id,
-    () => {
-      const ed = editorRef.current;
-      if (!ed) return null;
-      return { title: titleRef.current, contentJson: ed.getJSON(), contentText: ed.getText({ blockSeparator: '\n' }) };
-    },
+    () => pendingRef.current,
     (savedNote) => {
       setNote((prev) => ({ ...prev, updatedAt: savedNote.updatedAt, tags: savedNote.tags }));
     },
   );
+
+  // Expose this note's flush so in-editor navigation (wikilink clicks) can persist
+  // pending edits before leaving.
+  useEffect(() => {
+    setActiveFlush(autosave.flush);
+    return () => setActiveFlush(null);
+  }, [autosave.flush]);
 
   useEffect(() => {
     api
@@ -183,6 +203,7 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
 
   function handleEditorReady(editor: Editor) {
     editorRef.current = editor;
+    capturePending();
     setWordCount(editor.storage.characterCount?.words() ?? 0);
     setCharCount(editor.storage.characterCount?.characters() ?? 0);
   }
@@ -190,6 +211,7 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
     editorRef.current = null;
   }
   function handleDocChange() {
+    capturePending();
     autosave.schedule();
     const ed = editorRef.current;
     if (ed) {
@@ -200,6 +222,8 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
 
   function handleTitleChange(e: ChangeEvent<HTMLInputElement>) {
     setTitle(e.target.value);
+    titleRef.current = e.target.value;
+    capturePending();
     autosave.schedule();
   }
   function handleTitleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -255,6 +279,8 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
     try {
       const res = await api.aiTitle(note.id);
       setTitle(res.title);
+      titleRef.current = res.title;
+      capturePending();
       autosave.schedule();
       toast('Title updated', 'ok');
     } catch (e) {
@@ -349,12 +375,20 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
               type="button"
               className={`folio-btn-icon${note.pinned ? ' active' : ''}`}
               title={note.pinned ? 'Unpin' : 'Pin'}
+              aria-label={note.pinned ? 'Unpin' : 'Pin'}
               onClick={togglePin}
             >
               {note.pinned ? '📌' : '📍'}
             </button>
 
-            <DropdownButton label={aiBusy ? 'AI…' : '✨ AI'} disabled={!!aiBusy}>
+            <DropdownButton
+              label={
+                <>
+                  <span aria-hidden="true">✨</span> {aiBusy ? 'AI…' : 'AI'}
+                </>
+              }
+              disabled={!!aiBusy}
+            >
               {(close) => (
                 <>
                   <button type="button" onClick={() => handleImprove(close)}>
@@ -429,7 +463,7 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
               )}
             </div>
 
-            <span className={`folio-save-chip folio-save-${autosave.status}`}>
+            <span className={`folio-save-chip folio-save-${autosave.status}`} data-testid="autosave-status">
               {autosave.status === 'error' ? (
                 <>
                   Save failed
@@ -461,7 +495,7 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
             onTableOfContents={handleTableOfContents}
           />
 
-          <section className="folio-links-section">
+          <section className="folio-links-section" data-testid="backlinks-section">
             <h4>Linked from {plural(backlinks.length, 'note')}</h4>
             {backlinks.length === 0 ? (
               <p className="folio-links-empty">No notes link here yet.</p>

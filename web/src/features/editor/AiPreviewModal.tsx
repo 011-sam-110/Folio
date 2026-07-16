@@ -24,7 +24,7 @@ export default function AiPreviewModal({ open, onClose, heading, model, before, 
 
   return (
     <Modal open={open} onClose={onClose} title={heading} width={760}>
-      <div className="folio-ai-modal">
+      <div className="folio-ai-modal" data-testid="ai-preview-modal">
         {model && <div className="folio-ai-model">✨ {model}</div>}
         <div className={`folio-ai-preview${before != null ? ' folio-ai-preview-split' : ''}`}>
           {before != null && (

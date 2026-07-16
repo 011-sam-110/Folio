@@ -47,8 +47,10 @@ test.describe('Dashboard', () => {
     const tagged = await apiCreateNote(request, notebook.id, uniqueName('Tagged Note'), { tags: [tag] });
 
     await page.goto(`/notebook/${notebook.id}`);
-    await expect(page.getByText(newer.title)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(older.title)).toBeVisible();
+    // title == snippet here (the note body defaults to its title), so the text
+    // appears in both the card title and snippet — scope to the first match.
+    await expect(page.getByText(newer.title).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(older.title).first()).toBeVisible();
 
     // Default sort is "updated" (most recent first) — the newer note should be
     // positioned before the older one in document order.

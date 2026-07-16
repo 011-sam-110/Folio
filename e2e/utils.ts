@@ -55,22 +55,29 @@ export function dialog(page: Page): Locator {
 
 /**
  * Creates a notebook through the sidebar "+ New notebook" control and waits for it
- * to appear in the sidebar. Returns once the notebook link is visible.
+ * to appear in the sidebar. The sidebar reveals an inline create form (not a modal)
+ * with a "Notebook name" field + a "Create notebook" submit button. Returns once the
+ * notebook link is visible in the sidebar.
  */
 export async function createNotebookViaSidebar(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: /new notebook/i }).click();
-  const d = dialog(page);
-  await expect(d).toBeVisible();
-  const nameInput = d.getByPlaceholder(/name/i).or(d.getByRole('textbox').first());
+  const nameInput = page.getByPlaceholder(/notebook name/i);
+  await expect(nameInput).toBeVisible({ timeout: 5_000 });
   await nameInput.fill(name);
-  await d.getByRole('button', { name: /^(create|save|add)\b/i }).first().click();
-  await expect(d).not.toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole('link', { name: exact(name) })).toBeVisible({ timeout: 10_000 });
+  await page.getByRole('button', { name: /create notebook/i }).click();
+  await expect(sidebarNav(page).getByRole('link', { name: exact(name) })).toBeVisible({ timeout: 10_000 });
+}
+
+/** The sidebar `<nav aria-label="Folio">`. Notebook links elsewhere (breadcrumb,
+ * dashboard columns/hero) share the same name, so notebook navigation must scope
+ * to this nav to stay unambiguous. */
+export function sidebarNav(page: Page): Locator {
+  return page.getByRole('navigation', { name: 'Folio' });
 }
 
 /** Opens a notebook from the sidebar by name (partial match). */
 export async function openNotebook(page: Page, name: string): Promise<void> {
-  await page.getByRole('link', { name: exact(name) }).click();
+  await sidebarNav(page).getByRole('link', { name: exact(name) }).click();
   await page.waitForURL(/\/notebook\//);
 }
 
@@ -190,19 +197,29 @@ export async function runDesktopImport(
   page: Page,
   opts: { kindLabel: RegExp; filePath: string; notebookName?: string; doneTimeout?: number },
 ): Promise<Locator> {
-  await page.getByRole('button', { name: /import/i }).first().click();
+  // Scope to <main>: a notebook whose NAME contains "Import" would otherwise make
+  // the sidebar's "Change emoji for <notebook>" button match /import/i first.
+  await page.getByRole('main').getByRole('button', { name: /import/i }).first().click();
 
-  // ImportModal (web/src/features/import/ImportModal.tsx) always titles its dialog
-  // "Import" and exposes the 3 kinds as role="tab" inside role="tablist".
-  const d = page.getByRole('dialog', { name: /import/i }).or(dialog(page));
-  await expect(d.first()).toBeVisible({ timeout: 10_000 });
+  // The notebook page's "Import ▾" trigger opens a dropdown menu of kinds; choosing
+  // one there opens the ImportModal already set to that kind. Wait for either the
+  // menuitem (dropdown) or the modal itself (direct-open contexts).
+  // The ImportModal (web/src/features/import/ImportModal.tsx) titles its dialog
+  // exactly "Import" — scope to that so we never grab another dialog (e.g. an emoji
+  // picker) that happens to be on screen.
+  const d = page.getByRole('dialog', { name: /^import$/i });
+  const kindMenuItem = page.getByRole('menuitem', { name: opts.kindLabel });
+  await expect(kindMenuItem.or(d).first()).toBeVisible({ timeout: 10_000 });
+  if (await kindMenuItem.isVisible().catch(() => false)) {
+    await kindMenuItem.first().click();
+  }
 
-  const kindControl = d
-    .getByRole('tab', { name: opts.kindLabel })
-    .or(d.getByRole('menuitem', { name: opts.kindLabel }))
-    .or(d.getByRole('button', { name: opts.kindLabel }));
-  if (await kindControl.count()) {
-    await kindControl.first().click();
+  await expect(d).toBeVisible({ timeout: 10_000 });
+
+  // Ensure the right kind tab is active inside the modal (harmless if already set).
+  const kindTab = d.getByRole('tab', { name: opts.kindLabel });
+  if (await kindTab.count()) {
+    await kindTab.first().click();
   }
 
   await d.locator('input[type="file"]').first().setInputFiles(opts.filePath);

@@ -12,11 +12,13 @@ export default function NoteCard({
   onClick,
   compact = false,
   controls,
+  testId,
 }: {
   note: NoteLite;
   onClick: () => void;
   compact?: boolean;
   controls?: ReactNode;
+  testId?: string;
 }) {
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -30,6 +32,7 @@ export default function NoteCard({
       className={`note-card${compact ? ' note-card--compact' : ''}`}
       role="button"
       tabIndex={0}
+      data-testid={testId}
       onClick={onClick}
       onKeyDown={onKeyDown}
     >

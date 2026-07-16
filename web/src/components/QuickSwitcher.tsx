@@ -147,7 +147,7 @@ export default function QuickSwitcher({
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div className="folio-qs" role="dialog" aria-modal="true" aria-label="Quick switcher" onKeyDown={onKeyDown}>
+      <div className="folio-qs" role="dialog" aria-modal="true" aria-label="Quick switcher" data-testid="quick-switcher" onKeyDown={onKeyDown}>
         <div className="folio-qs__input-row">
           <Icon name="search" size={16} style={{ color: 'var(--ink-3)', flex: '0 0 auto' }} />
           <input
@@ -174,6 +174,7 @@ export default function QuickSwitcher({
                 <div
                   key={r.id}
                   className={`folio-qs__row${i === activeIndex ? ' is-active' : ''}`}
+                  data-testid="quick-switcher-result"
                   onMouseEnter={() => setActiveIndex(i)}
                   onClick={() => go(r.id)}
                 >
@@ -192,7 +193,7 @@ export default function QuickSwitcher({
           )}
 
           {q && filteredText.length > 0 && (
-            <>
+            <div className="folio-qs__fulltext" data-testid="fulltext-results">
               <div className="folio-qs__section-label">Full-text matches</div>
               {filteredText.map((r, j) => {
                 const i = titleResults.length + j;
@@ -200,6 +201,7 @@ export default function QuickSwitcher({
                   <div
                     key={r.note.id}
                     className={`folio-qs__row${i === activeIndex ? ' is-active' : ''}`}
+                    data-testid="quick-switcher-result"
                     onMouseEnter={() => setActiveIndex(i)}
                     onClick={() => go(r.note.id)}
                   >
@@ -220,7 +222,7 @@ export default function QuickSwitcher({
                   </div>
                 );
               })}
-            </>
+            </div>
           )}
 
           {q && !loading && titleResults.length === 0 && filteredText.length === 0 && (

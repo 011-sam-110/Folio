@@ -99,8 +99,16 @@ export default function HistoryPanel({ noteId, open, onClose, onRestored }: Hist
   const grouped = groupByDay(versions ?? []);
 
   return (
-    <div className="folio-history-overlay" onClick={onClose}>
-      <aside className="folio-history-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Version history">
+    <div className="folio-history-overlay">
+      <aside
+        className="folio-history-panel"
+        role="dialog"
+        aria-label="Version history"
+        data-testid="history-drawer"
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onClose();
+        }}
+      >
         <div className="folio-history-head">
           <h3>History</h3>
           <button type="button" className="folio-btn-icon" onClick={onClose} aria-label="Close history">
@@ -130,7 +138,7 @@ export default function HistoryPanel({ noteId, open, onClose, onRestored }: Hist
               <div key={day} className="folio-history-day">
                 <div className="folio-history-day-label">{day}</div>
                 {items.map((v) => (
-                  <button key={v.id} type="button" className="folio-history-row" onClick={() => openVersion(v)}>
+                  <button key={v.id} type="button" className="folio-history-row" data-testid="history-version-item" onClick={() => openVersion(v)}>
                     <span className="folio-history-cause" title={CAUSE_LABEL[v.cause] ?? v.cause}>
                       {CAUSE_ICON[v.cause] ?? '•'}
                     </span>

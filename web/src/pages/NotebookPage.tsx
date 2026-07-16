@@ -185,6 +185,7 @@ export default function NotebookPage() {
         key={note.id}
         note={note}
         compact
+        testId="note-row"
         onClick={() => navigate(`/note/${note.id}`)}
         controls={
           <>
@@ -314,7 +315,7 @@ export default function NotebookPage() {
                   className={`chip${selectedTag === tag ? ' active' : ''}`}
                   onClick={() => setSelectedTag((t) => (t === tag ? null : tag))}
                 >
-                  #{tag} <span style={{ opacity: 0.6 }}>{count}</span>
+                  <span className="chip__tag">#{tag}</span> <span style={{ opacity: 0.6 }}>{count}</span>
                 </button>
               ))}
             </>

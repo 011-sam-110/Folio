@@ -6,7 +6,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(__dirname, '..', '..'); // repo root
 export const DATA_DIR = path.join(ROOT, 'data');
 export const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
-export const DB_PATH = process.env.FOLIO_DB_PATH ?? path.join(DATA_DIR, 'folio.db');
+// Resolve a relative FOLIO_DB_PATH against the repo root (not process.cwd()), so it
+// is deterministic no matter which workspace directory npm launches the process from
+// (e.g. `npm run start -w server` runs with cwd=server/). Absolute paths pass through.
+export const DB_PATH = process.env.FOLIO_DB_PATH
+  ? path.resolve(ROOT, process.env.FOLIO_DB_PATH)
+  : path.join(DATA_DIR, 'folio.db');
 
 // Tiny zero-dep .env loader (repo-root .env). Does not override real env vars.
 const envPath = path.join(ROOT, '.env');
@@ -32,4 +37,4 @@ export const config = {
   },
 };
 
-for (const dir of [DATA_DIR, UPLOADS_DIR]) fs.mkdirSync(dir, { recursive: true });
+for (const dir of [DATA_DIR, UPLOADS_DIR, path.dirname(DB_PATH)]) fs.mkdirSync(dir, { recursive: true });

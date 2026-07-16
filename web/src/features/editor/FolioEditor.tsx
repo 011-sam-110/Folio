@@ -1,7 +1,7 @@
 // The TipTap editor wrapper: extensions, selection/table bubble menus, drag handle,
 // image paste/drop, and outline reporting. Content is only used to seed the editor —
 // callers should `key={note.id}` this component to fully reinitialize on note switch.
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { EditorContent, useEditor, type Editor, type JSONContent } from '@tiptap/react';
 import DragHandle from '@tiptap/extension-drag-handle-react';
 import { createFolioExtensions } from './buildExtensions';
@@ -43,7 +43,7 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
     extensions,
     content: (content ?? '') as JSONContent,
     editorProps: {
-      attributes: { class: 'folio-prosemirror', spellcheck: 'true' },
+      attributes: { class: 'folio-prosemirror', spellcheck: 'true', 'data-testid': 'note-editor' },
       handleClick(_view, _pos, event) {
         const target = event.target as HTMLElement;
         const link = target.closest?.('a.folio-link') as HTMLAnchorElement | null;
@@ -72,22 +72,32 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
         return false;
       },
     },
-    onCreate: ({ editor }) => {
-      editorBox.current = editor;
-      onReady(editor);
-      onOutline(computeOutline(editor));
-    },
     onUpdate: ({ editor, transaction }) => {
       if (transaction.docChanged) {
         onDocChange();
         onOutline(computeOutline(editor));
       }
     },
-    onDestroy: () => {
+  });
+
+  // Report the live editor to the parent through React's own effect lifecycle
+  // rather than TipTap's onCreate/onDestroy. Under React 18 StrictMode the editor
+  // is created, torn down, and re-attached, and the raw create/destroy callbacks
+  // can fire in an order that leaves the parent's editor ref pointing at a
+  // destroyed instance (or null) — which silently breaks autosave. Keying this
+  // effect on `editor` makes ref handoff deterministic: cleanup always runs before
+  // the next setup, so the ref ends on the current live editor.
+  useEffect(() => {
+    if (!editor) return;
+    editorBox.current = editor;
+    onReady(editor);
+    onOutline(computeOutline(editor));
+    return () => {
       editorBox.current = null;
       onDestroy();
-    },
-  });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
 
   if (!editor) return null;
 

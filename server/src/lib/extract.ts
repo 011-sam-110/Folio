@@ -42,7 +42,10 @@ export async function extractFromUpload(filePath: string, mime: string, original
 
   if (isPdf(mime, ext)) {
     const buf = await fsp.readFile(filePath);
-    const { totalPages, text } = await extractText(buf, { mergePages: false });
+    // unpdf rejects a Node Buffer (even though it is a Uint8Array subclass) and
+    // requires a plain Uint8Array view over the same bytes.
+    const data = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    const { totalPages, text } = await extractText(data, { mergePages: false });
     const joined = text
       .map((page, i) => `${PDF_PAGE_MARKER(i + 1)}${page.trim()}`)
       .join('')

@@ -136,7 +136,7 @@ describe('POST /api/study/review — SM-2 rating transitions', () => {
     expect(row.ease).toBe(1.3);
   });
 
-  it('hard: interval *= 1.2, ease -= 0.15, reps unchanged', async () => {
+  it('hard on an established card: interval *= 1.2, ease -= 0.15, reps increments', async () => {
     const notebookId = insertNotebook();
     const noteId = insertNote(notebookId);
     const cardId = insertCard(noteId, { ease: 2.5, interval_days: 4, reps: 3 });
@@ -145,9 +145,27 @@ describe('POST /api/study/review — SM-2 rating transitions', () => {
     expect(res.status).toBe(200);
 
     const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
-    expect(row.reps).toBe(3);
+    expect(row.reps).toBe(4);
     expect(row.interval_days).toBeCloseTo(4.8, 5);
     expect(row.ease).toBeCloseTo(2.35, 5);
+  });
+
+  it('hard on a fresh card (reps 0, interval 0): due in ~10 minutes, reps and interval stay 0', async () => {
+    const notebookId = insertNotebook();
+    const noteId = insertNote(notebookId);
+    const cardId = insertCard(noteId, { ease: 2.5, interval_days: 0, reps: 0 });
+
+    const res = await request(app).post('/api/study/review').send({ cardId, rating: 'hard' });
+    expect(res.status).toBe(200);
+
+    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    expect(row.reps).toBe(0);
+    expect(row.interval_days).toBe(0);
+    expect(row.ease).toBeCloseTo(2.35, 5);
+
+    const dueAt = new Date(row.due_at).getTime();
+    const expected = Date.now() + 600_000;
+    expect(Math.abs(dueAt - expected)).toBeLessThan(5_000);
   });
 
   it('good on a fresh card (reps 0 -> 1): interval becomes 1 day flat, ease unchanged', async () => {
@@ -182,7 +200,7 @@ describe('POST /api/study/review — SM-2 rating transitions', () => {
     expect(row.ease).toBe(2.5);
   });
 
-  it('easy: interval = interval * (ease + 0.15) * 1.3, ease += 0.15', async () => {
+  it('easy on an established card: interval = interval * (ease + 0.15) * 1.3, ease += 0.15, reps increments', async () => {
     const notebookId = insertNotebook();
     const noteId = insertNote(notebookId);
     const cardId = insertCard(noteId, { ease: 2.0, interval_days: 5, reps: 2 });
@@ -191,8 +209,27 @@ describe('POST /api/study/review — SM-2 rating transitions', () => {
     expect(res.status).toBe(200);
 
     const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    expect(row.reps).toBe(3);
     expect(row.ease).toBeCloseTo(2.15, 5);
     expect(row.interval_days).toBeCloseTo(5 * 2.15 * 1.3, 5);
+  });
+
+  it('easy on a fresh card (reps 0, interval 0): interval jumps to 4 days, reps -> 1', async () => {
+    const notebookId = insertNotebook();
+    const noteId = insertNote(notebookId);
+    const cardId = insertCard(noteId, { ease: 2.5, interval_days: 0, reps: 0 });
+
+    const res = await request(app).post('/api/study/review').send({ cardId, rating: 'easy' });
+    expect(res.status).toBe(200);
+
+    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    expect(row.reps).toBe(1);
+    expect(row.interval_days).toBe(4);
+    expect(row.ease).toBeCloseTo(2.65, 5);
+
+    const dueAt = new Date(row.due_at).getTime();
+    const expected = Date.now() + 4 * 86_400_000;
+    expect(Math.abs(dueAt - expected)).toBeLessThan(5_000);
   });
 
   it('logs every review to review_log', async () => {

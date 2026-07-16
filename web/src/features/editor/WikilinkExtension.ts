@@ -1,8 +1,8 @@
 // Custom atomic inline node for [[Wikilinks]]. Triggered by typing '[[' (Suggestion),
 // autocompletes from api.searchTitles, offers "Create note: X", renders as an accent
 // link with a hover preview (WikilinkView), and serializes back to plain-text
-// `[[Title]]` / `[[Title|Alias]]` via renderText so contentText feeds server-side
-// link extraction (see docs/API.md PATCH /api/notes/:id).
+// `[[Title]]` via renderText so contentText feeds server-side link extraction
+// (see docs/API.md PATCH /api/notes/:id).
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
@@ -81,7 +81,10 @@ const Wikilink = Node.create<WikilinkOptions>({
   },
 
   renderText({ node }) {
-    return node.attrs.alias ? `[[${node.attrs.title}|${node.attrs.alias}]]` : `[[${node.attrs.title}]]`;
+    // Always serialize the plain [[Title]] form into editor.getText() (no alias
+    // pipe) so the server's link extractor (lib/links.ts) resolves the target by
+    // its canonical title. The alias only affects on-screen rendering.
+    return `[[${node.attrs.title}]]`;
   },
 
   addNodeView() {

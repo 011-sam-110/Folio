@@ -81,28 +81,45 @@ router.post('/flashcards', async (req, res) => {
   const target = Number.isFinite(requested) && requested > 0 ? Math.min(20, Math.max(1, Math.trunc(requested))) : 8;
 
   try {
-    const { text, model } = await chat(flashcardsPrompt(note.content_text, note.title || 'Untitled', target));
+    // chat() already falls back across the model chain on *transport* failures, but a
+    // model can return HTTP 200 with malformed/empty JSON. That content-level failure
+    // is the dominant flakiness source, so retry the whole generate→parse→validate
+    // cycle a few times (each attempt draws a fresh sample at temp 0.4) before giving
+    // up, rather than failing the request on a single bad completion.
+    const MAX_ATTEMPTS = 3;
+    const failures: Array<{ model: string; error: string }> = [];
+    let cards: Array<{ question: string; answer: string }> | null = null;
 
-    let parsed: unknown;
-    try {
-      parsed = extractJson<unknown>(text);
-    } catch (parseErr) {
-      throw new AiError('AI returned unparsable flashcards', [
-        { model, error: parseErr instanceof Error ? parseErr.message : String(parseErr) },
-      ]);
+    for (let attempt = 0; attempt < MAX_ATTEMPTS && !cards; attempt++) {
+      const { text, model } = await chat(flashcardsPrompt(note.content_text, note.title || 'Untitled', target));
+
+      let parsed: unknown;
+      try {
+        parsed = extractJson<unknown>(text);
+      } catch (parseErr) {
+        failures.push({ model, error: `unparsable: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}` });
+        continue;
+      }
+      if (!Array.isArray(parsed)) {
+        failures.push({ model, error: 'not an array' });
+        continue;
+      }
+
+      const candidate = parsed
+        .filter((c): c is Record<string, unknown> => !!c && typeof c === 'object')
+        .map(c => ({ question: String(c.question ?? '').trim(), answer: String(c.answer ?? '').trim() }))
+        .filter(c => c.question.length > 0 && c.answer.length > 0)
+        .slice(0, target);
+
+      if (candidate.length === 0) {
+        failures.push({ model, error: 'empty after validation' });
+        continue;
+      }
+      cards = candidate;
     }
-    if (!Array.isArray(parsed)) {
-      throw new AiError('AI response was not a flashcard array', [{ model, error: 'not an array' }]);
-    }
 
-    const cards = parsed
-      .filter((c): c is Record<string, unknown> => !!c && typeof c === 'object')
-      .map(c => ({ question: String(c.question ?? '').trim(), answer: String(c.answer ?? '').trim() }))
-      .filter(c => c.question.length > 0 && c.answer.length > 0)
-      .slice(0, target);
-
-    if (cards.length === 0) {
-      throw new AiError('AI returned no valid flashcards', [{ model, error: 'empty after validation' }]);
+    if (!cards) {
+      throw new AiError('AI returned no valid flashcards', failures);
     }
 
     const now = nowIso();

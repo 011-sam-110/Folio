@@ -44,7 +44,7 @@ const WikilinkList = forwardRef<SuggestionListHandle, WikilinkListProps>(({ item
   }
 
   return (
-    <div className="folio-suggestion-menu folio-wikilink-menu" role="listbox">
+    <div className="folio-suggestion-menu folio-wikilink-menu" role="listbox" data-testid="wikilink-menu">
       {items.map((item, idx) => (
         <button
           key={item.__create ? '__create__' : item.id}
@@ -52,6 +52,7 @@ const WikilinkList = forwardRef<SuggestionListHandle, WikilinkListProps>(({ item
           role="option"
           aria-selected={idx === selected}
           className={`folio-suggestion-item${idx === selected ? ' active' : ''}`}
+          data-testid="wikilink-menu-item"
           onMouseEnter={() => setSelected(idx)}
           onClick={() => command(item)}
         >

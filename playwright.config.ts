@@ -18,7 +18,11 @@ export default defineConfig({
   workers: 1,
   retries: 1,
   reporter: [['list']],
-  globalSetup: './e2e/global-setup.ts',
+  // NOTE: the e2e DB is wiped + reseeded by the API webServer command below
+  // (`seed --force && start`), not by a separate globalSetup. Seeding in a
+  // globalSetup that deletes the DB file races the webServer opening that same
+  // file, which fails on Windows (EPERM/delete-pending). Bundling seed→start into
+  // one sequential command removes the race and guarantees a fresh DB per run.
   use: {
     baseURL: `http://localhost:${WEB_PORT}`,
     trace: 'retain-on-failure',
@@ -30,11 +34,13 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run start -w server',
+      // Reseed a deterministic DB, then start — sequentially, so the server only
+      // opens the file after the seed has finished writing it.
+      command: 'npm run seed -w server -- --force && npm run start -w server',
       url: `http://localhost:${API_PORT}/api/health`,
       env: E2E_ENV,
       reuseExistingServer: false,
-      timeout: 30_000,
+      timeout: 60_000,
     },
     {
       command: 'npm run dev -w web',

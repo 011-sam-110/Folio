@@ -1,7 +1,6 @@
-// All-cards management table. NOTE: the only per-card listing endpoint the
-// API contract exposes is GET /api/study/queue (due + not-suspended cards,
-// per docs/API.md), so this is the best available data source for "all
-// cards" — fetched with a generous limit rather than the review-sized 20.
+// All-cards management table. Uses GET /api/study/cards (per docs/API.md), which
+// returns the whole deck including suspended and not-yet-due cards — the correct
+// data source for a management surface (the review /queue is due-only).
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
@@ -11,8 +10,6 @@ import EmptyState from '../../components/EmptyState';
 import Skeleton from '../../components/Skeleton';
 import { relativeTime } from '../../lib/format';
 import './StudyPage.css';
-
-const BROWSE_LIMIT = 500;
 
 type RowState = 'idle' | 'editing' | 'confirmDelete';
 
@@ -29,7 +26,7 @@ export default function BrowseTab({ stats, onChanged }: { stats: StudyStats | nu
     setCards(null);
     setError(false);
     try {
-      const res = await api.studyQueue(BROWSE_LIMIT);
+      const res = await api.studyCards();
       setCards(res.cards);
     } catch {
       setError(true);
