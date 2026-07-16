@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Modal from '../../components/Modal';
+import Icon from '../../components/Icon';
 import { toast } from '../../components/Toast';
 import { api, ApiError } from '../../lib/api';
 import type { Note, Notebook } from '../../lib/types';
@@ -21,6 +22,9 @@ export interface ImportModalProps {
   notebookId?: string;
   noteId?: string;
   defaultKind?: 'photo' | 'slides' | 'transcript';
+  /** Fired when an import completes successfully, with the resulting note id. Lets a host
+   *  (e.g. the open note) resync its editor when the import targeted it. */
+  onImported?: (resultNoteId: string) => void;
 }
 
 type MergeMode = 'append' | 'improve';
@@ -32,7 +36,7 @@ interface ChainState {
   noteId?: string;
 }
 
-export default function ImportModal({ open, onClose, notebookId, noteId, defaultKind }: ImportModalProps) {
+export default function ImportModal({ open, onClose, notebookId, noteId, defaultKind, onImported }: ImportModalProps) {
   const [kind, setKind] = useState<ImportKind>(defaultKind ?? 'photo');
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [notebooksLoading, setNotebooksLoading] = useState(false);
@@ -191,6 +195,7 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
         } catch {
           setResultTitle(null);
         }
+        onImported?.(finalNoteId);
       }
       setPhase('done');
     } catch (err) {
@@ -229,7 +234,7 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
               disabled={phase === 'running'}
               onClick={() => handleKindChange(k.key)}
             >
-              <span aria-hidden="true">{k.icon}</span> {k.label}
+              <Icon name={k.iconName} size={14} /> {k.label}
             </button>
           ))}
         </div>
@@ -288,7 +293,7 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
               aria-label={`Drop or browse for ${kindMeta.label.toLowerCase()}`}
               onKeyDown={onDropZoneKeyDown}
             >
-              <div className="im-drop__icon" aria-hidden="true">{kindMeta.icon}</div>
+              <div className="im-drop__icon" aria-hidden="true"><Icon name={kindMeta.iconName} size={26} /></div>
               <div className="im-drop__label">Drop {kindMeta.label.toLowerCase()} here, or click to browse</div>
               <div className="im-drop__hint">{kindMeta.hint}</div>
               <input
@@ -321,7 +326,7 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
                 <div className="im-files">
                   {files.map((f, i) => (
                     <div className="im-file-card" key={f.name}>
-                      <span className="im-file-card__icon" aria-hidden="true">{kindMeta.icon}</span>
+                      <span className="im-file-card__icon" aria-hidden="true"><Icon name={kindMeta.iconName} size={18} /></span>
                       <div className="im-file-card__meta">
                         <div className="im-file-card__name">{f.name}</div>
                         <div className="im-file-card__size">{formatBytes(f.size)}</div>

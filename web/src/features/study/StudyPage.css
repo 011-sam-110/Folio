@@ -36,6 +36,33 @@
   border-radius: var(--radius-lg);
 }
 
+/* Notebook filter chips (cram one module) */
+.sy-filter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.sy-filter-chip {
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: border-color var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
+}
+.sy-filter-chip:hover {
+  border-color: var(--ink-3);
+}
+.sy-filter-chip.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .sy-tab {
   height: 34px;
   padding: 0 14px;

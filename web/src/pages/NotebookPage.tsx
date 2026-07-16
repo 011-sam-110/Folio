@@ -134,13 +134,30 @@ export default function NotebookPage() {
 
   async function confirmDeleteNote() {
     if (!deleteTarget) return;
+    const deletedId = deleteTarget.id;
+    const deletedTitle = deleteTarget.title || 'Untitled';
     setDeleting(true);
     try {
-      await api.deleteNote(deleteTarget.id);
-      toast('Note deleted', 'ok');
-      setActiveNotes((prev) => (prev ? prev.filter((n) => n.id !== deleteTarget.id) : prev));
-      setArchivedNotes((prev) => (prev ? prev.filter((n) => n.id !== deleteTarget.id) : prev));
+      await api.deleteNote(deletedId);
+      setActiveNotes((prev) => (prev ? prev.filter((n) => n.id !== deletedId) : prev));
+      setArchivedNotes((prev) => (prev ? prev.filter((n) => n.id !== deletedId) : prev));
       setDeleteTarget(null);
+      // Soft-delete: offer a 10s Undo that restores the note in place.
+      toast(`Deleted "${deletedTitle}"`, 'ok', {
+        durationMs: 10_000,
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            api
+              .undeleteNote(deletedId)
+              .then(() => {
+                toast('Note restored', 'ok');
+                load();
+              })
+              .catch((e) => toast(errorMessage(e, 'Could not restore note'), 'error'));
+          },
+        },
+      });
     } catch (e) {
       toast(errorMessage(e, 'Could not delete note'), 'error');
     } finally {
@@ -399,7 +416,7 @@ export default function NotebookPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title={`Delete "${deleteTarget?.title || 'Untitled'}"?`}
-        message="This permanently deletes the note and its version history. This can't be undone."
+        message="The note is kept in the trash for 30 days (you can Undo right after deleting), then purged along with its version history."
         confirmLabel="Delete note"
         danger
         loading={deleting}

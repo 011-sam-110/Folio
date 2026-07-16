@@ -256,6 +256,14 @@
 @media (max-width: 980px) {
   .dash {
     flex-direction: column;
+    /* Column direction makes the cross axis horizontal: children must stretch to the
+       container width. Keeping flex-start here let .dash__main size to fit-content, so a
+       3-card pinned strip (~714px max-content) blew the whole page past the viewport. */
+    align-items: stretch;
+  }
+  .dash__main,
+  .dash__rail {
+    min-width: 0;
   }
   .dash__rail {
     width: 100%;
@@ -396,5 +404,32 @@
   }
   .note-card--compact .note-card__meta {
     display: none;
+  }
+
+  /* Dashboard phone layout: hard single-column stack, no fixed-width grids, and no
+     page-level horizontal overflow (wide content scrolls in its own container). */
+  .note-grid {
+    grid-template-columns: 1fr;
+  }
+  .notebook-col-row {
+    grid-template-columns: 1fr;
+  }
+  .dash {
+    overflow-x: clip;
+  }
+  .dash__hero-title,
+  .dash__hero-snippet,
+  .notebook-col__name {
+    overflow-wrap: anywhere;
+  }
+  .dash__hero-snippet {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .note-strip .note-card {
+    min-width: 200px;
+    flex: 0 0 min(230px, 78vw);
   }
 }

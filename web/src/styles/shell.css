@@ -98,8 +98,12 @@
     z-index: 60;
     width: min(84vw, 300px);
     transform: translateX(-100%);
+    /* Closed drawer is invisible AND non-interactive (paired with the inert attribute set
+       in App.tsx): its off-canvas controls must not be tabbable or visible to AT. The
+       visibility transition delay keeps the slide-out animation visible before hiding. */
+    visibility: hidden;
+    transition: transform var(--dur-slow) var(--ease-out), visibility 0s linear var(--dur-slow);
     box-shadow: var(--shadow-pop);
-    transition: transform var(--dur-slow) var(--ease-out);
   }
   .app-sidebar-wrap[data-collapsed='true'] {
     width: min(84vw, 300px);
@@ -107,6 +111,8 @@
   }
   .app-sidebar-wrap[data-mobile-open='true'] {
     transform: translateX(0);
+    visibility: visible;
+    transition: transform var(--dur-slow) var(--ease-out);
   }
   .sidebar {
     width: min(84vw, 300px);

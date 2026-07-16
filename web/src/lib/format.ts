@@ -25,6 +25,12 @@ export function numberFmt(n: number): string {
   return n.toLocaleString();
 }
 
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /** "Good morning" / "Good afternoon" / "Good evening" based on the local hour. */
 export function greeting(date = new Date()): string {
   const h = date.getHours();

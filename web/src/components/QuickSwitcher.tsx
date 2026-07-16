@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { SearchResult, TitleResult } from '../lib/types';
 import { relativeTime, parseSnippetHtml, errorMessage } from '../lib/format';
+import { resolveFilingNotebook } from '../lib/notebookContext';
 import { useNotebooks } from './NotebooksContext';
 import { toast } from './Toast';
 import Icon from './Icon';
@@ -94,7 +95,8 @@ export default function QuickSwitcher({
   }
 
   async function createFromQuery() {
-    const notebookId = currentNotebookId || notebooks[0]?.id;
+    // File into the current context (open note's notebook / last-used), not notebooks[0].
+    const notebookId = resolveFilingNotebook(currentNotebookId, notebooks);
     if (!notebookId) {
       toast('Create a notebook first', 'error');
       return;
@@ -102,7 +104,8 @@ export default function QuickSwitcher({
     setCreating(true);
     try {
       const { note } = await api.createNote({ notebookId, title: q });
-      toast('Note created', 'ok');
+      const nb = notebooks.find((n) => n.id === notebookId);
+      toast(nb ? `Note created in ${nb.emoji} ${nb.name}` : 'Note created', 'ok');
       go(note.id);
     } catch (e) {
       toast(errorMessage(e, 'Could not create note'), 'error');

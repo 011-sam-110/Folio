@@ -5,11 +5,13 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent, type Keyboa
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Editor } from '@tiptap/core';
 import { api, ApiError } from '../../lib/api';
-import type { Note, NoteLite } from '../../lib/types';
-import { relativeTime, formatDate, plural } from '../../lib/format';
+import type { Note, NoteLite, Attachment } from '../../lib/types';
+import { relativeTime, formatDate, plural, formatBytes } from '../../lib/format';
 import { toast } from '../../components/Toast';
+import { setActiveNotebook, clearActiveNotebook } from '../../lib/notebookContext';
 import EmptyState from '../../components/EmptyState';
 import Skeleton from '../../components/Skeleton';
+import Icon from '../../components/Icon';
 import NoteCard from '../../components/NoteCard';
 import FolioEditor from './FolioEditor';
 import OutlinePane from './OutlinePane';
@@ -29,15 +31,24 @@ export default function NotePage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'notfound' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Monotonic request id guards against the note-load race: rapid A→B→A navigation could
+  // otherwise let a stale GET resolve LAST and swap the editor to a different note's content
+  // (the root cause of the "caret jumps to start mid-typing" bug). Only the latest request
+  // is allowed to commit its result.
+  const loadSeq = useRef(0);
+
   const load = useCallback((id: string) => {
+    const seq = ++loadSeq.current;
     setStatus('loading');
     api
       .note(id)
       .then(({ note, backlinks }) => {
+        if (loadSeq.current !== seq) return; // superseded by a newer navigation
         setState({ note, backlinks });
         setStatus('ready');
       })
       .catch((e: unknown) => {
+        if (loadSeq.current !== seq) return;
         if (e instanceof ApiError && e.status === 404) setStatus('notfound');
         else {
           setErrorMsg(e instanceof Error ? e.message : 'Failed to load note');
@@ -48,6 +59,10 @@ export default function NotePage() {
 
   useEffect(() => {
     if (noteId) load(noteId);
+    return () => {
+      // Invalidate any in-flight load when the note id changes / component unmounts.
+      loadSeq.current++;
+    };
   }, [noteId, load]);
 
   if (status === 'loading') {
@@ -103,7 +118,6 @@ export default function NotePage() {
       key={state.note.id}
       initialNote={state.note}
       initialBacklinks={state.backlinks}
-      onReload={() => noteId && load(noteId)}
     />
   );
 }
@@ -111,13 +125,12 @@ export default function NotePage() {
 interface NoteWorkspaceProps {
   initialNote: Note;
   initialBacklinks: NoteLite[];
-  onReload: () => void;
 }
 
-function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspaceProps) {
+function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const navigate = useNavigate();
   const [note, setNote] = useState(initialNote);
-  const [backlinks] = useState(initialBacklinks);
+  const [backlinks, setBacklinks] = useState(initialBacklinks);
   const [unlinked, setUnlinked] = useState<NoteLite[] | null>(null);
   const [title, setTitle] = useState(initialNote.title);
   const [outline, setOutline] = useState<OutlineItem[]>([]);
@@ -166,6 +179,40 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
     setActiveFlush(autosave.flush);
     return () => setActiveFlush(null);
   }, [autosave.flush]);
+
+  // Publish this note's notebook so Ctrl+N / '+' / quick-switcher-create file new notes
+  // into the notebook you're actually reading (fix 14).
+  useEffect(() => {
+    setActiveNotebook(initialNote.notebookId);
+    return () => clearActiveNotebook();
+  }, [initialNote.notebookId]);
+
+  // Pull fresh server content into the LIVE editor after a history restore or an import that
+  // targets this open note, killing any pending/stale autosave first so it can't revert the
+  // change on the next keystroke (fix 4). Without this, the toast says "restored"/"ready"
+  // while the editor keeps the pre-change doc and the next autosave silently undoes it.
+  const resyncFromServer = useCallback(async () => {
+    await autosave.settle(); // let any in-flight save land first so the fetch sees the truth
+    autosave.markClean(); // then cancel pending + failed saves before we overwrite the doc
+    try {
+      const { note: fresh, backlinks: bl } = await api.note(note.id);
+      setNote(fresh);
+      setBacklinks(bl);
+      setTitle(fresh.title);
+      titleRef.current = fresh.title;
+      const ed = editorRef.current;
+      if (ed && !ed.isDestroyed) {
+        ed.commands.setContent(fresh.contentJson as Record<string, unknown>, { emitUpdate: false });
+      }
+      // Re-seed the autosave snapshot from the fresh content so a later flush sends this,
+      // not the stale pre-restore doc.
+      pendingRef.current = { title: fresh.title, contentJson: fresh.contentJson, contentText: fresh.contentText };
+      api.unlinkedMentions(note.id).then((r) => setUnlinked(r.notes)).catch(() => {});
+    } catch {
+      toast('Could not refresh the note — reload to see the latest', 'error');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note.id]);
 
   useEffect(() => {
     api
@@ -378,13 +425,13 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
               aria-label={note.pinned ? 'Unpin' : 'Pin'}
               onClick={togglePin}
             >
-              {note.pinned ? '📌' : '📍'}
+              <Icon name={note.pinned ? 'pin-filled' : 'pin'} size={15} />
             </button>
 
             <DropdownButton
               label={
                 <>
-                  <span aria-hidden="true">✨</span> {aiBusy ? 'AI…' : 'AI'}
+                  <Icon name="sparkles" size={14} /> {aiBusy ? 'AI…' : 'AI'}
                 </>
               }
               disabled={!!aiBusy}
@@ -428,13 +475,13 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
               {(close) => (
                 <>
                   <button type="button" onClick={() => openImport('photo', close)}>
-                    📷 Photo of notes
+                    <Icon name="camera" size={14} /> Photo of notes
                   </button>
                   <button type="button" onClick={() => openImport('slides', close)}>
-                    📑 Slides PDF
+                    <Icon name="layers" size={14} /> Slides
                   </button>
                   <button type="button" onClick={() => openImport('transcript', close)}>
-                    📝 Transcript
+                    <Icon name="file-text" size={14} /> Transcript
                   </button>
                 </>
               )}
@@ -449,7 +496,7 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
 
             <div className="folio-info-wrap">
               <button type="button" className="folio-btn-icon" onClick={() => setInfoOpen((v) => !v)} aria-label="Note info">
-                ℹ️
+                <Icon name="info" size={15} />
               </button>
               {infoOpen && (
                 <div className="folio-info-popover" onMouseLeave={() => setInfoOpen(false)}>
@@ -484,6 +531,8 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
             onChange={handleTitleChange}
             onKeyDown={handleTitleKeyDown}
           />
+
+          <AttachmentStrip attachments={note.attachments} />
 
           <FolioEditor
             content={note.contentJson}
@@ -523,7 +572,7 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
 
       <OutlinePane items={outline} editor={editorRef.current} />
 
-      <HistoryPanel noteId={note.id} open={historyOpen} onClose={() => setHistoryOpen(false)} onRestored={onReload} />
+      <HistoryPanel noteId={note.id} open={historyOpen} onClose={() => setHistoryOpen(false)} onRestored={resyncFromServer} />
 
       {aiWholeResult && (
         <AiPreviewModal
@@ -550,7 +599,40 @@ function NoteWorkspace({ initialNote, initialBacklinks, onReload }: NoteWorkspac
         </div>
       )}
 
-      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} noteId={note.id} defaultKind={importKind} />
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        noteId={note.id}
+        defaultKind={importKind}
+        onImported={(resultNoteId) => {
+          // The import merged/appended into THIS open note — pull the server's new content
+          // into the live editor so the next autosave doesn't revert it (fix 4).
+          if (resultNoteId === note.id) void resyncFromServer();
+        }}
+      />
+    </div>
+  );
+}
+
+function AttachmentStrip({ attachments }: { attachments?: Attachment[] }) {
+  const items = (attachments ?? []).filter((a) => a.status !== 'failed');
+  if (items.length === 0) return null;
+  const isImage = (a: Attachment) => a.mime.startsWith('image/') || a.kind === 'photo' || a.kind === 'image';
+  return (
+    <div className="folio-attachments" aria-label="Original source files">
+      {items.map((a) =>
+        isImage(a) ? (
+          <a key={a.id} className="folio-attachment folio-attachment--photo" href={a.url} target="_blank" rel="noopener noreferrer" title={`Open original — ${a.originalName}`}>
+            <img src={a.url} alt={a.originalName} loading="lazy" />
+          </a>
+        ) : (
+          <a key={a.id} className="folio-attachment folio-attachment--file" href={a.url} target="_blank" rel="noopener noreferrer" title={`Open original — ${a.originalName}`}>
+            <Icon name="file-text" size={16} />
+            <span className="folio-attachment__name">{a.originalName}</span>
+            <span className="folio-attachment__size">{formatBytes(a.size)}</span>
+          </a>
+        ),
+      )}
     </div>
   );
 }

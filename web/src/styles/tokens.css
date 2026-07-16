@@ -10,7 +10,7 @@
   --bg-active: #eaeae8;
   --ink: #1f2328;
   --ink-2: #57606a;
-  --ink-3: #8b949e;
+  --ink-3: #6b7280; /* 4.83:1 on --bg #fff — WCAG AA for the 11-12.5px meta text this drives */
   --line: #e8e8e6;
   --accent: #4f46e5;
   --accent-soft: #eef2ff;
@@ -71,7 +71,7 @@
   --bg-active: #2a2a2a;
   --ink: #e6e6e4;
   --ink-2: #a3a39e;
-  --ink-3: #6e6e6b;
+  --ink-3: #8a8a86; /* 5.08:1 on --bg #191919 — WCAG AA */
   --line: #303030;
   --accent: #818cf8;
   --accent-soft: rgba(129, 140, 248, 0.14);

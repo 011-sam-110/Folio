@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { NotebooksProvider, useNotebooks } from './components/NotebooksContext';
 import Sidebar from './components/Sidebar';
@@ -9,6 +9,7 @@ import Tooltip from './components/Tooltip';
 import { useShortcuts } from './lib/useShortcuts';
 import { api } from './lib/api';
 import { errorMessage } from './lib/format';
+import { resolveFilingNotebook, setActiveNotebook } from './lib/notebookContext';
 import ImportModal from './features/import/ImportModal';
 import { _subscribeImportModal, type OpenImportModalArgs } from './components/importModalBus';
 
@@ -54,6 +55,7 @@ function AppShell() {
   const [collapsed, setCollapsed] = useState(getPersistedCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const sidebarWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     try {
@@ -63,14 +65,65 @@ function AppShell() {
     }
   }, [collapsed]);
 
+  // Mobile drawer a11y: while open, focus moves into the drawer, Tab is trapped inside it,
+  // and Escape closes it (mirrors Modal.tsx). The closed drawer is made inert below so its
+  // off-canvas controls can't be tabbed into.
+  useEffect(() => {
+    if (!isMobile || !mobileOpen) return;
+    const wrap = sidebarWrapRef.current;
+    const prevFocused = document.activeElement as HTMLElement | null;
+    const FOCUSABLE =
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    wrap?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setMobileOpen(false);
+        return;
+      }
+      if (e.key === 'Tab' && wrap) {
+        const focusables = Array.from(wrap.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (!wrap.contains(active)) {
+          e.preventDefault();
+          first.focus();
+        } else if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      prevFocused?.focus?.();
+    };
+  }, [isMobile, mobileOpen]);
+
+  // Track the notebook page you're on so later Ctrl+N presses (from anywhere) file there.
+  useEffect(() => {
+    if (params.notebookId) setActiveNotebook(params.notebookId);
+  }, [params.notebookId]);
+
   const handleNewNote = useCallback(async () => {
-    const notebookId = params.notebookId || notebooks[0]?.id;
+    // File into the CURRENT context: the route's notebook → the open note's notebook →
+    // the last-used notebook → the first one (fix: Ctrl+N used to always hit notebooks[0]).
+    const notebookId = resolveFilingNotebook(params.notebookId, notebooks);
     if (!notebookId) {
       toast('Create a notebook first', 'error');
       return;
     }
     try {
       const { note } = await api.createNote({ notebookId });
+      const nb = notebooks.find((n) => n.id === notebookId);
+      if (nb) toast(`Note created in ${nb.emoji} ${nb.name}`, 'ok');
       navigate(`/note/${note.id}`);
     } catch (e) {
       toast(errorMessage(e, 'Could not create note'), 'error');
@@ -107,7 +160,15 @@ function AppShell() {
       />
 
       <div className="app-shell">
-        <div className="app-sidebar-wrap" data-collapsed={collapsed} data-mobile-open={mobileOpen}>
+        <div
+          ref={sidebarWrapRef}
+          className="app-sidebar-wrap"
+          data-collapsed={collapsed}
+          data-mobile-open={mobileOpen}
+          // Closed-state drawer is fully inert on mobile: invisible controls must not be
+          // reachable by Tab or assistive tech (visibility is also gated in shell.css).
+          inert={isMobile && !mobileOpen ? true : undefined}
+        >
           <Sidebar
             onCollapse={() => setCollapsed(true)}
             onCloseMobile={() => setMobileOpen(false)}

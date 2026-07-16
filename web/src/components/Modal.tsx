@@ -21,6 +21,12 @@ export default function Modal({
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
+  // Read onClose from a ref inside the handler so the trap effect can depend on [open]
+  // ONLY. Callers pass a fresh onClose closure every render; depending on it here made the
+  // effect tear down and re-run on every parent re-render, stealing focus back to the first
+  // control (visible as ImportModal yanking focus once a second during its 800ms poll).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -34,7 +40,7 @@ export default function Modal({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === 'Tab' && panelRef.current) {
@@ -59,7 +65,7 @@ export default function Modal({
       document.body.style.overflow = prevOverflow;
       lastFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

@@ -239,6 +239,20 @@
   flex: 1;
   line-height: 1.45;
 }
+.folio-toast__action {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 650;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--accent);
+  cursor: pointer;
+}
+.folio-toast__action:hover {
+  border-color: var(--accent);
+}
 .folio-toast__close {
   flex: 0 0 auto;
   color: var(--ink-3);
@@ -340,6 +354,17 @@
   color: var(--ink-2);
   line-height: 1.55;
   margin-bottom: 18px;
+}
+.folio-confirm__challenge {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: -6px 0 16px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.folio-confirm__challenge strong {
+  color: var(--ink);
 }
 .folio-confirm__actions {
   display: flex;
@@ -665,7 +690,11 @@
   flex: 1;
   min-width: 0;
 }
+/* Title/snippet are spans, which default to display:inline — nowrap+ellipsis have no effect
+   on inline boxes, so long full-text results overflowed and collided with neighbours instead
+   of eliding. display:block makes the truncation rules actually apply. */
 .folio-qs__row-title {
+  display: block;
   font-size: 13.5px;
   color: var(--ink);
   font-weight: 500;
@@ -674,6 +703,7 @@
   text-overflow: ellipsis;
 }
 .folio-qs__row-snippet {
+  display: block;
   font-size: 12px;
   color: var(--ink-2);
   white-space: nowrap;

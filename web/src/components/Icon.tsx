@@ -30,9 +30,15 @@ export type IconName =
   | 'pin'
   | 'pin-filled'
   | 'alert-circle'
+  | 'info'
   | 'folder-plus'
   | 'phone'
   | 'palette'
+  | 'camera'
+  | 'file-text'
+  | 'download'
+  | 'rotate-ccw'
+  | 'link'
   | 'smile';
 
 const paths: Record<IconName, ReactNode> = {
@@ -176,6 +182,46 @@ const paths: Record<IconName, ReactNode> = {
       <circle cx="12" cy="12" r="9" />
       <line x1="12" y1="8" x2="12" y2="12.5" />
       <circle cx="12" cy="16" r="0.6" fill="currentColor" stroke="none" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="11" x2="12" y2="16" />
+      <circle cx="12" cy="8" r="0.6" fill="currentColor" stroke="none" />
+    </>
+  ),
+  camera: (
+    <>
+      <path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+      <circle cx="12" cy="12.5" r="3.2" />
+    </>
+  ),
+  'file-text': (
+    <>
+      <path d="M6 2h7l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" />
+      <polyline points="13 2 13 7 18 7" />
+      <line x1="8.5" y1="12" x2="15" y2="12" />
+      <line x1="8.5" y1="15.5" x2="15" y2="15.5" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 4v11" />
+      <polyline points="7 11 12 16 17 11" />
+      <path d="M4 20h16" />
+    </>
+  ),
+  'rotate-ccw': (
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <polyline points="3 4 3 9 8 9" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+      <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
     </>
   ),
   'folder-plus': (

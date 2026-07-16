@@ -4,13 +4,17 @@ import { createPortal } from 'react-dom';
 import Icon from './Icon';
 
 type Kind = 'ok' | 'error' | 'info';
-type Item = { id: number; message: string; kind: Kind };
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+type Item = { id: number; message: string; kind: Kind; action?: ToastAction; durationMs: number };
 
 let push: ((i: Item) => void) | null = null;
 let nextId = 1;
 
-export function toast(message: string, kind: Kind = 'info') {
-  push?.({ id: nextId++, message, kind });
+export function toast(message: string, kind: Kind = 'info', opts: { action?: ToastAction; durationMs?: number } = {}) {
+  push?.({ id: nextId++, message, kind, action: opts.action, durationMs: opts.durationMs ?? 4200 });
 }
 
 const ICONS: Record<Kind, React.ReactNode> = {
@@ -25,7 +29,7 @@ export function Toaster() {
   useEffect(() => {
     push = (i) => {
       setItems((prev) => [...prev, i]);
-      setTimeout(() => setItems((prev) => prev.filter((x) => x.id !== i.id)), 4200);
+      setTimeout(() => setItems((prev) => prev.filter((x) => x.id !== i.id)), i.durationMs);
     };
     return () => {
       push = null;
@@ -42,6 +46,18 @@ export function Toaster() {
         <div key={i.id} className={`folio-toast ${i.kind}`} role="status">
           <span className="folio-toast__icon">{ICONS[i.kind]}</span>
           <span className="folio-toast__msg">{i.message}</span>
+          {i.action && (
+            <button
+              type="button"
+              className="folio-toast__action"
+              onClick={() => {
+                dismiss(i.id);
+                i.action!.onClick();
+              }}
+            >
+              {i.action.label}
+            </button>
+          )}
           <button
             type="button"
             className="folio-toast__close"

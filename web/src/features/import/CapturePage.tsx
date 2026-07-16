@@ -6,6 +6,7 @@ import type { ChangeEvent, DragEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
 import type { Notebook } from '../../lib/types';
+import Icon from '../../components/Icon';
 import { IMPORT_KINDS, findKind, formatBytes, validateFile, type ImportKind } from './kinds';
 import { downscaleImage } from './downscale';
 import { useImportJob } from './useImportJob';
@@ -27,6 +28,10 @@ export default function CapturePage() {
   const [error, setError] = useState<string | null>(null);
   const [resultNoteId, setResultNoteId] = useState<string | null>(null);
   const [resultTitle, setResultTitle] = useState<string | null>(null);
+  // Multi-page session: after the first successful capture, "Add another page" chains the
+  // next upload as mode=append into the note just created (mirrors ImportModal's chaining)
+  // so a 3-page handout becomes ONE note, not three fragments.
+  const [appendTarget, setAppendTarget] = useState<{ id: string; title: string | null } | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { job, run, reset: resetJob } = useImportJob();
@@ -85,7 +90,7 @@ export default function CapturePage() {
   }
 
   async function upload() {
-    if (!file || !notebookId) return;
+    if (!file || (!notebookId && !appendTarget)) return;
     setPhase('uploading');
     setError(null);
     try {
@@ -93,8 +98,13 @@ export default function CapturePage() {
       const form = new FormData();
       form.append('file', uploadFile);
       form.append('kind', kind);
-      form.append('notebookId', notebookId);
-      form.append('mode', 'new');
+      if (appendTarget) {
+        form.append('mode', 'append');
+        form.append('noteId', appendTarget.id);
+      } else {
+        form.append('mode', 'new');
+        form.append('notebookId', notebookId!);
+      }
       const { jobId } = await api.import(form);
       const result = await run(jobId);
       if (result.status === 'failed') {
@@ -118,14 +128,26 @@ export default function CapturePage() {
     }
   }
 
-  function captureAnother() {
+  function resetPicker() {
     setFile(null);
     setPreviewUrl(null);
     setPhase('pick');
     setError(null);
     setResultNoteId(null);
-    setResultTitle(null);
     resetJob();
+  }
+
+  /** Chain the next capture into the note just created (multi-page lecture sheet). */
+  function addAnotherPage() {
+    if (resultNoteId) setAppendTarget({ id: resultNoteId, title: resultTitle });
+    resetPicker();
+  }
+
+  /** Start a fresh note instead (escape hatch out of the chaining session). */
+  function captureAnother() {
+    setAppendTarget(null);
+    setResultTitle(null);
+    resetPicker();
   }
 
   return (
@@ -139,11 +161,12 @@ export default function CapturePage() {
         {phase === 'done' ? (
           <div className="cp-success">
             <div className="cp-success__icon" aria-hidden="true">✓</div>
-            <h2>Note ready</h2>
+            <h2>{appendTarget ? 'Page added' : 'Note ready'}</h2>
             {resultTitle && <p className="cp-success__title">{resultTitle}</p>}
             <p className="cp-success__message">Captured! It's on your desktop too.</p>
             <div className="cp-success__actions">
-              <button type="button" className="im-btn im-btn--primary" onClick={captureAnother}>Capture another</button>
+              <button type="button" className="im-btn im-btn--primary" onClick={addAnotherPage}>Add another page</button>
+              <button type="button" className="im-btn" onClick={captureAnother}>Start a new note</button>
               {resultNoteId && <Link className="im-link-btn" to={`/note/${resultNoteId}`}>Open note</Link>}
             </div>
           </div>
@@ -163,12 +186,22 @@ export default function CapturePage() {
                   className={`cp-kind${kind === k.key ? ' is-active' : ''}`}
                   onClick={() => handleKindChange(k.key)}
                 >
-                  <span aria-hidden="true">{k.icon}</span>
+                  <Icon name={k.iconName} size={16} />
                   <span>{k.label}</span>
                 </button>
               ))}
             </div>
 
+            {appendTarget ? (
+              <div className="cp-append-banner" data-testid="capture-append-banner">
+                <span>
+                  Adding to <strong>{appendTarget.title || 'your note'}</strong>
+                </span>
+                <button type="button" className="im-link-btn" onClick={captureAnother}>
+                  Start a new note instead
+                </button>
+              </div>
+            ) : (
             <div className="cp-notebooks" role="tablist" aria-label="Notebook">
               {notebooksLoading ? (
                 <div className="cp-notebooks__hint">Loading notebooks…</div>
@@ -189,6 +222,7 @@ export default function CapturePage() {
                 ))
               )}
             </div>
+            )}
 
             {error && (
               <div className="cp-error">
@@ -209,7 +243,7 @@ export default function CapturePage() {
                     <img className="cp-preview__image" src={previewUrl} alt="Selected page preview" />
                   ) : (
                     <div className="cp-preview__file">
-                      <span className="cp-preview__file-icon" aria-hidden="true">{kindMeta.icon}</span>
+                      <span className="cp-preview__file-icon" aria-hidden="true"><Icon name={kindMeta.iconName} size={28} /></span>
                       <div>
                         <div className="cp-preview__file-name">{file.name}</div>
                         <div className="cp-preview__file-size">{formatBytes(file.size)}</div>
@@ -220,7 +254,7 @@ export default function CapturePage() {
                 </div>
               ) : (
                 <button type="button" className="cp-cta" onClick={openPicker}>
-                  <span className="cp-cta__icon" aria-hidden="true">{kindMeta.icon}</span>
+                  <span className="cp-cta__icon" aria-hidden="true"><Icon name={kindMeta.iconName} size={40} /></span>
                   <span className="cp-cta__label">{kindMeta.label}</span>
                   <span className="cp-cta__hint">{kindMeta.hint}</span>
                   <span className="cp-cta__drop-hint">or drop a file here</span>
@@ -242,8 +276,8 @@ export default function CapturePage() {
 
       {phase === 'ready' && file && (
         <div className="cp-sticky">
-          <button type="button" className="im-btn im-btn--primary cp-sticky__btn" disabled={!notebookId} onClick={upload}>
-            Upload &amp; process
+          <button type="button" className="im-btn im-btn--primary cp-sticky__btn" disabled={!notebookId && !appendTarget} onClick={upload}>
+            {appendTarget ? 'Upload & add to note' : 'Upload & process'}
           </button>
         </div>
       )}

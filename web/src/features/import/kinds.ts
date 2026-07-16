@@ -1,11 +1,13 @@
 // Shared import-kind metadata used by ImportModal and CapturePage.
+import type { IconName } from '../../components/Icon';
 
 export type ImportKind = 'photo' | 'slides' | 'transcript';
 
 export interface KindConfig {
   key: ImportKind;
   label: string;
-  icon: string;
+  /** Vector icon (interactive chrome) — emoji is reserved for user content per Icon.tsx. */
+  iconName: IconName;
   accept: string;
   hint: string;
   exts: string[];
@@ -16,7 +18,7 @@ export const IMPORT_KINDS: KindConfig[] = [
   {
     key: 'photo',
     label: 'Photo of notes',
-    icon: '📷',
+    iconName: 'camera',
     accept: 'image/*,.heic,.heif',
     hint: 'JPEG, PNG, WEBP or HEIC · up to 25MB',
     exts: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'],
@@ -25,7 +27,7 @@ export const IMPORT_KINDS: KindConfig[] = [
   {
     key: 'slides',
     label: 'Lecture slides',
-    icon: '📑',
+    iconName: 'layers',
     accept: '.pdf,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation',
     hint: 'PDF or PPTX · up to 25MB',
     exts: ['pdf', 'pptx'],
@@ -33,7 +35,7 @@ export const IMPORT_KINDS: KindConfig[] = [
   {
     key: 'transcript',
     label: 'Transcript or essay',
-    icon: '📝',
+    iconName: 'file-text',
     accept: '.txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     hint: 'TXT, MD, PDF or DOCX · up to 25MB',
     exts: ['txt', 'md', 'pdf', 'docx'],

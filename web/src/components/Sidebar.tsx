@@ -381,6 +381,7 @@ export default function Sidebar({
         confirmLabel="Delete notebook"
         danger
         loading={deleting}
+        requireText={deleteTarget?.name}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />

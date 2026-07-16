@@ -79,10 +79,28 @@
   padding-bottom: 4px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  /* Scroll affordance: fade the clipped edge so it's obvious more notebooks are a swipe
+     away (the scrollbar itself is hidden). */
+  mask-image: linear-gradient(to right, black 0, black calc(100% - 28px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 28px), transparent 100%);
 }
 
 .cp-notebooks::-webkit-scrollbar {
   display: none;
+}
+
+.cp-append-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  font-size: 13px;
+  color: var(--ink);
 }
 
 .cp-notebooks .im-chip {

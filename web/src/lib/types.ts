@@ -28,6 +28,17 @@ export interface NoteLite {
   wordCount: number;
 }
 
+export interface Attachment {
+  id: string;
+  kind: string; // photo | slides | transcript | image | file
+  originalName: string;
+  url: string; // /uploads/...
+  mime: string;
+  size: number;
+  status: string;
+  createdAt: string;
+}
+
 export interface Note {
   id: string;
   notebookId: string;
@@ -40,6 +51,7 @@ export interface Note {
   updatedAt: string;
   tags: string[];
   notebook: NotebookLite;
+  attachments?: Attachment[];
 }
 
 export interface NoteVersionMeta {
@@ -81,6 +93,8 @@ export interface Flashcard {
   id: string;
   noteId: string | null;
   noteTitle?: string;
+  notebookId?: string;
+  notebookName?: string;
   question: string;
   answer: string;
   dueAt: string;

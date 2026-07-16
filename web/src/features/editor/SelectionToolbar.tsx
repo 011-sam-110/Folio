@@ -1,10 +1,12 @@
 // BubbleMenu shown on a non-empty text selection: formatting marks, a link popover,
-// and an "AI ✨" quick-instruction submenu that opens AiPreviewModal on completion.
-import { useState } from 'react';
+// and an "AI" quick-instruction submenu that opens AiPreviewModal on completion.
+import { useEffect, useRef, useState } from 'react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import type { Editor } from '@tiptap/core';
+import type { Transaction } from '@tiptap/pm/state';
 import { api, ApiError } from '../../lib/api';
 import { toast } from '../../components/Toast';
+import Icon from '../../components/Icon';
 import AiPreviewModal from './AiPreviewModal';
 import { markdownToSafeHtml } from './markdown';
 
@@ -35,6 +37,43 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
 
+  // Pin the AI-edit target range by mapping it through every transaction that lands while
+  // the request is in flight (and while the preview modal is open). Without this, applying
+  // "Replace selection" used the positions captured BEFORE the round trip — typing anywhere
+  // above the selection shifted the doc and the result landed at the wrong spot (or threw).
+  const trackedRangeRef = useRef<{ from: number; to: number } | null>(null);
+  const trackerAttachedRef = useRef(false);
+
+  useEffect(() => {
+    function onTransaction({ transaction }: { transaction: Transaction }) {
+      const r = trackedRangeRef.current;
+      if (!r || !transaction.docChanged) return;
+      r.from = transaction.mapping.map(r.from, 1);
+      r.to = transaction.mapping.map(r.to, -1);
+      if (r.to < r.from) r.to = r.from;
+    }
+    editor.on('transaction', onTransaction);
+    trackerAttachedRef.current = true;
+    return () => {
+      editor.off('transaction', onTransaction);
+      trackerAttachedRef.current = false;
+    };
+  }, [editor]);
+
+  /** The tracked range, clamped to the current doc (defensive against deletions). */
+  function currentTargetRange(fallback: { from: number; to: number }): { from: number; to: number } {
+    const r = trackedRangeRef.current ?? fallback;
+    const max = editor.state.doc.content.size;
+    const from = Math.max(0, Math.min(r.from, max));
+    const to = Math.max(from, Math.min(r.to, max));
+    return { from, to };
+  }
+
+  function clearAiResult() {
+    trackedRangeRef.current = null;
+    setAiResult(null);
+  }
+
   function openLink() {
     const attrs = editor.getAttributes('link');
     setLinkValue((attrs.href as string) || '');
@@ -55,10 +94,12 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
     if (!text.trim()) return;
     setAiOpen(false);
     setAiLoading(true);
+    trackedRangeRef.current = { from, to }; // live-mapped from here on
     try {
       const res = await api.aiImprove({ text, instruction });
       setAiResult({ before: text, after: res.markdown, model: res.model, range: { from, to } });
     } catch (e) {
+      trackedRangeRef.current = null;
       toast(aiErrorMessage(e), 'error');
     } finally {
       setAiLoading(false);
@@ -70,7 +111,9 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
       <BubbleMenu
         editor={editor}
         pluginKey="folioSelectionMenu"
-        options={{ placement: 'top', offset: 8 }}
+        // flip to below the selection when there's no room above (never cover the selected
+        // line); shift keeps it inside the viewport horizontally.
+        options={{ placement: 'top', offset: 8, flip: { fallbackPlacements: ['bottom'], padding: 8 }, shift: { padding: 8 } }}
         shouldShow={({ editor, state }) => {
           const { empty } = state.selection;
           if (empty) return false;
@@ -95,12 +138,12 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
             ◆
           </button>
           <button type="button" className={editor.isActive('link') ? 'active' : ''} title="Link" onClick={openLink}>
-            🔗
+            <Icon name="link" size={14} />
           </button>
           <span className="folio-bubble-sep" />
           <div className="folio-ai-trigger">
             <button type="button" className="folio-ai-btn" disabled={aiLoading} onClick={() => setAiOpen((v) => !v)}>
-              {aiLoading ? '…' : '✨ AI'}
+              {aiLoading ? '…' : <><Icon name="sparkles" size={13} /> AI</>}
             </button>
             {aiOpen && (
               <div className="folio-ai-dropdown" onMouseLeave={() => setAiOpen(false)}>
@@ -133,7 +176,7 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
       {aiResult && (
         <AiPreviewModal
           open
-          onClose={() => setAiResult(null)}
+          onClose={clearAiResult}
           heading="AI edit"
           model={aiResult.model}
           before={aiResult.before}
@@ -144,16 +187,16 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
               primary: true,
               onClick: () => {
                 const html = markdownToSafeHtml(aiResult.after);
-                editor.chain().focus().insertContentAt(aiResult.range, html).run();
-                setAiResult(null);
+                editor.chain().focus().insertContentAt(currentTargetRange(aiResult.range), html).run();
+                clearAiResult();
               },
             },
             {
               label: 'Insert below',
               onClick: () => {
                 const html = markdownToSafeHtml(aiResult.after);
-                editor.chain().focus().insertContentAt(aiResult.range.to, html).run();
-                setAiResult(null);
+                editor.chain().focus().insertContentAt(currentTargetRange(aiResult.range).to, html).run();
+                clearAiResult();
               },
             },
             {

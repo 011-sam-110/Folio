@@ -25,8 +25,10 @@ const KEY_TO_RATING: Record<string, Rating> = {
   Numpad1: 'again', Numpad2: 'hard', Numpad3: 'good', Numpad4: 'easy',
 };
 
-export default function ReviewTab({ stats, onReviewed, onSwitchToBrowse }: {
+export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBrowse }: {
   stats: StudyStats | null;
+  /** Scope the queue to one notebook (cram a single module before its exam). */
+  notebookId?: string;
   onReviewed: () => void;
   onSwitchToBrowse: () => void;
 }) {
@@ -43,13 +45,13 @@ export default function ReviewTab({ stats, onReviewed, onSwitchToBrowse }: {
     setRevealed(false);
     setReviewedCount(0);
     try {
-      const res = await api.studyQueue(20);
+      const res = await api.studyQueue(20, notebookId);
       setQueue(res.cards);
       setPhase(res.cards.length === 0 ? 'empty' : 'active');
     } catch {
       setPhase('error');
     }
-  }, []);
+  }, [notebookId]);
 
   useEffect(() => { load(); }, [load]);
 

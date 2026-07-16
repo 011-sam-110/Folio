@@ -26,24 +26,31 @@ export function NotebooksProvider({ children }: { children: ReactNode }) {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const snapshotRef = useRef<Notebook[]>([]);
-
-  useEffect(() => {
-    snapshotRef.current = notebooks;
-  }, [notebooks]);
+  // Mirror of the latest committed list, updated synchronously inside every setNotebooks —
+  // used to capture a PRE-mutation snapshot for rollback. (The old useEffect-based snapshot
+  // refreshed AFTER the optimistic update committed, so "rollback" re-applied the failed
+  // state and a failed delete looked permanent.)
+  const latestRef = useRef<Notebook[]>([]);
+  const commit = useCallback((updater: (cur: Notebook[]) => Notebook[]) => {
+    setNotebooks((cur) => {
+      const next = updater(cur);
+      latestRef.current = next;
+      return next;
+    });
+  }, []);
 
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const { notebooks: list } = await api.notebooks();
-      setNotebooks([...list].sort((a, b) => a.position - b.position));
+      commit(() => [...list].sort((a, b) => a.position - b.position));
     } catch (e) {
       setError(errorMessage(e, 'Could not load notebooks'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [commit]);
 
   useEffect(() => {
     reload();
@@ -51,34 +58,36 @@ export function NotebooksProvider({ children }: { children: ReactNode }) {
 
   const createNotebook = useCallback(async (b: { name: string; emoji?: string; color?: string }) => {
     const { notebook } = await api.createNotebook(b);
-    setNotebooks((cur) => [...cur, notebook].sort((a, b2) => a.position - b2.position));
+    commit((cur) => [...cur, notebook].sort((a, b2) => a.position - b2.position));
     return notebook;
-  }, []);
+  }, [commit]);
 
   const updateNotebook = useCallback(
     async (id: string, b: Partial<Pick<Notebook, 'name' | 'emoji' | 'color' | 'position' | 'archived'>>) => {
-      setNotebooks((cur) => cur.map((n) => (n.id === id ? { ...n, ...b } : n)));
+      const prev = latestRef.current; // captured BEFORE the optimistic mutation
+      commit((cur) => cur.map((n) => (n.id === id ? { ...n, ...b } : n)));
       try {
         const { notebook } = await api.updateNotebook(id, b);
-        setNotebooks((cur) => cur.map((n) => (n.id === id ? notebook : n)));
+        commit((cur) => cur.map((n) => (n.id === id ? notebook : n)));
         return notebook;
       } catch (e) {
-        setNotebooks(snapshotRef.current);
+        commit(() => prev);
         throw e;
       }
     },
-    [],
+    [commit],
   );
 
   const deleteNotebook = useCallback(async (id: string) => {
-    setNotebooks((cur) => cur.filter((n) => n.id !== id));
+    const prev = latestRef.current; // captured BEFORE the optimistic mutation
+    commit((cur) => cur.filter((n) => n.id !== id));
     try {
       await api.deleteNotebook(id);
     } catch (e) {
-      setNotebooks(snapshotRef.current);
+      commit(() => prev);
       throw e;
     }
-  }, []);
+  }, [commit]);
 
   return (
     <NotebooksCtx.Provider value={{ notebooks, loading, error, reload, createNotebook, updateNotebook, deleteNotebook }}>

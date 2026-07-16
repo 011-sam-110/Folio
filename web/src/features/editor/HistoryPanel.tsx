@@ -7,12 +7,19 @@ import type { NoteVersion, NoteVersionMeta } from '../../lib/types';
 import { relativeTime, formatDate } from '../../lib/format';
 import { toast } from '../../components/Toast';
 import Spinner from '../../components/Spinner';
+import Icon, { type IconName } from '../../components/Icon';
 import { createFolioExtensions } from './buildExtensions';
 import './editor.css';
 import './notePage.css';
 
-const CAUSE_ICON: Record<string, string> = { autosave: '✍️', manual: '📌', ai: '✨', restore: '⏪', import: '📥' };
+// Vector icons for interactive chrome (Icon.tsx rule) — emoji stays reserved for content.
+const CAUSE_ICON: Record<string, IconName> = { autosave: 'pencil', manual: 'pin', ai: 'sparkles', restore: 'rotate-ccw', import: 'download' };
 const CAUSE_LABEL: Record<string, string> = { autosave: 'Autosave', manual: 'Snapshot', ai: 'AI edit', restore: 'Restore', import: 'Import' };
+
+function CauseIcon({ cause }: { cause: string }) {
+  const name = CAUSE_ICON[cause];
+  return name ? <Icon name={name} size={14} /> : <span aria-hidden="true">•</span>;
+}
 
 export interface HistoryPanelProps {
   noteId: string;
@@ -140,7 +147,7 @@ export default function HistoryPanel({ noteId, open, onClose, onRestored }: Hist
                 {items.map((v) => (
                   <button key={v.id} type="button" className="folio-history-row" data-testid="history-version-item" onClick={() => openVersion(v)}>
                     <span className="folio-history-cause" title={CAUSE_LABEL[v.cause] ?? v.cause}>
-                      {CAUSE_ICON[v.cause] ?? '•'}
+                      <CauseIcon cause={v.cause} />
                     </span>
                     <span className="folio-history-row-main">
                       <span className="folio-history-row-title">{v.label || v.title || 'Untitled'}</span>
@@ -160,7 +167,7 @@ export default function HistoryPanel({ noteId, open, onClose, onRestored }: Hist
               ← Back to list
             </button>
             <div className="folio-history-preview-meta">
-              {formatDate(active.createdAt)} · {CAUSE_ICON[active.cause] ?? '•'} {CAUSE_LABEL[active.cause] ?? active.cause}
+              {formatDate(active.createdAt)} · <CauseIcon cause={active.cause} /> {CAUSE_LABEL[active.cause] ?? active.cause}
               {active.label ? ` · ${active.label}` : ''}
             </div>
             <div className="folio-history-preview-title">{active.title || 'Untitled'}</div>

@@ -57,6 +57,7 @@ export const api = {
   updateNote: (id: string, b: Partial<{ title: string; contentJson: unknown; contentText: string; pinned: boolean; archived: boolean; notebookId: string; tags: string[] }>) =>
     http<{ note: Note }>(`/api/notes/${id}`, json('PATCH', b)),
   deleteNote: (id: string) => http<{ ok: true }>(`/api/notes/${id}`, { method: 'DELETE' }),
+  undeleteNote: (id: string) => http<{ note: Note }>(`/api/notes/${id}/undelete`, { method: 'POST' }),
   versions: (noteId: string) => http<{ versions: NoteVersionMeta[] }>(`/api/notes/${noteId}/versions`),
   version: (noteId: string, vid: number) => http<{ version: NoteVersion }>(`/api/notes/${noteId}/versions/${vid}`),
   snapshot: (noteId: string, label?: string) => http<{ version: NoteVersionMeta }>(`/api/notes/${noteId}/versions`, json('POST', { label })),
@@ -86,7 +87,11 @@ export const api = {
   uploadImage: (form: FormData) => http<{ url: string }>('/api/import/image', { method: 'POST', body: form }),
 
   // study
-  studyQueue: (limit = 20) => http<{ cards: Flashcard[]; due: number; total: number }>(`/api/study/queue?limit=${limit}`),
+  studyQueue: (limit = 20, notebookId?: string) => {
+    const p = new URLSearchParams({ limit: String(limit) });
+    if (notebookId) p.set('notebookId', notebookId);
+    return http<{ cards: Flashcard[]; due: number; total: number }>(`/api/study/queue?${p}`);
+  },
   studyCards: () => http<{ cards: Flashcard[] }>('/api/study/cards'),
   review: (cardId: string, rating: 'again' | 'hard' | 'good' | 'easy') => http<{ card: Flashcard; nextDueAt: string }>('/api/study/review', json('POST', { cardId, rating })),
   studyStats: () => http<StudyStats>('/api/study/stats'),

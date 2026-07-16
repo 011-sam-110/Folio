@@ -429,6 +429,40 @@ a.folio-wikilink:hover {
   text-decoration: underline;
 }
 
+/* Unresolved wikilink (target note doesn't exist yet): visually distinct from valid links —
+   muted color + dashed underline — and clicking offers to create the note. */
+a.folio-wikilink--missing {
+  color: var(--ink-2);
+  background: var(--bg-hover);
+  text-decoration: underline dashed;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+a.folio-wikilink--missing:hover {
+  color: var(--ink);
+  text-decoration: underline dashed;
+}
+
+.folio-wikilink-preview-create {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.folio-wikilink-preview-create:hover {
+  filter: brightness(1.05);
+}
+.folio-wikilink-preview-create:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .folio-wikilink-preview {
   position: absolute;
   left: 0;
