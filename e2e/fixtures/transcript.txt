@@ -1,0 +1,52 @@
+CS304 Operating Systems — Lecture 11 transcript
+Recorded lecture, auto-captioned, lightly cleaned up. Topic: deadlocks.
+
+Okay, let's get started. Today we're talking about deadlocks, which is one of
+the classic problems in operating systems whenever you have multiple processes
+competing for a limited set of resources.
+
+So first, what actually is a deadlock? A deadlock is a situation where a set of
+processes are each waiting for a resource that another process in that same set
+is holding, and none of them can ever make progress. Nobody backs off, so
+everybody just sits there forever.
+
+There are four conditions that all have to hold at once for a deadlock to be
+possible. These are usually called the Coffman conditions, named after Edward
+Coffman who wrote them up in the early seventies.
+
+The first condition is mutual exclusion. At least one resource has to be held
+in a non-shareable mode — only one process can use it at a time.
+
+The second condition is hold and wait. A process is currently holding at least
+one resource and is simultaneously waiting to acquire additional resources that
+are currently being held by other processes.
+
+The third condition is no preemption. Resources cannot be forcibly taken away
+from a process. A resource can only be released voluntarily by the process
+holding it, once that process has finished using it.
+
+And the fourth condition is circular wait. There has to be a set of processes
+P1, P2, up to Pn, such that P1 is waiting for a resource held by P2, P2 is
+waiting for a resource held by P3, and so on, until Pn is waiting for a
+resource held by P1. That closes the loop.
+
+If you break any single one of these four conditions, deadlock becomes
+impossible. That gives us our main strategies. Deadlock prevention attacks one
+of the four conditions directly — for example, requesting all resources up
+front removes hold and wait.
+
+Deadlock avoidance is more dynamic — the classic example is the Banker's
+algorithm, which only grants a resource request if the resulting state is still
+safe, meaning there exists some ordering of processes that can all finish.
+
+Deadlock detection and recovery just lets deadlocks happen, periodically runs a
+cycle-detection algorithm over a resource-allocation graph, and kills or rolls
+back a process to break the cycle when one is found.
+
+And finally some systems just do deadlock ignorance — the ostrich algorithm —
+and assume deadlocks are rare enough that it is cheaper to reboot than to pay
+the constant overhead of prevention or detection. That is actually what most
+general-purpose operating systems do in practice.
+
+That's it for today — next lecture we'll move on to memory management and
+paging. Read chapter seven before Thursday.

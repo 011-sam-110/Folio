@@ -1,0 +1,693 @@
+/* Folio editor — TipTap content typography, node views, suggestion popups, bubble menus.
+   Scoped under .folio-editor / .folio-prosemirror. Uses tokens from src/styles/tokens.css. */
+
+@import 'katex/dist/katex.min.css';
+
+.folio-editor {
+  position: relative;
+}
+
+/* ---------- Core typography ---------- */
+
+.folio-prosemirror {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink);
+  outline: none;
+  min-height: 40vh;
+  padding-bottom: 12rem;
+}
+
+.folio-prosemirror > * + * {
+  margin-top: 0.7em;
+}
+
+.folio-prosemirror p {
+  margin: 0;
+}
+
+.folio-prosemirror h1,
+.folio-prosemirror h2,
+.folio-prosemirror h3 {
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 1.6em;
+  margin-bottom: 0.3em;
+  scroll-margin-top: 80px;
+}
+
+.folio-prosemirror h1 { font-size: 1.9em; }
+.folio-prosemirror h2 { font-size: 1.5em; }
+.folio-prosemirror h3 { font-size: 1.25em; }
+
+.folio-prosemirror h1:first-child,
+.folio-prosemirror h2:first-child,
+.folio-prosemirror h3:first-child {
+  margin-top: 0;
+}
+
+.folio-prosemirror ul,
+.folio-prosemirror ol {
+  padding-left: 1.4em;
+  margin: 0;
+}
+
+.folio-prosemirror li p {
+  margin: 0;
+}
+
+.folio-prosemirror li + li {
+  margin-top: 0.25em;
+}
+
+.folio-prosemirror blockquote {
+  margin: 0;
+  padding-left: 1em;
+  border-left: 3px solid var(--line);
+  color: var(--ink-2);
+  font-style: italic;
+}
+
+.folio-prosemirror hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 1.6em 0;
+}
+
+.folio-prosemirror a.folio-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: text;
+}
+
+.folio-prosemirror code {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  background: var(--bg-hover);
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  font-size: 0.88em;
+}
+
+.folio-prosemirror mark {
+  background: var(--accent-soft);
+  border-radius: 3px;
+  padding: 0.05em 0.1em;
+}
+
+.folio-prosemirror ::selection {
+  background: var(--accent-soft);
+}
+
+/* Placeholder text (from the Placeholder extension) */
+.folio-prosemirror .is-editor-empty:first-child::before,
+.folio-prosemirror p.is-empty::before,
+.folio-prosemirror h1.is-empty::before,
+.folio-prosemirror h2.is-empty::before,
+.folio-prosemirror h3.is-empty::before,
+.folio-prosemirror blockquote.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+/* ---------- Task list ---------- */
+
+.folio-prosemirror ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0.2em;
+}
+
+.folio-prosemirror ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.folio-prosemirror ul[data-type='taskList'] li > label {
+  margin-top: 0.28em;
+  user-select: none;
+}
+
+.folio-prosemirror ul[data-type='taskList'] li > div {
+  flex: 1;
+}
+
+.folio-prosemirror ul[data-type='taskList'] li[data-checked='true'] > div {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.folio-prosemirror ul[data-type='taskList'] ul[data-type='taskList'] {
+  margin-top: 0.25em;
+}
+
+/* ---------- Table ---------- */
+
+.folio-prosemirror table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+  margin: 0.4em 0;
+}
+
+.folio-prosemirror th,
+.folio-prosemirror td {
+  border: 1px solid var(--line);
+  padding: 0.45em 0.6em;
+  vertical-align: top;
+  position: relative;
+}
+
+.folio-prosemirror th {
+  background: var(--bg-hover);
+  font-weight: 600;
+  text-align: left;
+}
+
+.folio-prosemirror .selectedCell {
+  background: var(--accent-soft);
+}
+
+.folio-prosemirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.folio-prosemirror .resize-cursor {
+  cursor: col-resize;
+}
+
+/* ---------- Code block ---------- */
+
+.folio-codeblock {
+  margin: 0.4em 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.folio-codeblock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3em 0.5em;
+  background: var(--bg-hover);
+  border-bottom: 1px solid var(--line);
+}
+
+.folio-codeblock-lang {
+  font-size: 12px;
+  color: var(--ink-2);
+  background: transparent;
+  border: none;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+.folio-codeblock-copy {
+  font-size: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink-2);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background 0.12s ease-out, color 0.12s ease-out;
+}
+
+.folio-codeblock-copy:hover {
+  background: var(--bg-active);
+  color: var(--ink);
+}
+
+.folio-codeblock pre {
+  margin: 0;
+  padding: 0.8em 1em;
+  overflow-x: auto;
+  background: var(--bg);
+}
+
+.folio-codeblock code {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.86em;
+  line-height: 1.55;
+  background: none;
+  padding: 0;
+}
+
+/* lowlight tokens — a light, muted highlight.js-style palette */
+.hljs-comment, .hljs-quote { color: var(--ink-3); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal { color: #a626a4; }
+.hljs-string, .hljs-attr, .hljs-template-tag { color: #50a14f; }
+.hljs-number, .hljs-built_in { color: #986801; }
+.hljs-title, .hljs-name, .hljs-function { color: #4078f2; }
+.hljs-variable, .hljs-attribute { color: #e45649; }
+.hljs-type, .hljs-class .hljs-title { color: #c18401; }
+
+/* ---------- Callout ---------- */
+
+.folio-callout {
+  border-radius: var(--radius-lg);
+  padding: 0.8em 1em;
+  border: 1px solid var(--line);
+  background: var(--bg-hover);
+}
+
+.folio-callout-info { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.folio-callout-warn { background: rgba(154, 103, 0, 0.1); border-color: rgba(154, 103, 0, 0.3); }
+.folio-callout-ok { background: rgba(26, 127, 55, 0.1); border-color: rgba(26, 127, 55, 0.3); }
+
+.folio-callout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4em;
+}
+
+.folio-callout-emoji-wrap {
+  position: relative;
+}
+
+.folio-callout-emoji {
+  font-size: 1.2em;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0.05em 0.15em;
+  line-height: 1;
+}
+
+.folio-callout-emoji:hover:not(:disabled) {
+  background: var(--bg-active);
+}
+
+.folio-callout-picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  padding: 6px;
+  margin-top: 4px;
+}
+
+.folio-callout-picker button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1em;
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.folio-callout-picker button:hover {
+  background: var(--bg-hover);
+}
+
+.folio-callout-tones {
+  display: flex;
+  gap: 6px;
+}
+
+.folio-callout-tone {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.folio-callout-tone-info { background: var(--accent); }
+.folio-callout-tone-warn { background: var(--warn); }
+.folio-callout-tone-ok { background: var(--ok); }
+
+.folio-callout-tone.active {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--bg);
+  outline: 1px solid var(--ink-3);
+}
+
+.folio-callout-body > *:first-child {
+  margin-top: 0;
+}
+
+/* ---------- Details / toggle ---------- */
+
+.folio-details {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.3em 0.7em;
+  margin: 0.4em 0;
+}
+
+.folio-details summary,
+.folio-details > div[data-type='detailsSummary'] {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.3em 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.folio-details > div[data-type='detailsSummary']::before {
+  content: '▸';
+  display: inline-block;
+  transition: transform 0.14s ease-out;
+  color: var(--ink-2);
+}
+
+.folio-details[data-open='true'] > div[data-type='detailsSummary']::before,
+.folio-details[open] > div[data-type='detailsSummary']::before {
+  transform: rotate(90deg);
+}
+
+.folio-details > div[data-type='detailsContent'] {
+  padding: 0.2em 0 0.4em 1.1em;
+}
+
+/* ---------- Math ---------- */
+
+.folio-prosemirror .katex { font-size: 1.02em; }
+.folio-prosemirror .Tiptap-mathematics-editor { color: var(--accent); }
+.folio-prosemirror .Tiptap-mathematics-render {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+.folio-prosemirror .Tiptap-mathematics-render:hover {
+  background: var(--bg-hover);
+}
+.folio-prosemirror [data-type='blockMath'] {
+  display: block;
+  text-align: center;
+  padding: 0.4em 0;
+}
+
+/* ---------- Image ---------- */
+
+.folio-image {
+  max-width: 100%;
+  border-radius: var(--radius);
+  display: block;
+}
+
+/* ---------- Wikilink ---------- */
+
+.folio-wikilink-wrap {
+  position: relative;
+  display: inline;
+}
+
+a.folio-wikilink {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 0.02em 0.35em;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+a.folio-wikilink:hover {
+  text-decoration: underline;
+}
+
+.folio-wikilink-preview {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 6px;
+  z-index: 30;
+  width: 260px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  padding: 10px 12px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.folio-wikilink-preview strong {
+  font-size: 14px;
+}
+
+.folio-wikilink-preview-notebook {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.folio-wikilink-preview-snip {
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+/* ---------- Flash highlight (outline navigation target) ---------- */
+
+.folio-flash {
+  animation: folio-flash-anim 1.2s ease-out;
+  border-radius: 4px;
+}
+
+@keyframes folio-flash-anim {
+  0% { background: var(--accent-soft); }
+  100% { background: transparent; }
+}
+
+/* ---------- Drag handle ---------- */
+
+.folio-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  color: var(--ink-3);
+  cursor: grab;
+  opacity: 0.35;
+  border-radius: 4px;
+  transition: opacity 0.14s ease-out, background 0.14s ease-out;
+  font-size: 13px;
+}
+
+.folio-drag-handle:hover {
+  opacity: 1;
+  background: var(--bg-hover);
+}
+
+/* ---------- Suggestion popups (slash menu + wikilink) ---------- */
+
+.folio-suggestion-menu {
+  min-width: 260px;
+  max-width: 320px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  padding: 6px;
+}
+
+.folio-suggestion-empty {
+  padding: 12px 14px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.folio-suggestion-section-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  padding: 6px 10px 2px;
+}
+
+.folio-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.folio-suggestion-item.active,
+.folio-suggestion-item:hover {
+  background: var(--bg-hover);
+}
+
+.folio-suggestion-icon {
+  width: 22px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.folio-suggestion-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.folio-suggestion-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folio-suggestion-desc {
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Bubble menus (selection + table) ---------- */
+
+.folio-bubble {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: var(--shadow-pop);
+}
+
+.folio-bubble button {
+  background: none;
+  border: none;
+  color: inherit;
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.folio-bubble button:hover,
+.folio-bubble button.active {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.folio-bubble-sep {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 2px 2px;
+}
+
+.folio-danger {
+  color: #ff9d9d !important;
+}
+
+.folio-ai-trigger {
+  position: relative;
+}
+
+.folio-ai-btn {
+  font-weight: 500;
+}
+
+.folio-ai-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  padding: 4px;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+}
+
+.folio-ai-dropdown button {
+  color: var(--ink);
+  text-align: left;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.folio-ai-dropdown button:hover {
+  background: var(--bg-hover);
+}
+
+.folio-link-popover {
+  display: flex;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  padding: 6px;
+  margin-top: 6px;
+}
+
+.folio-link-popover input {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+  min-width: 220px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.folio-link-popover button {
+  border: 1px solid var(--line);
+  background: var(--accent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.folio-table-bubble button {
+  color: var(--ink);
+}
+
+.folio-table-bubble {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.folio-table-bubble .folio-bubble-sep {
+  background: var(--line);
+}

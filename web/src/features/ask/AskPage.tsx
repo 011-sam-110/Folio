@@ -1,3 +1,204 @@
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+import { api, ApiError } from '../../lib/api';
+import type { Notebook } from '../../lib/types';
+import { toast } from '../../components/Toast';
+import EmptyState from '../../components/EmptyState';
+import { markdownToDoc } from './mdToTiptap';
+import './AskPage.css';
+
+interface Source { id: string; title: string }
+
+interface Pair {
+  id: string;
+  question: string;
+  notebookId: string | null;
+  status: 'loading' | 'done' | 'error';
+  answer?: string;
+  sources?: Source[];
+  model?: string;
+  error?: string;
+}
+
 export default function AskPage() {
-  return <div className="placeholder">AskPage — under construction</div>
+  const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [notebookFilter, setNotebookFilter] = useState<string | null>(null);
+  const [question, setQuestion] = useState('');
+  const [pairs, setPairs] = useState<Pair[]>([]);
+  const [asking, setAsking] = useState(false);
+  const [insertingId, setInsertingId] = useState<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    api.notebooks().then(res => setNotebooks(res.notebooks)).catch(() => { /* filter chips just won't show */ });
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [pairs.length]);
+
+  async function ask() {
+    const q = question.trim();
+    if (!q || asking) return;
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const notebookId = notebookFilter;
+    setPairs(prev => [...prev, { id, question: q, notebookId, status: 'loading' }]);
+    setQuestion('');
+    setAsking(true);
+    try {
+      const res = await api.aiAsk(q, notebookId ?? undefined);
+      setPairs(prev => prev.map(p => (p.id === id ? { ...p, status: 'done', answer: res.answer, sources: res.sources, model: res.model } : p)));
+    } catch (err) {
+      const message = err instanceof ApiError
+        ? (err.status === 502 ? 'AI offline — is the gateway running?' : err.message)
+        : 'Something went wrong asking your notes.';
+      setPairs(prev => prev.map(p => (p.id === id ? { ...p, status: 'error', error: message } : p)));
+    } finally {
+      setAsking(false);
+      textareaRef.current?.focus();
+    }
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      ask();
+    }
+  }
+
+  async function insertIntoNote(pair: Pair) {
+    if (!pair.answer) return;
+    const notebookId = pair.notebookId ?? notebooks[0]?.id;
+    if (!notebookId) {
+      toast('Create a notebook first', 'error');
+      return;
+    }
+    setInsertingId(pair.id);
+    try {
+      const doc = markdownToDoc(pair.answer);
+      const res = await api.createNote({
+        notebookId,
+        title: pair.question.slice(0, 80),
+        contentJson: doc,
+        contentText: pair.answer,
+      });
+      toast('Added to a new note', 'ok');
+      navigate(`/note/${res.note.id}`);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not create the note', 'error');
+    } finally {
+      setInsertingId(null);
+    }
+  }
+
+  function retry(pair: Pair) {
+    setQuestion(pair.question);
+    textareaRef.current?.focus();
+  }
+
+  return (
+    <div className="ak-page">
+      <div className="ak-hero">
+        <h1>Ask your notes</h1>
+        <p className="ak-hero__sub">Answers are generated only from what you've written — with sources.</p>
+
+        <div className="ak-chips">
+          <button type="button" className={`ak-chip${notebookFilter === null ? ' is-active' : ''}`} onClick={() => setNotebookFilter(null)}>
+            All notebooks
+          </button>
+          {notebooks.map(nb => (
+            <button
+              key={nb.id}
+              type="button"
+              className={`ak-chip${notebookFilter === nb.id ? ' is-active' : ''}`}
+              onClick={() => setNotebookFilter(nb.id)}
+            >
+              {nb.emoji} {nb.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="ak-input">
+          <textarea
+            ref={textareaRef}
+            value={question}
+            onChange={e => setQuestion(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Ask your notes…"
+            rows={2}
+            aria-label="Ask your notes"
+          />
+          <button type="button" className="ak-btn ak-btn--primary ak-input__submit" onClick={ask} disabled={asking || !question.trim()}>
+            {asking ? 'Asking…' : 'Ask'}
+          </button>
+        </div>
+      </div>
+
+      {pairs.length === 0 ? (
+        <EmptyState
+          icon="💬"
+          title="Nothing asked yet"
+          hint="Try something like “What's the difference between a B-tree and a B+ tree?”"
+        />
+      ) : (
+        <div className="ak-thread">
+          {pairs.map(pair => (
+            <div className="ak-pair" key={pair.id}>
+              <div className="ak-bubble--question">{pair.question}</div>
+
+              {pair.status === 'loading' && (
+                <div className="ak-answer ak-answer--loading">
+                  <div className="ak-shimmer-line" />
+                  <div className="ak-shimmer-line" />
+                  <div className="ak-shimmer-line ak-shimmer-line--short" />
+                </div>
+              )}
+
+              {pair.status === 'error' && (
+                <div className="ak-answer ak-answer--error">
+                  <div className="ak-answer__error-text">{pair.error}</div>
+                  <button type="button" className="ak-btn" onClick={() => retry(pair)}>Try again</button>
+                </div>
+              )}
+
+              {pair.status === 'done' && (
+                <div className="ak-answer">
+                  <div className="ak-answer__markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(pair.answer ?? '') }} />
+                  {pair.sources && pair.sources.length > 0 && (
+                    <div className="ak-sources">
+                      {pair.sources.map(s => (
+                        <Link key={s.id} className="ak-chip ak-chip--source" to={`/note/${s.id}`}>→ {s.title}</Link>
+                      ))}
+                    </div>
+                  )}
+                  <div className="ak-answer__footer">
+                    {pair.model && <span className="ak-model-tag">{pair.model}</span>}
+                    <button
+                      type="button"
+                      className="ak-link-btn"
+                      disabled={insertingId === pair.id}
+                      onClick={() => insertIntoNote(pair)}
+                    >
+                      {insertingId === pair.id ? 'Adding…' : '+ Insert into new note'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderMarkdown(md: string): string {
+  const html = marked.parse(md, { async: false }) as string;
+  return DOMPurify.sanitize(html);
 }

@@ -1,4 +1,11 @@
-// STUB — web-shell replaces this.
+// web-shell — keep the prop signature exactly: { size? }.
 export default function Spinner({ size = 18 }: { size?: number }) {
-  return <span style={{ display: 'inline-block', width: size, height: size, border: '2px solid #ddd', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'folio-spin .7s linear infinite' }} />;
+  return (
+    <span
+      className="folio-spinner"
+      role="status"
+      aria-label="Loading"
+      style={{ width: size, height: size, borderWidth: Math.max(2, Math.round(size / 9)) }}
+    />
+  );
 }

@@ -1,0 +1,98 @@
+/* Folio design tokens.
+   Names in the "contract" block are relied on by other agents' CSS — never rename them.
+   Everything below the contract block is web-shell's own extension, safe to evolve. */
+
+:root {
+  /* ---- contract: light (default) ---- */
+  --bg: #ffffff;
+  --bg-sidebar: #f7f7f5;
+  --bg-hover: #f1f1ef;
+  --bg-active: #eaeae8;
+  --ink: #1f2328;
+  --ink-2: #57606a;
+  --ink-3: #8b949e;
+  --line: #e8e8e6;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+  --danger: #d1242f;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.12);
+
+  /* ---- extensions ---- */
+  --bg-elevated: #ffffff;
+  --danger-soft: #fdeceb;
+  --ok-soft: #e9f7ee;
+  --warn-soft: #fdf6e0;
+  --accent-ink: #ffffff;
+  --danger-ink: #ffffff;
+  --scrim: rgba(15, 15, 15, 0.32);
+  --shadow-1: 0 1px 2px rgba(15, 15, 15, 0.06);
+  --shadow-2: 0 4px 16px rgba(15, 15, 15, 0.09);
+  --ring-subtle: rgba(15, 15, 15, 0.08);
+
+  --sidebar-w: 260px;
+  --sidebar-collapsed-w: 0px;
+  --topbar-h: 52px;
+  --rail-w: 300px;
+
+  --font-ui: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', Consolas, 'SFMono-Regular', Menlo, monospace;
+
+  --fs-chrome: 13px;
+  --fs-chrome-lg: 14px;
+  --fs-body: 16px;
+  --fs-title: 40px;
+
+  --dur-fast: 120ms;
+  --dur: 150ms;
+  --dur-slow: 220ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --focus-ring: 0 0 0 3px var(--accent-soft), 0 0 0 1px var(--accent);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  /* ---- contract: dark ---- */
+  --bg: #191919;
+  --bg-sidebar: #202020;
+  --bg-hover: #252525;
+  --bg-active: #2a2a2a;
+  --ink: #e6e6e4;
+  --ink-2: #a3a39e;
+  --ink-3: #6e6e6b;
+  --line: #303030;
+  --accent: #818cf8;
+  --accent-soft: rgba(129, 140, 248, 0.14);
+  --danger: #f0605a;
+  --ok: #4cbb6c;
+  --warn: #d9a441;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);
+
+  /* ---- extensions ---- */
+  --bg-elevated: #212121;
+  --danger-soft: rgba(240, 96, 90, 0.14);
+  --ok-soft: rgba(76, 187, 108, 0.14);
+  --warn-soft: rgba(217, 164, 65, 0.14);
+  --accent-ink: #14142b;
+  --danger-ink: #ffffff;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 4px 20px rgba(0, 0, 0, 0.45);
+  --ring-subtle: rgba(255, 255, 255, 0.16);
+
+  color-scheme: dark;
+}

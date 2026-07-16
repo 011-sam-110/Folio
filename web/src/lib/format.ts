@@ -20,3 +20,47 @@ export function formatDate(iso: string): string {
 export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
+
+export function numberFmt(n: number): string {
+  return n.toLocaleString();
+}
+
+/** "Good morning" / "Good afternoon" / "Good evening" based on the local hour. */
+export function greeting(date = new Date()): string {
+  const h = date.getHours();
+  if (h < 5) return 'Good night';
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+export function longDate(date = new Date()): string {
+  return date.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+/** Extracts a human message from anything an api.* call can throw. */
+export function errorMessage(err: unknown, fallback = 'Something went wrong'): string {
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
+
+export interface SnippetSegment {
+  mark: boolean;
+  text: string;
+}
+
+/**
+ * Splits a server-generated snippetHtml string (only ever containing plain
+ * text plus <mark>…</mark> spans, per docs/API.md) into safe, renderable
+ * segments — no dangerouslySetInnerHTML anywhere, any stray markup is
+ * stripped defensively.
+ */
+export function parseSnippetHtml(html: string): SnippetSegment[] {
+  if (!html) return [];
+  const parts = html.split(/(<mark>[\s\S]*?<\/mark>)/g).filter(Boolean);
+  return parts.map((part) => {
+    const m = /^<mark>([\s\S]*?)<\/mark>$/.exec(part);
+    if (m) return { mark: true, text: m[1].replace(/<[^>]*>/g, '') };
+    return { mark: false, text: part.replace(/<[^>]*>/g, '') };
+  });
+}

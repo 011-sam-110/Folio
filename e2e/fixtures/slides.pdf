@@ -1,0 +1,96 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 367 >>
+stream
+BT
+/F1 20 Tf
+72 740 Td
+(Lecture 5: SQL JOINs) Tj
+/F1 13 Tf
+0 -40 Td
+18 TL
+(- Today: combining rows from two or more tables using a related column.) Tj
+T*
+(- An INNER JOIN returns only rows with matching values in both tables.) Tj
+T*
+(- Syntax: SELECT * FROM A INNER JOIN B ON A.id = B.a_id.) Tj
+T*
+(- Non-matching rows are excluded from an INNER JOIN entirely.) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 377 >>
+stream
+BT
+/F1 20 Tf
+72 740 Td
+(Outer JOINs) Tj
+/F1 13 Tf
+0 -40 Td
+18 TL
+(- A LEFT JOIN keeps every row from the left table, matched or not.) Tj
+T*
+(- A RIGHT JOIN keeps every row from the right table, matched or not.) Tj
+T*
+(- A FULL OUTER JOIN keeps unmatched rows from both sides, filling NULLs.) Tj
+T*
+(- Use LEFT JOIN whenever you must not lose rows from the primary table.) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 383 >>
+stream
+BT
+/F1 20 Tf
+72 740 Td
+(Self JOINs and JOIN performance) Tj
+/F1 13 Tf
+0 -40 Td
+18 TL
+(- A SELF JOIN joins a table to itself using two different aliases.) Tj
+T*
+(- Common use case: finding an employee's manager in the same table.) Tj
+T*
+(- JOIN performance depends heavily on indexes on the join columns.) Tj
+T*
+(- Always check EXPLAIN when a multi-table JOIN query feels slow.) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000253 00000 n 
+0000000671 00000 n 
+0000000797 00000 n 
+0000001225 00000 n 
+0000001351 00000 n 
+0000001785 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+1855
+%%EOF
