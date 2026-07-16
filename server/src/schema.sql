@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS notes (
   content_text TEXT NOT NULL DEFAULT '',
   pinned INTEGER NOT NULL DEFAULT 0,
   archived INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT, -- soft-delete: non-null = in trash (purged after 30 days on boot)
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS attachments (
   status TEXT NOT NULL DEFAULT 'uploaded', -- uploaded | extracting | ready | failed
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+CREATE INDEX IF NOT EXISTS idx_attachments_note ON attachments(note_id);
 
 CREATE TABLE IF NOT EXISTS flashcards (
   id TEXT PRIMARY KEY,

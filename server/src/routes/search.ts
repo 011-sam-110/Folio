@@ -36,7 +36,7 @@ router.get('/', (req, res) => {
         `SELECT n.*, bm25(notes_fts) as rank, snippet(notes_fts, 1, '<mark>', '</mark>', '…', 12) as snip
          FROM notes_fts
          JOIN notes n ON n.rowid = notes_fts.rowid
-         WHERE notes_fts MATCH ? AND n.archived = 0
+         WHERE notes_fts MATCH ? AND n.archived = 0 AND n.deleted_at IS NULL
          ORDER BY rank ASC
          LIMIT ?`,
       )
@@ -60,7 +60,7 @@ router.get('/titles', (req, res) => {
       `SELECT id, title, notebook_id, updated_at,
          CASE WHEN lower(title) LIKE lower(?) ESCAPE '\\' THEN 0 ELSE 1 END as prefix_rank
        FROM notes
-       WHERE archived = 0 AND lower(title) LIKE lower(?) ESCAPE '\\'
+       WHERE archived = 0 AND deleted_at IS NULL AND lower(title) LIKE lower(?) ESCAPE '\\'
        ORDER BY prefix_rank ASC, updated_at DESC
        LIMIT ?`,
     )

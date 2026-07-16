@@ -6,9 +6,12 @@ Timestamps are ISO-8601 UTC strings. Booleans stored as 0/1 in SQLite but serial
 
 ## Conventions
 - Base: `/api`
-- `Note` (full): `{ id, notebookId, title, contentJson (TipTap doc object), contentText, pinned, archived, createdAt, updatedAt, tags: string[], notebook: NotebookLite }`
+- `Note` (full): `{ id, notebookId, title, contentJson (TipTap doc object), contentText, pinned, archived, createdAt, updatedAt, tags: string[], notebook: NotebookLite, attachments: Attachment[] }`
 - `NoteLite` (lists): `{ id, notebookId, title, snippet (plain text ≤160 chars), pinned, archived, updatedAt, createdAt, tags: string[], notebook: NotebookLite, wordCount }`
 - `NotebookLite`: `{ id, name, emoji, color }`
+- `Attachment`: `{ id, kind ('photo'|'slides'|'transcript'|'image'|'file'), originalName, url ('/uploads/…'), mime, size, status, createdAt }` — the original files a note was imported/transcribed from ("never destructive OCR": the source stays one click away). Failed uploads are excluded.
+- CORS: origins are restricted to localhost + private-LAN hosts (10.*, 192.168.*, 172.16-31.*, *.local) over http(s); extend via `FOLIO_CORS_ORIGINS` (comma-separated). Requests without an Origin header (curl, same-origin) are always allowed.
+- "Today"/day-bucketed stats (`reviewedToday`, dashboard `weekActivity`) use the SERVER MACHINE'S LOCAL day boundaries, not UTC.
 
 ## Notebooks — routes/notebooks.ts
 - `GET /api/notebooks` → `{ notebooks: [{ id, name, emoji, color, position, archived, noteCount, lastNoteAt }] }` ordered by position.
@@ -19,12 +22,15 @@ Timestamps are ISO-8601 UTC strings. Booleans stored as 0/1 in SQLite but serial
 ## Notes — routes/notes.ts
 - `GET /api/notes?notebookId=&tag=&archived=0&sort=updated|created|title&limit=50&offset=0` → `{ notes: NoteLite[], total }`
 - `GET /api/notes/recent?limit=12` → `{ notes: NoteLite[] }` by updatedAt desc, excludes archived.
-- `GET /api/notes/:id` → `{ note: Note, backlinks: NoteLite[], outgoingLinks: NoteLite[] }`
+- `GET /api/notes/:id` → `{ note: Note, backlinks: NoteLite[], outgoingLinks: NoteLite[] }` (note includes `attachments`)
 - `POST /api/notes` `{ notebookId, title?, contentJson?, contentText?, tags? }` → `{ note }` (400 bad notebookId)
 - `PATCH /api/notes/:id` `{ title?, contentJson?, contentText?, pinned?, archived?, notebookId?, tags? }` → `{ note }` (fields optional; contentJson+contentText travel together)
-  - On content change: extract `[[Wiki Links]]` from contentText (regex `\[\[([^\[\]]+)\]\]`), resolve case-insensitively against note titles, replace rows in `links`.
+  - `contentJson` (POST and PATCH) is structurally validated: it must be an object shaped `{ type: 'doc', content: [...] }` — anything else (null, string, wrong type, missing content array) is rejected with 400 so a bricked note is impossible.
+  - On content change: extract `[[Wiki Links]]` from contentText (regex `\[\[([^\[\]]+)\]\]`, `[[Title|Alias]]` resolves by Title), resolve case-insensitively against note titles, replace rows in `links`.
+  - RENAME IS LINK-PRESERVING: when `title` changes, every live note whose content references `[[oldTitle]]` (case-insensitive, aliased forms included) has its content_text and wikilink nodes rewritten to the new title and its links re-resolved. Referencing notes' `updated_at` is NOT bumped (a rename shouldn't reorder the recency feed).
   - Version snapshot policy: on save, if the latest version for this note is older than 10 minutes OR cause differs, insert a version (cause 'autosave'). Always snapshot before 'restore' and before AI rewrites (cause 'ai').
-- `DELETE /api/notes/:id` → `{ ok: true }`
+- `DELETE /api/notes/:id` → `{ ok: true }` — SOFT delete: sets `deleted_at`, removes the note from every read path (lists, search, dashboard, tags, backlinks, AI retrieval), keeps the row + version history. Notes deleted >30 days ago are hard-purged on server boot.
+- `POST /api/notes/:id/undelete` → `{ note }` — restores a soft-deleted note within the retention window and re-resolves links in both directions. No-op (200) if the note isn't deleted; 404 if it never existed/was purged.
 - `GET /api/notes/:id/versions` → `{ versions: [{ id, cause, label, createdAt, title, wordCount }] }` desc
 - `GET /api/notes/:id/versions/:vid` → `{ version: { id, title, contentJson, cause, label, createdAt } }`
 - `POST /api/notes/:id/versions` `{ label? }` → `{ version }` (cause 'manual')
@@ -46,6 +52,7 @@ Timestamps are ISO-8601 UTC strings. Booleans stored as 0/1 in SQLite but serial
 
 ## AI — routes/ai.ts (uses ai/client.ts `chat`; NEVER model 'auto')
 All AI endpoints return 502 `{ error, attempts? }` if every model fails. Long-running is fine (≤90s).
+Size guard: note content sent to the model is capped at ~24k chars (8k for /title), truncated with a trailing `[truncated]` marker — a huge note can no longer hang the whole model-fallback chain.
 - `POST /api/ai/improve` `{ noteId?, text?, instruction? }` → `{ markdown, model }` — rewrite/improve notes (structure, clarity, headings, keep meaning; obey optional instruction). If noteId given, use its contentText; NEVER auto-writes the note — client previews + applies.
 - `POST /api/ai/summarize` `{ noteId }` → `{ markdown, model }` — TL;DR + key points + terms.
 - `POST /api/ai/flashcards` `{ noteId, count? (default 8) }` → `{ cards: [{ id, question, answer }] }` — generates AND inserts into flashcards table linked to note.
@@ -56,24 +63,25 @@ All AI endpoints return 502 `{ error, attempts? }` if every model fails. Long-ru
 ## Import — routes/imports.ts (multer; 25MB limit; async jobs)
 - `POST /api/import` multipart fields: `file` (required), `kind` = `photo|slides|transcript`, `notebookId` (required for new), `noteId?` (merge target), `mode` = `new|append|improve` (default new) → `{ jobId }`
   - photo: jpeg/png/webp/heic→ vision OCR (send as base64 data URL image_url) → clean structured Markdown (headings, lists, LaTeX-ish math as plain text ok).
-  - slides: PDF → unpdf `extractText` per page → AI restructure into a proper lecture-note outline (per-slide headings collapsed into topical sections).
-  - transcript: .txt/.md/.pdf → text → AI turn into structured notes / essay feedback per mode.
-  - mode `new`: create note titled from content (AI title) in notebookId. `append`: append markdown to existing noteId. `improve`: merge extraction with existing note content → AI produce improved combined note (snapshot version cause 'import' first).
-  - Markdown → TipTap JSON conversion happens server-side (lib/markdown.ts) so notes open natively in the editor.
+  - slides: PDF or PPTX → unpdf `extractText` per page / officeparser → AI restructure into a proper lecture-note outline (per-slide headings collapsed into topical sections).
+  - transcript: .txt/.md/.pdf/.docx → text → AI turn into structured notes / essay feedback per mode.
+  - mode `new`: create note titled from content (AI title) in notebookId; a leading body H1 that duplicates the resolved title is stripped so the title never appears twice. `append`: append markdown to existing noteId. `improve`: merge extraction with existing note content → AI produce improved combined note (snapshot version cause 'import' first).
+  - Concurrency: writes into an existing note (`append`/`improve`) are serialized per note, and each write re-reads fresh content inside a transaction — overlapping imports (or an import racing a live edit) can no longer clobber each other. If the note changed during the AI merge call, `improve` degrades to a non-destructive append of the extracted material.
+  - Markdown → TipTap JSON conversion happens server-side (lib/markdown.ts) so notes open natively in the editor. `[[Wiki Links]]` become real wikilink nodes (noteId resolved by title at conversion time; unresolved → noteId null, rendered in a 'missing' style client-side), and `$...$` / `$$...$$` become inlineMath/blockMath nodes.
 - `GET /api/import/jobs/:id` → `{ id, status: 'queued'|'running'|'done'|'failed', step?: string, noteId?, error?, attachmentId? }` (in-memory job store fine)
 - `POST /api/import/image` multipart `file` → `{ url: '/uploads/...' }` — plain image upload for embedding in editor.
 
 ## Study — routes/study.ts (SM-2 lite)
-- `GET /api/study/queue?limit=20` → `{ cards: [{ id, noteId, noteTitle, question, answer, dueAt, reps }] , due, total }` (due = due_at <= now, not suspended)
-- `GET /api/study/cards` → `{ cards: [{ id, noteId, noteTitle, question, answer, dueAt, reps, suspended }] }` — ALL cards including suspended and not-yet-due, newest first. (Patch A: the Browse/manage tab needs the whole deck, which `/queue` — due-only — cannot supply.)
+- `GET /api/study/queue?limit=20&notebookId=` → `{ cards: [{ id, noteId, noteTitle, notebookId?, notebookName?, question, answer, dueAt, reps }] , due, total }` (due = due_at <= now, not suspended). `notebookId` scopes the queue AND the due/total counts to one notebook (cram a single module).
+- `GET /api/study/cards` → `{ cards: [{ id, noteId, noteTitle, notebookId?, notebookName?, question, answer, dueAt, reps, suspended }] }` — ALL cards including suspended and not-yet-due, newest first. (Patch A: the Browse/manage tab needs the whole deck, which `/queue` — due-only — cannot supply.)
 - `POST /api/study/review` `{ cardId, rating: 'again'|'hard'|'good'|'easy' }` → `{ card, nextDueAt }`
   - A card is "new" when `interval_days == 0 && reps == 0`.
   - again: reps=0, interval=0 (due now +1min), ease-0.2 (min 1.3).
-  - hard: ease-0.15 (min 1.3). New card → interval stays 0, reps stays 0, due in 10 minutes (short relearning step). Established card → reps+1, interval*1.2.
+  - hard: ease-0.15 (min 1.3). New card → first 'hard' = interval stays 0, reps stays 0, due in 10 minutes (short relearning step); a SECOND consecutive 'hard' from the new state graduates the card to reps=1, interval=1d so it can never loop in the 10-minute step forever. Established card → reps+1, interval*1.2.
   - good: reps+1, interval = reps==1?1d: interval*ease.
-  - easy: ease+0.15. New card → interval jumps to 4d, reps→1. Established card → reps+1, interval*(ease+0.15)*1.3.
+  - easy: ease+0.15 capped at 3.0 (ease ceiling — a run of 'easy' can't compound into multi-year intervals). New card → interval jumps to 4d, reps→1. Established card → reps+1, interval*(ease+0.15 capped)*1.3.
   - Log every review to review_log. (Patch B: new-card hard/easy branches + hard/easy now increment reps on established cards.)
-- `GET /api/study/stats` → `{ due, total, reviewedToday, byNote: [{ noteId, noteTitle, total, due }] }`
+- `GET /api/study/stats` → `{ due, total, reviewedToday, byNote: [{ noteId, noteTitle, total, due }] }` — `reviewedToday` counts the server machine's LOCAL day, not the UTC day.
 - `PATCH /api/study/cards/:id` `{ question?, answer?, suspended? }` → `{ card }`
 - `DELETE /api/study/cards/:id` → `{ ok: true }`
 

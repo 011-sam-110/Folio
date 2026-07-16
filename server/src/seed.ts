@@ -5,7 +5,7 @@
 // Run: npm run seed -w server        (or: npm run seed -w server -- --force)
 
 import { db, newId } from './db.js';
-import { markdownToTipTap, markdownToPlainText } from './lib/markdown.js';
+import { markdownToTipTap, markdownToPlainText, stripLeadingTitleHeading } from './lib/markdown.js';
 import { syncLinksForNote } from './lib/links.js';
 
 const FORCE = process.argv.includes('--force');
@@ -865,10 +865,22 @@ function main() {
     const noteIds = new Map<string, string>();
     const noteTexts = new Map<string, string>();
 
+    // Pre-assign ids and build a title→id map so wikilinks in each note's markdown resolve
+    // to real note ids at conversion time (forward references included).
+    const idByTitle = new Map<string, string>();
     for (const def of noteDefs) {
       const id = newId();
-      const contentJson = JSON.stringify(markdownToTipTap(def.markdown));
-      const contentText = markdownToPlainText(def.markdown);
+      noteIds.set(def.key, id);
+      idByTitle.set(def.title.toLowerCase(), id);
+    }
+    const resolveTitle = (title: string): string | null => idByTitle.get(title.trim().toLowerCase()) ?? null;
+
+    for (const def of noteDefs) {
+      const id = noteIds.get(def.key)!;
+      // Notes don't repeat their own title as the first body heading — the title field owns it.
+      const body = stripLeadingTitleHeading(def.markdown, def.title);
+      const contentJson = JSON.stringify(markdownToTipTap(body, resolveTitle));
+      const contentText = markdownToPlainText(body);
       db.prepare(
         `INSERT INTO notes (id, notebook_id, title, content_json, content_text, pinned, archived, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
@@ -879,7 +891,6 @@ function main() {
         for (const t of def.tags) tagStmt.run(id, t);
       }
 
-      noteIds.set(def.key, id);
       noteTexts.set(def.key, contentText);
     }
 

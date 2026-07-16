@@ -14,7 +14,7 @@ interface NotebookRow {
 }
 
 const getRowStmt = () => db.prepare('SELECT * FROM notebooks WHERE id = ?');
-const statsStmt = () => db.prepare('SELECT COUNT(*) as c, MAX(updated_at) as last FROM notes WHERE notebook_id = ? AND archived = 0');
+const statsStmt = () => db.prepare('SELECT COUNT(*) as c, MAX(updated_at) as last FROM notes WHERE notebook_id = ? AND archived = 0 AND deleted_at IS NULL');
 
 function notebookOut(row: NotebookRow) {
   const stats = statsStmt().get(row.id) as { c: number; last: string | null };

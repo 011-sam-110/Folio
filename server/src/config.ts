@@ -25,13 +25,19 @@ if (fs.existsSync(envPath)) {
 export const config = {
   port: Number(process.env.FOLIO_PORT ?? 4780),
   host: process.env.FOLIO_HOST ?? '0.0.0.0',
+  // Extra allowed CORS origins (comma-separated), on top of the built-in localhost +
+  // private-LAN allowance in app.ts. Empty by default.
+  extraCorsOrigins: (process.env.FOLIO_CORS_ORIGINS ?? '')
+    .split(',').map(s => s.trim()).filter(Boolean),
   ai: {
     baseUrl: (process.env.FOLIO_AI_BASE_URL ?? 'http://localhost:3001/v1').replace(/\/$/, ''),
     apiKey: process.env.FOLIO_AI_KEY ?? '',
     // 'auto' on the gateway can route to dead providers — always pin, with fallbacks.
     textModels: (process.env.FOLIO_AI_TEXT_MODELS ?? 'gemini-2.5-flash,llama-3.3-70b-versatile,mistral-medium-latest')
       .split(',').map(s => s.trim()).filter(Boolean),
-    visionModels: (process.env.FOLIO_AI_VISION_MODELS ?? 'gemini-2.5-flash')
+    // Vision needs its own fallback chain too — a single provider hiccup on the only
+    // vision model used to fail every photo import.
+    visionModels: (process.env.FOLIO_AI_VISION_MODELS ?? 'gemini-2.5-flash,gemini-3.5-flash,gemini-2.5-flash-lite')
       .split(',').map(s => s.trim()).filter(Boolean),
     timeoutMs: Number(process.env.FOLIO_AI_TIMEOUT_MS ?? 90_000),
   },

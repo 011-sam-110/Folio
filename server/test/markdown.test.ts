@@ -101,11 +101,43 @@ describe('markdownToTipTap', () => {
     expect(allText).toContain('very important');
   });
 
-  it('preserves [[wikilinks]] as literal text', () => {
-    const doc = markdownToTipTap('See [[Big O Notation]] and [[Sorting Algorithms]] for background.') as JsonNode;
+  it('converts [[Wiki Links]] into real wikilink nodes (unresolved → null noteId)', () => {
+    const doc = markdownToTipTap('See [[Big O Notation]] and [[Sorting Algorithms|sorting]] for background.') as JsonNode;
+    const links = findNodes(doc, 'wikilink');
+    expect(links.length).toBe(2);
+    expect(links[0].attrs?.title).toBe('Big O Notation');
+    expect(links[0].attrs?.noteId).toBeNull();
+    expect(links[1].attrs?.title).toBe('Sorting Algorithms');
+    expect(links[1].attrs?.alias).toBe('sorting');
     const allText = walkText(doc).join('');
-    expect(allText).toContain('[[Big O Notation]]');
-    expect(allText).toContain('[[Sorting Algorithms]]');
+    expect(allText).toContain('See ');
+    expect(allText).toContain(' for background.');
+  });
+
+  it('resolves a wikilink noteId via the supplied resolver', () => {
+    const doc = markdownToTipTap('Link to [[Target]].', (t) => (t.toLowerCase() === 'target' ? 'note123' : null)) as JsonNode;
+    const links = findNodes(doc, 'wikilink');
+    expect(links.length).toBe(1);
+    expect(links[0].attrs?.noteId).toBe('note123');
+  });
+
+  it('converts $inline$ and $$display$$ into KaTeX math nodes', () => {
+    const doc = markdownToTipTap('Inline $x^2 + y^2 = r^2$ here.\n\n$$E = mc^2$$') as JsonNode;
+    const inline = findNodes(doc, 'inlineMath');
+    const block = findNodes(doc, 'blockMath');
+    expect(inline.length).toBe(1);
+    expect(inline[0].attrs?.latex).toBe('x^2 + y^2 = r^2');
+    expect(block.length).toBe(1);
+    expect(block[0].attrs?.latex).toBe('E = mc^2');
+  });
+
+  it('does not rewrite wikilinks or math inside fenced code blocks', () => {
+    const doc = markdownToTipTap('```js\nconst a = [[notAlink]]; // $notMath$\n```') as JsonNode;
+    expect(findNodes(doc, 'wikilink').length).toBe(0);
+    expect(findNodes(doc, 'inlineMath').length).toBe(0);
+    const codeText = walkText(findNodes(doc, 'codeBlock')[0]).join('');
+    expect(codeText).toContain('[[notAlink]]');
+    expect(codeText).toContain('$notMath$');
   });
 
   it('falls back to a plain paragraph doc instead of crashing on pathological input', () => {

@@ -4,17 +4,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { UPLOADS_DIR } from '../config.js';
 import { db, newId, nowIso } from '../db.js';
-import { chat, AiError } from '../ai/client.js';
+import { chat, AiError, capForAi } from '../ai/client.js';
 import { ocrPhotoPrompt, slidesRestructurePrompt, transcriptNotesPrompt, improvePrompt, titlePrompt, cleanTitle } from '../ai/prompts.js';
 import { extractFromUpload } from '../lib/extract.js';
-import { markdownToTipTap, markdownToPlainText } from '../lib/markdown.js';
+import { markdownToTipTap, markdownToPlainText, stripLeadingTitleHeading } from '../lib/markdown.js';
+import { syncLinksForNote, resolveNoteIdByTitle } from '../lib/links.js';
 import { createJob, updateJob, getJob } from '../lib/jobs.js';
 import type { NoteRow } from '../lib/serialize.js';
 
 const router = Router();
 
 const MAX_SIZE = 25 * 1024 * 1024;
-const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
 
 const MIME_EXT: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -71,38 +71,51 @@ type ImportMode = 'new' | 'append' | 'improve';
 const KINDS: ImportKind[] = ['photo', 'slides', 'transcript'];
 const MODES: ImportMode[] = ['new', 'append', 'improve'];
 
-function kindAccepts(kind: ImportKind, mime: string, name: string): boolean {
+// PPTX/DOCX are handled by officeparser (see lib/extract.ts) — the slides/transcript
+// kinds accept them too, matching the client's advertised accept lists (import/kinds.ts).
+const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+export function kindAccepts(kind: ImportKind, mime: string, name: string): boolean {
   const ext = path.extname(name).toLowerCase();
   if (kind === 'photo') return /^image\/(jpeg|png|webp|heic|heif)$/.test(mime) || ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'].includes(ext);
-  if (kind === 'slides') return mime === 'application/pdf' || ext === '.pdf';
-  return mime === 'application/pdf' || mime === 'text/plain' || mime === 'text/markdown' || ['.pdf', '.txt', '.md'].includes(ext);
+  if (kind === 'slides') return mime === 'application/pdf' || mime === PPTX_MIME || ext === '.pdf' || ext === '.pptx';
+  return (
+    mime === 'application/pdf' ||
+    mime === 'text/plain' ||
+    mime === 'text/markdown' ||
+    mime === DOCX_MIME ||
+    ['.pdf', '.txt', '.md', '.docx'].includes(ext)
+  );
 }
 
 function markAttachment(id: string, status: string): void {
   db.prepare('UPDATE attachments SET status = ? WHERE id = ?').run(status, id);
 }
 
-/** Extracts [[Title]] refs from note text and rewrites the `links` rows for this note. */
-function syncLinks(fromNoteId: string, contentText: string): void {
-  const titles = new Set<string>();
-  WIKILINK_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = WIKILINK_RE.exec(contentText))) titles.add(m[1].trim().toLowerCase());
-
-  db.prepare('DELETE FROM links WHERE from_note_id = ?').run(fromNoteId);
-  if (titles.size === 0) return;
-
-  const findByTitle = db.prepare('SELECT id FROM notes WHERE lower(title) = ? AND id != ?');
-  const insertLink = db.prepare('INSERT OR IGNORE INTO links (from_note_id, to_note_id) VALUES (?, ?)');
-  for (const title of titles) {
-    const target = findByTitle.get(title, fromNoteId) as { id: string } | undefined;
-    if (target) insertLink.run(fromNoteId, target.id);
-  }
-}
-
 function firstHeading(markdown: string): string {
   const m = markdown.match(/^#{1,6}\s+(.+)$/m);
   return m ? m[1].trim().slice(0, 200) : '';
+}
+
+// Re-exported for the unit tests; lives in lib/markdown.ts so seed.ts shares it.
+export { stripLeadingTitleHeading };
+
+// --- Per-note write serialization (fix: concurrent import writes to the same note) -------
+// better-sqlite3 is synchronous, but import jobs run async (extraction + AI awaits before
+// the write). Two jobs (or an import racing a live PATCH) targeting one note could otherwise
+// interleave read → await → write and clobber each other. A per-note promise chain forces
+// them through one at a time; each write itself re-reads fresh content inside a transaction.
+const noteLocks = new Map<string, Promise<unknown>>();
+export function withNoteLock<T>(noteId: string, fn: () => Promise<T> | T): Promise<T> {
+  const prev = noteLocks.get(noteId) ?? Promise.resolve();
+  const result = prev.then(() => fn(), () => fn());
+  const settled = result.then(() => {}, () => {});
+  noteLocks.set(noteId, settled);
+  void settled.then(() => {
+    if (noteLocks.get(noteId) === settled) noteLocks.delete(noteId);
+  });
+  return result;
 }
 
 function titleFromFilename(name: string): string {
@@ -113,7 +126,7 @@ function titleFromFilename(name: string): string {
 
 async function resolveTitle(markdown: string, contentText: string, originalName: string): Promise<string> {
   try {
-    const { text } = await chat(titlePrompt(contentText || markdown));
+    const { text } = await chat(titlePrompt(capForAi(contentText || markdown, 8_000)));
     const cleaned = cleanTitle(text);
     if (cleaned) return cleaned;
   } catch {
@@ -123,9 +136,11 @@ async function resolveTitle(markdown: string, contentText: string, originalName:
 }
 
 async function createNoteFromMarkdown(markdown: string, notebookId: string, originalName: string): Promise<string> {
-  const contentJson = markdownToTipTap(markdown);
-  const contentText = markdownToPlainText(markdown);
-  const title = await resolveTitle(markdown, contentText, originalName);
+  const title = await resolveTitle(markdown, markdownToPlainText(markdown), originalName);
+  // Don't duplicate the title as the first body heading (fix: imported notes showed it twice).
+  const body = stripLeadingTitleHeading(markdown, title);
+  const contentJson = markdownToTipTap(body, resolveNoteIdByTitle);
+  const contentText = markdownToPlainText(body);
 
   const id = newId();
   const now = nowIso();
@@ -133,56 +148,85 @@ async function createNoteFromMarkdown(markdown: string, notebookId: string, orig
     `INSERT INTO notes (id, notebook_id, title, content_json, content_text, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(id, notebookId, title, JSON.stringify(contentJson), contentText, now, now);
-  syncLinks(id, contentText);
+  syncLinksForNote(id, contentText);
   return id;
 }
 
-function appendMarkdownToNote(noteId: string, markdown: string): string {
-  const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) as NoteRow;
-  const existingJson = JSON.parse(row.content_json) as { type: 'doc'; content?: unknown[] };
-  const newJson = markdownToTipTap(markdown) as { type: 'doc'; content?: unknown[] };
-  const mergedContent = [...(existingJson.content ?? []), ...(newJson.content ?? [])];
-  const mergedJson = { type: 'doc', content: mergedContent.length ? mergedContent : [{ type: 'paragraph' }] };
-  const mergedText = [row.content_text, markdownToPlainText(markdown)].filter(Boolean).join('\n\n');
-
-  const now = nowIso();
-  db.prepare('UPDATE notes SET content_json = ?, content_text = ?, updated_at = ? WHERE id = ?').run(
-    JSON.stringify(mergedJson),
-    mergedText,
-    now,
-    noteId,
-  );
-  syncLinks(noteId, mergedText);
+/** Append extracted markdown to a note, re-reading its FRESH content inside a transaction so
+ *  a concurrent write can't be clobbered. Serialized per note via withNoteLock. */
+export function appendMarkdownToNote(noteId: string, markdown: string): string {
+  const newJson = markdownToTipTap(markdown, resolveNoteIdByTitle) as { type: 'doc'; content?: unknown[] };
+  const appendText = markdownToPlainText(markdown);
+  const tx = db.transaction(() => {
+    const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) as NoteRow | undefined;
+    if (!row) throw new Error('target note no longer exists');
+    const existingJson = JSON.parse(row.content_json) as { type: 'doc'; content?: unknown[] };
+    const mergedContent = [...(existingJson.content ?? []), ...(newJson.content ?? [])];
+    const mergedJson = { type: 'doc', content: mergedContent.length ? mergedContent : [{ type: 'paragraph' }] };
+    const mergedText = [row.content_text, appendText].filter(Boolean).join('\n\n');
+    db.prepare('UPDATE notes SET content_json = ?, content_text = ?, updated_at = ? WHERE id = ?').run(
+      JSON.stringify(mergedJson),
+      mergedText,
+      nowIso(),
+      noteId,
+    );
+    syncLinksForNote(noteId, mergedText);
+  });
+  tx();
   return noteId;
 }
 
 async function mergeMarkdownIntoNote(noteId: string, markdown: string): Promise<string> {
-  const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) as NoteRow;
+  // Read a snapshot for the AI prompt (this is the only async step — it happens BEFORE the
+  // write transaction re-reads, so the transaction can detect a concurrent change).
+  const snapshot = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) as NoteRow | undefined;
+  if (!snapshot) throw new Error('target note no longer exists');
 
-  // Snapshot the note as it was BEFORE the AI merge, per contract.
-  db.prepare("INSERT INTO note_versions (note_id, title, content_json, cause) VALUES (?, ?, ?, 'import')").run(
-    noteId,
-    row.title,
-    row.content_json,
+  const combined = capForAi(
+    `EXISTING NOTES:\n\n${snapshot.content_text || '(empty)'}\n\n---\n\nNEW MATERIAL TO INTEGRATE:\n\n${markdown}`,
   );
-
-  const combined = `EXISTING NOTES:\n\n${row.content_text || '(empty)'}\n\n---\n\nNEW MATERIAL TO INTEGRATE:\n\n${markdown}`;
   const instruction =
     'Merge the NEW MATERIAL into the EXISTING NOTES into one coherent, deduplicated set of notes. Preserve every fact from both — do not drop anything. ' +
     'Where they overlap, keep the clearer/more complete version. Add new sections for genuinely new topics. Keep the existing structure where it still fits.';
   const { text } = await chat(improvePrompt(combined, instruction));
   const mergedMarkdown = text.trim();
 
-  const mergedJson = markdownToTipTap(mergedMarkdown);
-  const mergedText = markdownToPlainText(mergedMarkdown);
-  const now = nowIso();
-  db.prepare('UPDATE notes SET content_json = ?, content_text = ?, updated_at = ? WHERE id = ?').run(
-    JSON.stringify(mergedJson),
-    mergedText,
-    now,
-    noteId,
-  );
-  syncLinks(noteId, mergedText);
+  const tx = db.transaction(() => {
+    const fresh = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) as NoteRow | undefined;
+    if (!fresh) throw new Error('target note no longer exists');
+    // Snapshot the note as it was BEFORE this merge, per contract (cause 'import').
+    db.prepare("INSERT INTO note_versions (note_id, title, content_json, cause) VALUES (?, ?, ?, 'import')").run(
+      noteId,
+      fresh.title,
+      fresh.content_json,
+    );
+
+    let mergedText: string;
+    let mergedJsonStr: string;
+    if (fresh.content_text === snapshot.content_text) {
+      // No concurrent change: the AI's blended result is authoritative.
+      mergedText = markdownToPlainText(mergedMarkdown);
+      mergedJsonStr = JSON.stringify(markdownToTipTap(mergedMarkdown, resolveNoteIdByTitle));
+    } else {
+      // The note changed during the AI call — the blended result is stale. Degrade to a
+      // non-destructive append of the extracted material so nothing the other writer added
+      // is lost (better a slightly-less-tidy merge than silent data loss).
+      const existingJson = JSON.parse(fresh.content_json) as { type: 'doc'; content?: unknown[] };
+      const addJson = markdownToTipTap(markdown, resolveNoteIdByTitle) as { type: 'doc'; content?: unknown[] };
+      const content = [...(existingJson.content ?? []), ...(addJson.content ?? [])];
+      mergedJsonStr = JSON.stringify({ type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] });
+      mergedText = [fresh.content_text, markdownToPlainText(markdown)].filter(Boolean).join('\n\n');
+    }
+
+    db.prepare('UPDATE notes SET content_json = ?, content_text = ?, updated_at = ? WHERE id = ?').run(
+      mergedJsonStr,
+      mergedText,
+      nowIso(),
+      noteId,
+    );
+    syncLinksForNote(noteId, mergedText);
+  });
+  tx();
   return noteId;
 }
 
@@ -236,9 +280,11 @@ async function processImport(args: ProcessArgs): Promise<void> {
     if (mode === 'new') {
       resultNoteId = await createNoteFromMarkdown(extractedMarkdown, notebookId!, originalName);
     } else if (mode === 'append') {
-      resultNoteId = appendMarkdownToNote(noteId!, extractedMarkdown);
+      // Serialize per note so concurrent imports (or an import racing another append) can't
+      // read-modify-write over each other.
+      resultNoteId = await withNoteLock(noteId!, () => appendMarkdownToNote(noteId!, extractedMarkdown));
     } else {
-      resultNoteId = await mergeMarkdownIntoNote(noteId!, extractedMarkdown);
+      resultNoteId = await withNoteLock(noteId!, () => mergeMarkdownIntoNote(noteId!, extractedMarkdown));
     }
 
     db.prepare('UPDATE attachments SET extracted_text = ?, status = ?, note_id = ? WHERE id = ?').run(
@@ -284,7 +330,7 @@ router.post('/', handleUpload(upload.single('file')), (req, res) => {
   }
   let targetNote: NoteRow | undefined;
   if (noteId) {
-    targetNote = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) as NoteRow | undefined;
+    targetNote = db.prepare('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL').get(noteId) as NoteRow | undefined;
     if (!targetNote) return fail(400, 'unknown noteId');
   }
 

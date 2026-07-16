@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express';
 import { db, newId, nowIso } from '../db.js';
-import { chat, extractJson, AiError } from '../ai/client.js';
+import { chat, extractJson, AiError, capForAi } from '../ai/client.js';
 import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle } from '../ai/prompts.js';
 import type { NoteRow } from '../lib/serialize.js';
 
@@ -48,7 +48,7 @@ router.post('/improve', async (req, res) => {
   }
 
   try {
-    const { text: markdown, model } = await chat(improvePrompt(content, typeof instruction === 'string' ? instruction : undefined));
+    const { text: markdown, model } = await chat(improvePrompt(capForAi(content), typeof instruction === 'string' ? instruction : undefined));
     res.json({ markdown: markdown.trim(), model });
   } catch (e) {
     sendAiError(res, e);
@@ -63,7 +63,7 @@ router.post('/summarize', async (req, res) => {
   if (!note) return res.status(404).json({ error: 'note not found' });
 
   try {
-    const { text, model } = await chat(summarizePrompt(note.content_text, note.title || 'Untitled'));
+    const { text, model } = await chat(summarizePrompt(capForAi(note.content_text), note.title || 'Untitled'));
     res.json({ markdown: text.trim(), model });
   } catch (e) {
     sendAiError(res, e);
@@ -91,7 +91,7 @@ router.post('/flashcards', async (req, res) => {
     let cards: Array<{ question: string; answer: string }> | null = null;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS && !cards; attempt++) {
-      const { text, model } = await chat(flashcardsPrompt(note.content_text, note.title || 'Untitled', target));
+      const { text, model } = await chat(flashcardsPrompt(capForAi(note.content_text), note.title || 'Untitled', target));
 
       let parsed: unknown;
       try {
@@ -143,8 +143,8 @@ router.post('/ask', async (req, res) => {
   const nbId = typeof notebookId === 'string' && notebookId ? notebookId : undefined;
 
   const scopeCount = nbId
-    ? (db.prepare('SELECT COUNT(*) as c FROM notes WHERE notebook_id = ? AND archived = 0').get(nbId) as { c: number }).c
-    : (db.prepare('SELECT COUNT(*) as c FROM notes WHERE archived = 0').get() as { c: number }).c;
+    ? (db.prepare('SELECT COUNT(*) as c FROM notes WHERE notebook_id = ? AND archived = 0 AND deleted_at IS NULL').get(nbId) as { c: number }).c
+    : (db.prepare('SELECT COUNT(*) as c FROM notes WHERE archived = 0 AND deleted_at IS NULL').get() as { c: number }).c;
 
   if (scopeCount === 0) {
     res.json({
@@ -166,7 +166,7 @@ router.post('/ask', async (req, res) => {
       SELECT n.id as id, n.title as title, n.content_text as content_text
       FROM notes_fts f
       JOIN notes n ON n.rowid = f.rowid
-      WHERE notes_fts MATCH ? AND n.archived = 0 ${nbId ? 'AND n.notebook_id = ?' : ''}
+      WHERE notes_fts MATCH ? AND n.archived = 0 AND n.deleted_at IS NULL ${nbId ? 'AND n.notebook_id = ?' : ''}
       ORDER BY bm25(notes_fts)
       LIMIT 6
     `;
@@ -180,7 +180,7 @@ router.post('/ask', async (req, res) => {
   if (rows.length === 0) {
     const sql = `
       SELECT id, title, content_text FROM notes
-      WHERE archived = 0 ${nbId ? 'AND notebook_id = ?' : ''}
+      WHERE archived = 0 AND deleted_at IS NULL ${nbId ? 'AND notebook_id = ?' : ''}
       ORDER BY updated_at DESC LIMIT 6
     `;
     rows = (nbId ? db.prepare(sql).all(nbId) : db.prepare(sql).all()) as Row[];
@@ -204,7 +204,7 @@ router.post('/title', async (req, res) => {
   if (!note) return res.status(404).json({ error: 'note not found' });
 
   try {
-    const { text } = await chat(titlePrompt(note.content_text));
+    const { text } = await chat(titlePrompt(capForAi(note.content_text, 8_000)));
     const title = cleanTitle(text) || note.title || 'Untitled';
     res.json({ title });
   } catch (e) {

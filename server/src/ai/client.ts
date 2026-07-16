@@ -11,6 +11,18 @@ export class AiError extends Error {
   }
 }
 
+/** Upper bound on note text handed to the LLM. Beyond this a large note can blow past a
+ *  fallback model's context window on every attempt, hanging for minutes before failing. */
+export const AI_MAX_CHARS = 24_000;
+
+/** Truncate note content sent to the model, appending a visible marker so the model (and
+ *  anyone debugging) knows the tail was cut. Safe on any string. */
+export function capForAi(text: string, max = AI_MAX_CHARS): string {
+  if (!text) return text;
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}\n\n[truncated]`;
+}
+
 async function callOnce(model: string, messages: ChatMessage[], opts: { maxTokens?: number; temperature?: number; json?: boolean }): Promise<string> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), config.ai.timeoutMs);
@@ -42,22 +54,43 @@ async function callOnce(model: string, messages: ChatMessage[], opts: { maxToken
   }
 }
 
+const RATE_LIMIT_RE = /\b429\b|rate.?limit|models exhausted|quota/i;
+const RATE_LIMIT_RETRY_DELAY_MS = Number(process.env.FOLIO_AI_RATELIMIT_RETRY_MS ?? 25_000);
+
 /**
  * Chat with model fallback: tries each pinned model in order until one succeeds.
  * The gateway's 'auto' router can pick dead/weak providers, so we never use it.
+ * If EVERY model failed with a rate-limit-class error (free-tier providers throttle in
+ * bursts), wait once and re-run the whole chain — per-minute limits usually clear.
  */
 export async function chat(messages: ChatMessage[], opts: { vision?: boolean; maxTokens?: number; temperature?: number; json?: boolean } = {}): Promise<{ text: string; model: string }> {
   const models = opts.vision ? config.ai.visionModels : config.ai.textModels;
-  const attempts: Array<{ model: string; error: string }> = [];
-  for (const model of models) {
-    try {
-      const text = await callOnce(model, messages, opts);
-      return { text, model };
-    } catch (e) {
-      attempts.push({ model, error: e instanceof Error ? e.message : String(e) });
+
+  const runChain = async (): Promise<{ text: string; model: string } | Array<{ model: string; error: string }>> => {
+    const attempts: Array<{ model: string; error: string }> = [];
+    for (const model of models) {
+      try {
+        const text = await callOnce(model, messages, opts);
+        return { text, model };
+      } catch (e) {
+        attempts.push({ model, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    return attempts;
+  };
+
+  let result = await runChain();
+  if (Array.isArray(result)) {
+    const allRateLimited = result.every(a => RATE_LIMIT_RE.test(a.error));
+    if (allRateLimited && RATE_LIMIT_RETRY_DELAY_MS > 0) {
+      await new Promise(r => setTimeout(r, RATE_LIMIT_RETRY_DELAY_MS));
+      result = await runChain();
     }
   }
-  throw new AiError(`All AI models failed (${attempts.map(a => a.model).join(', ')})`, attempts);
+  if (Array.isArray(result)) {
+    throw new AiError(`All AI models failed (${result.map(a => a.model).join(', ')})`, result);
+  }
+  return result;
 }
 
 /** Extract a JSON object from a completion that may wrap it in prose or code fences. */

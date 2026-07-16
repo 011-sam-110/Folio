@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, UPLOADS_DIR } from './config.js';
+import { ROOT, UPLOADS_DIR, config } from './config.js';
 import './db.js';
 
 import notebooksRouter from './routes/notebooks.js';
@@ -15,9 +15,44 @@ import importsRouter from './routes/imports.js';
 import studyRouter from './routes/study.js';
 import metaRouter from './routes/meta.js';
 
+/**
+ * The app ships with no auth (LAN-only trust, per SPEC §8), but leaving CORS wide open
+ * is a broader exposure than that decision covered: any website the student visits in the
+ * same browser could otherwise cross-origin fetch localhost/LAN Folio and read/write notes.
+ * So restrict Origin to what actually serves this app — localhost dev/served origins and
+ * private-LAN hosts on the app's ports — while still allowing same-origin/no-Origin requests
+ * (curl, mobile PWA served from the API itself, server-to-server).
+ */
+export function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true; // no Origin header (same-origin nav, curl, native app) — allow
+  if (config.extraCorsOrigins.includes(origin)) return true;
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+  const host = url.hostname;
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  // Private-LAN ranges a phone/tablet on the same network would use.
+  const isPrivateLan =
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+    host.endsWith('.local');
+  return isLocalhost || isPrivateLan;
+}
+
 export function buildApp(): express.Express {
   const app = express();
-  app.use(cors());
+  app.use(
+    cors({
+      origin(origin, cb) {
+        cb(null, isAllowedOrigin(origin));
+      },
+    }),
+  );
   app.use(express.json({ limit: '20mb' }));
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));

@@ -1,17 +1,36 @@
 import { Router } from 'express';
 import { db, newId, nowIso } from '../db.js';
 import { noteLite, noteFull, wordCountOf, type NoteRow } from '../lib/serialize.js';
-import { syncLinksForNote } from '../lib/links.js';
+import { syncLinksForNote, renameWikilinksToTitle, resyncNotesReferencingTitle } from '../lib/links.js';
 import { tiptapToMarkdown, type TTNode } from '../lib/export.js';
 
 const router = Router();
 
+/** Live (not soft-deleted) note. */
 function getNoteRow(id: string): NoteRow | undefined {
-  return db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow | undefined;
+  return db.prepare('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL').get(id) as NoteRow | undefined;
+}
+
+/** Any note including one in the trash (for undelete). */
+function getNoteRowAny(id: string): (NoteRow & { deleted_at: string | null }) | undefined {
+  return db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as (NoteRow & { deleted_at: string | null }) | undefined;
 }
 
 function escapeLike(s: string): string {
   return s.replace(/[\\%_]/g, c => `\\${c}`);
+}
+
+/** Reject anything that isn't a minimally-valid TipTap doc so a bricked note is impossible.
+ *  Returns an error string, or null if the value is acceptable (or absent). */
+function validateContentJson(value: unknown): string | null {
+  if (value === undefined) return null; // not being changed
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return 'contentJson must be a TipTap document object';
+  }
+  const doc = value as { type?: unknown; content?: unknown };
+  if (doc.type !== 'doc') return "contentJson must have type: 'doc'";
+  if (!Array.isArray(doc.content)) return 'contentJson.content must be an array';
+  return null;
 }
 
 /** Best-effort plain-text projection of a TipTap doc — fallback when a caller sends
@@ -97,7 +116,9 @@ function versionMeta(v: VersionRow) {
 
 router.get('/recent', (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 100);
-  const rows = db.prepare('SELECT * FROM notes WHERE archived = 0 ORDER BY updated_at DESC LIMIT ?').all(limit) as NoteRow[];
+  const rows = db
+    .prepare('SELECT * FROM notes WHERE archived = 0 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?')
+    .all(limit) as NoteRow[];
   res.json({ notes: rows.map(noteLite) });
 });
 
@@ -109,7 +130,7 @@ router.get('/', (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-  const conditions = ['n.archived = ?'];
+  const conditions = ['n.archived = ?', 'n.deleted_at IS NULL'];
   const conditionParams: unknown[] = [archived ? 1 : 0];
   if (notebookId) {
     conditions.push('n.notebook_id = ?');
@@ -134,6 +155,8 @@ router.post('/', (req, res) => {
   if (typeof b.notebookId !== 'string' || !b.notebookId) return res.status(400).json({ error: 'notebookId is required' });
   const notebook = db.prepare('SELECT id FROM notebooks WHERE id = ?').get(b.notebookId);
   if (!notebook) return res.status(400).json({ error: 'unknown notebookId' });
+  const contentJsonError = validateContentJson(b.contentJson);
+  if (contentJsonError) return res.status(400).json({ error: contentJsonError });
 
   const id = newId();
   const now = nowIso();
@@ -179,6 +202,8 @@ router.patch('/:id', (req, res) => {
     const notebook = db.prepare('SELECT id FROM notebooks WHERE id = ?').get(b.notebookId);
     if (!notebook) return res.status(400).json({ error: 'unknown notebookId' });
   }
+  const contentJsonError = validateContentJson(b.contentJson);
+  if (contentJsonError) return res.status(400).json({ error: contentJsonError });
 
   const contentChanging = b.title !== undefined || b.contentJson !== undefined || b.contentText !== undefined;
   if (contentChanging && shouldAutosaveSnapshot(row.id)) {
@@ -210,16 +235,38 @@ router.patch('/:id', (req, res) => {
 
   if (b.tags !== undefined) setTags(row.id, b.tags);
   if (b.contentText !== undefined || b.contentJson !== undefined) syncLinksForNote(row.id, newContentText);
+  // Renaming a note is link-preserving: fix up the [[oldTitle]] references in every note
+  // that links here so backlinks (and the on-screen wikilink text) follow the new title.
+  if (b.title !== undefined && newTitle !== row.title) {
+    renameWikilinksToTitle(row.id, row.title, newTitle);
+  }
 
   const updated = getNoteRow(row.id)!;
   res.json({ note: noteFull(updated) });
 });
 
+// Soft-delete: move to trash. Version history survives; a boot-time sweep hard-purges
+// notes deleted >30 days ago (see db.ts purgeExpiredDeletedNotes).
 router.delete('/:id', (req, res) => {
   const row = getNoteRow(req.params.id);
   if (!row) return res.status(404).json({ error: 'note not found' });
-  db.prepare('DELETE FROM notes WHERE id = ?').run(row.id);
+  db.prepare('UPDATE notes SET deleted_at = ? WHERE id = ?').run(nowIso(), row.id);
+  // Drop outgoing links so a trashed note stops appearing as a backlink elsewhere.
+  db.prepare('DELETE FROM links WHERE from_note_id = ? OR to_note_id = ?').run(row.id, row.id);
   res.json({ ok: true });
+});
+
+// Undo a soft-delete within the retention window.
+router.post('/:id/undelete', (req, res) => {
+  const row = getNoteRowAny(req.params.id);
+  if (!row) return res.status(404).json({ error: 'note not found' });
+  if (!row.deleted_at) return res.json({ note: noteFull(row) }); // already live — no-op
+  db.prepare('UPDATE notes SET deleted_at = NULL WHERE id = ?').run(row.id);
+  // Rebuild this note's outgoing links and any incoming links from live notes.
+  syncLinksForNote(row.id, row.content_text);
+  resyncNotesReferencingTitle(row.title, row.id);
+  const restored = getNoteRow(row.id)!;
+  res.json({ note: noteFull(restored) });
 });
 
 router.get('/:id/versions', (req, res) => {
@@ -300,7 +347,7 @@ router.get('/:id/unlinked-mentions', (req, res) => {
   );
 
   const candidates = db
-    .prepare(`SELECT * FROM notes WHERE id != ? AND archived = 0 AND lower(content_text) LIKE lower(?) ESCAPE '\\'`)
+    .prepare(`SELECT * FROM notes WHERE id != ? AND archived = 0 AND deleted_at IS NULL AND lower(content_text) LIKE lower(?) ESCAPE '\\'`)
     .all(note.id, `%${escapeLike(note.title)}%`) as NoteRow[];
 
   const filtered = candidates.filter(c => !linkedIds.has(c.id));

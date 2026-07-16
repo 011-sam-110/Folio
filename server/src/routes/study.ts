@@ -16,6 +16,8 @@ interface FlashcardRow {
   suspended: number;
   created_at: string;
   note_title?: string | null;
+  notebook_id?: string | null;
+  notebook_name?: string | null;
 }
 
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -29,6 +31,8 @@ function flashcardDto(row: FlashcardRow) {
     id: row.id,
     noteId: row.note_id,
     noteTitle: row.note_title ?? undefined,
+    notebookId: row.notebook_id ?? undefined,
+    notebookName: row.notebook_name ?? undefined,
     question: row.question,
     answer: row.answer,
     dueAt: row.due_at,
@@ -38,26 +42,37 @@ function flashcardDto(row: FlashcardRow) {
 }
 
 const withNoteTitleSql = `
-  SELECT f.*, n.title as note_title
+  SELECT f.*, n.title as note_title, n.notebook_id as notebook_id, nb.name as notebook_name
   FROM flashcards f
   LEFT JOIN notes n ON n.id = f.note_id
+  LEFT JOIN notebooks nb ON nb.id = n.notebook_id
 `;
 
 function getCardWithTitle(id: string): FlashcardRow | undefined {
   return db.prepare(`${withNoteTitleSql} WHERE f.id = ?`).get(id) as FlashcardRow | undefined;
 }
 
-// GET /api/study/queue?limit=20
+// GET /api/study/queue?limit=20&notebookId=
 router.get('/queue', (req, res) => {
   const limit = clampInt(req.query.limit, 20, 1, 100);
+  const notebookId = typeof req.query.notebookId === 'string' && req.query.notebookId ? req.query.notebookId : undefined;
   const now = nowIso();
 
-  const cards = db
-    .prepare(`${withNoteTitleSql} WHERE f.suspended = 0 AND f.due_at <= ? ORDER BY f.due_at ASC LIMIT ?`)
-    .all(now, limit) as FlashcardRow[];
+  // Cram-one-module filter: scope the queue (and its due/total counts) to a single notebook.
+  const nbJoin = 'LEFT JOIN notes n2 ON n2.id = f.note_id';
+  const nbWhere = notebookId ? ' AND n2.notebook_id = ?' : '';
+  const nbParams = notebookId ? [notebookId] : [];
 
-  const due = (db.prepare('SELECT COUNT(*) as c FROM flashcards WHERE suspended = 0 AND due_at <= ?').get(now) as { c: number }).c;
-  const total = (db.prepare('SELECT COUNT(*) as c FROM flashcards').get() as { c: number }).c;
+  const cards = db
+    .prepare(`${withNoteTitleSql} WHERE f.suspended = 0 AND f.due_at <= ?${notebookId ? ' AND n.notebook_id = ?' : ''} ORDER BY f.due_at ASC LIMIT ?`)
+    .all(...[now, ...(notebookId ? [notebookId] : []), limit]) as FlashcardRow[];
+
+  const due = (
+    db.prepare(`SELECT COUNT(*) as c FROM flashcards f ${nbJoin} WHERE f.suspended = 0 AND f.due_at <= ?${nbWhere}`).get(now, ...nbParams) as { c: number }
+  ).c;
+  const total = (
+    db.prepare(`SELECT COUNT(*) as c FROM flashcards f ${nbJoin} WHERE 1=1${nbWhere}`).get(...nbParams) as { c: number }
+  ).c;
 
   res.json({ cards: cards.map(flashcardDto), due, total });
 });
@@ -73,6 +88,7 @@ router.get('/cards', (_req, res) => {
 type Rating = 'again' | 'hard' | 'good' | 'easy';
 const RATINGS: Rating[] = ['again', 'hard', 'good', 'easy'];
 const MIN_EASE = 1.3;
+const MAX_EASE = 3.0; // ease ceiling so a run of 'easy' can't compound to multi-year intervals
 
 // POST /api/study/review { cardId, rating }
 router.post('/review', (req, res) => {
@@ -104,9 +120,22 @@ router.post('/review', (req, res) => {
     case 'hard': {
       ease = Math.max(MIN_EASE, ease - 0.15);
       if (reps === 0 && interval === 0) {
-        // Brand-new card graded 'hard': short 10-minute relearning step, still "new".
-        interval = 0;
-        dueAt = new Date(now + 600_000).toISOString();
+        // Brand-new card graded 'hard': one short 10-minute relearning step. But a card
+        // that keeps getting 'hard' must not loop in the 10-minute step forever — after a
+        // SECOND consecutive 'hard' from the new state, graduate it to a 1-day interval so
+        // it escapes the relearn loop (the review is logged AFTER this handler, so the most
+        // recent logged rating being 'hard' means this is the 2nd consecutive one).
+        const prev = db.prepare('SELECT rating FROM review_log WHERE card_id = ? ORDER BY id DESC LIMIT 1').get(cardId) as
+          | { rating: string }
+          | undefined;
+        if (prev?.rating === 'hard') {
+          reps = 1;
+          interval = 1;
+          dueAt = new Date(now + 86_400_000).toISOString();
+        } else {
+          interval = 0;
+          dueAt = new Date(now + 600_000).toISOString();
+        }
       } else {
         reps = reps + 1;
         interval = interval * 1.2;
@@ -121,7 +150,7 @@ router.post('/review', (req, res) => {
       break;
     }
     case 'easy': {
-      const bumped = ease + 0.15;
+      const bumped = Math.min(MAX_EASE, ease + 0.15);
       ease = bumped;
       if (reps === 0 && interval === 0) {
         // Brand-new card graded 'easy': jump straight to a 4-day interval, count the first rep.
@@ -150,13 +179,23 @@ router.post('/review', (req, res) => {
   res.json({ card: flashcardDto(updated), nextDueAt: dueAt });
 });
 
+/** [startISO, endISO) UTC bounds of the current LOCAL day, so 'reviewed today' matches
+ *  the student's wall-clock day, not UTC (off by the tz offset otherwise, ~half the year). */
+function localDayBounds(): [string, string] {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+  return [start.toISOString(), end.toISOString()];
+}
+
 // GET /api/study/stats
 router.get('/stats', (_req, res) => {
   const now = nowIso();
   const due = (db.prepare('SELECT COUNT(*) as c FROM flashcards WHERE suspended = 0 AND due_at <= ?').get(now) as { c: number }).c;
   const total = (db.prepare('SELECT COUNT(*) as c FROM flashcards').get() as { c: number }).c;
+  const [dayStart, dayEnd] = localDayBounds();
   const reviewedToday = (
-    db.prepare("SELECT COUNT(*) as c FROM review_log WHERE date(reviewed_at) = date('now')").get() as { c: number }
+    db.prepare('SELECT COUNT(*) as c FROM review_log WHERE reviewed_at >= ? AND reviewed_at < ?').get(dayStart, dayEnd) as { c: number }
   ).c;
 
   const byNote = db
