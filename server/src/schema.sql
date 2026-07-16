@@ -89,6 +89,29 @@ CREATE TABLE IF NOT EXISTS review_log (
   reviewed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+-- Note templates (iteration 2): reusable skeletons, incl. built-in Lecture + Cornell.
+CREATE TABLE IF NOT EXISTS templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  emoji TEXT NOT NULL DEFAULT '📄',
+  description TEXT NOT NULL DEFAULT '',
+  content_json TEXT NOT NULL,
+  builtin INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- Margin comments (iteration 2): single-user self-annotations anchored by a comment mark.
+CREATE TABLE IF NOT EXISTS note_comments (
+  id TEXT PRIMARY KEY,
+  note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  anchor_text TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL,
+  resolved INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_comments_note ON note_comments(note_id, created_at);
+
 -- Full-text search over notes (external content table + sync triggers).
 CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
   title, content_text,

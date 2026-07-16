@@ -87,6 +87,51 @@ export interface DashboardData {
   stats: { notes: number; notebooks: number; words: number; flashcardsDue: number };
   weekActivity: Array<{ date: string; count: number }>;
   notebooks: Array<{ id: string; name: string; emoji: string; color: string; noteCount: number; lastNoteAt: string | null }>;
+  /** Iteration 2: Mon–Sun grid of this week's activity per notebook. */
+  weekGrid: Array<{ date: string; dayLabel: string; total: number; byNotebook: Array<{ id: string; emoji: string; color: string; count: number }> }>;
+  /** Iteration 2: computed weekly review checklist. */
+  weeklyReview: {
+    notesEditedThisWeek: number;
+    flashcardsDue: number;
+    notesWithoutSummary: number;
+    unresolvedComments: number;
+    suggestions: string[];
+  };
+  /** Iteration 2: per-notebook "last time in X" recall cards with a mini self-test. */
+  recall: Array<{
+    notebook: NotebookLite;
+    lastNote: NoteLite | null;
+    daysSince: number | null;
+    quiz: { cardId: string; question: string; answer: string } | null;
+  }>;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  contentJson: Record<string, unknown>;
+  builtin: boolean;
+  createdAt: string;
+}
+
+export interface NoteComment {
+  id: string;
+  noteId: string;
+  anchorText: string;
+  body: string;
+  resolved: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SearchParsed {
+  terms: string[];
+  phrases: string[];
+  excluded: string[];
+  tag: string | null;
+  notebook: string | null;
 }
 
 export interface Flashcard {

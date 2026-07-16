@@ -8,6 +8,8 @@ import NotePage from './features/editor/NotePage'
 import StudyPage from './features/study/StudyPage'
 import AskPage from './features/ask/AskPage'
 import CapturePage from './features/import/CapturePage'
+import SearchPage from './pages/SearchPage'
+import TagsPage from './pages/TagsPage'
 import './styles/index.css'
 
 const router = createBrowserRouter([
@@ -22,6 +24,8 @@ const router = createBrowserRouter([
       { path: 'note/:noteId', element: <NotePage /> },
       { path: 'study', element: <StudyPage /> },
       { path: 'ask', element: <AskPage /> },
+      { path: 'search', element: <SearchPage /> },
+      { path: 'tags', element: <TagsPage /> },
     ],
   },
 ])

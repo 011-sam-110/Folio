@@ -1,6 +1,7 @@
 import type {
   DashboardData, Flashcard, ImportJob, MetaInfo, Note, NoteLite, NotebookLite, Notebook,
-  NoteVersion, NoteVersionMeta, SearchResult, StudyStats, TitleResult,
+  NoteComment, NoteVersion, NoteVersionMeta, SearchParsed, SearchResult, StudyStats,
+  Template, TitleResult,
 } from './types';
 
 export class ApiError extends Error {
@@ -97,6 +98,28 @@ export const api = {
   studyStats: () => http<StudyStats>('/api/study/stats'),
   updateCard: (id: string, b: Partial<{ question: string; answer: string; suspended: boolean }>) => http<{ card: Flashcard }>(`/api/study/cards/${id}`, json('PATCH', b)),
   deleteCard: (id: string) => http<{ ok: true }>(`/api/study/cards/${id}`, { method: 'DELETE' }),
+
+  // templates (iteration 2)
+  templates: () => http<{ templates: Template[] }>('/api/templates'),
+  createTemplate: (b: { name: string; emoji?: string; description?: string; contentJson: unknown }) =>
+    http<{ template: Template }>('/api/templates', json('POST', b)),
+  deleteTemplate: (id: string) => http<{ ok: true }>(`/api/templates/${id}`, { method: 'DELETE' }),
+
+  // comments (iteration 2)
+  comments: (noteId: string) => http<{ comments: NoteComment[] }>(`/api/notes/${noteId}/comments`),
+  addComment: (noteId: string, b: { anchorText?: string; body: string }) =>
+    http<{ comment: NoteComment }>(`/api/notes/${noteId}/comments`, json('POST', b)),
+  updateComment: (id: string, b: Partial<{ body: string; resolved: boolean }>) =>
+    http<{ comment: NoteComment }>(`/api/comments/${id}`, json('PATCH', b)),
+  deleteComment: (id: string) => http<{ ok: true }>(`/api/comments/${id}`, { method: 'DELETE' }),
+
+  // manual flashcards (iteration 2)
+  createCard: (b: { noteId?: string; question: string; answer: string }) =>
+    http<{ card: Flashcard }>('/api/study/cards', json('POST', b)),
+
+  // full search page (iteration 2) — same endpoint, optional parsed echo
+  searchFull: (q: string, limit = 50) =>
+    http<{ results: SearchResult[]; parsed?: SearchParsed }>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`),
 
   // meta
   meta: () => http<MetaInfo>('/api/meta'),

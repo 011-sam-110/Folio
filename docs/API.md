@@ -85,6 +85,32 @@ Size guard: note content sent to the model is capped at ~24k chars (8k for /titl
 - `PATCH /api/study/cards/:id` `{ question?, answer?, suspended? }` → `{ card }`
 - `DELETE /api/study/cards/:id` → `{ ok: true }`
 
+## Templates — routes/templates.ts (iteration 2)
+- `GET /api/templates` → `{ templates: [{ id, name, emoji, description, contentJson, builtin, createdAt }] }` builtin first, then newest.
+- `POST /api/templates` `{ name, emoji?, description?, contentJson }` → `{ template }` (400 empty name/invalid doc; contentJson passes the same structural validation as notes).
+- `DELETE /api/templates/:id` → `{ ok: true }` (builtin templates CAN be deleted — user's choice).
+- Built-ins seeded on boot if templates table is empty: "Lecture note" (Date/Topic/Key terms toggle/Worked example/Questions to review skeleton) and "Cornell notes" (columnList: cue column + notes column, summary callout strip at bottom).
+- Creating a note from a template happens client-side: `POST /api/notes` with the template's contentJson (+contentText derived client-side or server derives when contentText omitted — server derives from contentJson when contentText is missing).
+
+## Comments — routes/comments.ts (iteration 2, single-user margin notes)
+- `GET /api/notes/:id/comments` → `{ comments: [{ id, noteId, anchorText, body, resolved, createdAt, updatedAt }] }` oldest first.
+- `POST /api/notes/:id/comments` `{ anchorText?, body }` → `{ comment }` (400 empty body).
+- `PATCH /api/comments/:id` `{ body?, resolved? }` → `{ comment }`
+- `DELETE /api/comments/:id` → `{ ok: true }`
+- Anchoring: the editor applies a `comment` mark (attrs `{ commentId }`) to the selected text; anchorText stores the selection snapshot for the margin list + orphan detection. Comment marks are stripped in markdown export.
+
+## Search operators (iteration 2 — routes/search.ts)
+`GET /api/search?q=` now parses, in this order: `"exact phrase"` (FTS phrase query), `-word` (NOT), `tag:name` (filter note_tags), `notebook:name` (filter by notebook name, case-insensitive prefix), remaining words AND'd with trailing prefix `*` on the last. Response gains optional `parsed: { terms, phrases, excluded, tag, notebook }` echo. Invalid/empty after parsing → `{ results: [], parsed }`, never 500.
+
+## Manual flashcards (iteration 2 — routes/study.ts)
+- `POST /api/study/cards` `{ noteId?, question, answer }` → `{ card }` (400 empty q/a; new card: ease 2.5, interval 0, due now).
+
+## Dashboard v2 (iteration 2 — routes/dashboard.ts)
+`GET /api/dashboard` response adds:
+- `weekGrid`: 7 entries Mon–Sun of the CURRENT week `{ date, dayLabel ('Mon'..), total, byNotebook: [{ id, emoji, color, count }] }` (activity = notes created/updated + versions that local-tz day).
+- `weeklyReview`: `{ notesEditedThisWeek, flashcardsDue, notesWithoutSummary (no h2 'Summary'/callout and >200 words), unresolvedComments, suggestions: string[] (max 4 short actionable lines derived from the numbers) }`.
+- `recall`: per non-archived notebook `{ notebook: NotebookLite, lastNote: NoteLite|null, daysSince, quiz: { cardId, question, answer } | null }` (quiz = oldest-due or random card from that notebook's notes), ordered by daysSince desc, max 6.
+
 ## Meta — routes/meta.ts (DONE — do not touch)
 - `GET /api/meta`, `GET /api/meta/ai-health`, `GET /api/meta/qr`
 
