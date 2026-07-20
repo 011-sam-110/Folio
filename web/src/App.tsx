@@ -161,8 +161,22 @@ function AppShell() {
 
   return (
     <>
+      {/* First tab stop on every authenticated page: the sidebar's notebook list can
+          run to dozens of links, and without this a keyboard user tabs through all of
+          them before reaching the content on every navigation. */}
+      <a className="folio-skip-link" href="#folio-main">
+        Skip to content
+      </a>
+
       <div className="app-topbar">
-        <button type="button" className="icon-btn" aria-label="Open menu" onClick={() => setMobileOpen(true)}>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Open menu"
+          aria-expanded={mobileOpen}
+          aria-controls="folio-sidebar-drawer"
+          onClick={() => setMobileOpen(true)}
+        >
           <Icon name="menu" size={18} />
         </button>
         <div className="app-topbar__brand">
@@ -184,9 +198,16 @@ function AppShell() {
       <div className="app-shell">
         <div
           ref={sidebarWrapRef}
+          id="folio-sidebar-drawer"
           className="app-sidebar-wrap"
           data-collapsed={collapsed}
           data-mobile-open={mobileOpen}
+          // On mobile this is a modal drawer over the content and is announced as one.
+          // On desktop it is permanent page furniture, so it must NOT claim dialog
+          // semantics — it is just the navigation region.
+          role={isMobile ? 'dialog' : undefined}
+          aria-modal={isMobile && mobileOpen ? true : undefined}
+          aria-label={isMobile ? 'Main navigation' : undefined}
           // Closed-state drawer is fully inert on mobile: invisible controls must not be
           // reachable by Tab or assistive tech (visibility is also gated in shell.css).
           inert={isMobile && !mobileOpen ? true : undefined}
@@ -218,7 +239,7 @@ function AppShell() {
           </Tooltip>
         )}
 
-        <main className="app-main">
+        <main className="app-main" id="folio-main" tabIndex={-1}>
           <Outlet />
         </main>
       </div>

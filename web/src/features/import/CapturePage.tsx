@@ -202,26 +202,35 @@ export default function CapturePage() {
                 </button>
               </div>
             ) : (
-            <div className="cp-notebooks" role="tablist" aria-label="Notebook">
-              {notebooksLoading ? (
-                <div className="cp-notebooks__hint">Loading notebooks…</div>
-              ) : notebooksFailed ? (
-                <div className="cp-notebooks__hint">Couldn't load notebooks — check your connection</div>
-              ) : notebooks.length === 0 ? (
-                <div className="cp-notebooks__hint">Create a notebook on desktop first</div>
-              ) : (
-                notebooks.map(nb => (
+            /* This is a single-select list of notebooks, not a set of tabs: there are
+               no tabpanels behind it. It was role="tablist" with plain buttons inside,
+               which is an invalid parent/child pairing (axe: aria-required-children).
+               radiogroup/radio states the same thing correctly, and aria-checked makes
+               the current selection audible rather than colour-only. The loading and
+               error hints render OUTSIDE the group, because a radiogroup may only
+               contain radios. */
+            notebooksLoading ? (
+              <div className="cp-notebooks__hint" role="status">Loading notebooks…</div>
+            ) : notebooksFailed ? (
+              <div className="cp-notebooks__hint" role="alert">Couldn't load notebooks — check your connection</div>
+            ) : notebooks.length === 0 ? (
+              <div className="cp-notebooks__hint">Create a notebook on desktop first</div>
+            ) : (
+              <div className="cp-notebooks" role="radiogroup" aria-label="Notebook">
+                {notebooks.map(nb => (
                   <button
                     key={nb.id}
                     type="button"
+                    role="radio"
+                    aria-checked={notebookId === nb.id}
                     className={`im-chip${notebookId === nb.id ? ' is-active' : ''}`}
                     onClick={() => setNotebookId(nb.id)}
                   >
                     {nb.emoji} {nb.name}
                   </button>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )
             )}
 
             {error && (

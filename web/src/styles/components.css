@@ -73,6 +73,12 @@
   background: var(--bg-hover);
   color: var(--ink);
 }
+/* Compact variant for dense label rows. 24px is the WCAG 2.5.8 floor, so this is
+   as small as an icon button is allowed to get. */
+.icon-btn--xs {
+  width: 24px;
+  height: 24px;
+}
 .icon-btn.is-active {
   background: var(--bg-active);
   color: var(--ink);
@@ -193,8 +199,38 @@
   font-weight: 700;
   color: var(--ink);
 }
+.folio-modal__title {
+  /* Now an <h2>; reset the UA heading margin/size so the header looks unchanged. */
+  margin: 0;
+}
 .folio-modal__body {
   padding: 18px;
+}
+
+/* Phone: a 480px card centred in a 24px-padded overlay leaves a cramped box with
+   the keyboard open. Below 600px the dialog becomes a bottom sheet that owns the
+   full width and can grow to nearly the dynamic viewport height, so long forms
+   (share settings, import options) stay usable while the keyboard is up. */
+@media (max-width: 599px) {
+  .folio-modal-overlay {
+    padding: 0;
+    place-items: end stretch;
+  }
+  .folio-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: 0;
+    /* Home-indicator clearance so the last control is not under the system bar. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .folio-modal__header {
+    padding: 14px 16px 12px;
+  }
+  .folio-modal__body {
+    padding: 16px;
+  }
 }
 
 /* --- toast --- */
@@ -483,10 +519,43 @@
   color: var(--accent);
   flex: 0 0 auto;
 }
+.note-card {
+  /* Anchors .note-card__open::after, which stretches the title button's hit area
+     across the whole card. */
+  position: relative;
+}
 .note-card__title {
   font-size: 14px;
   font-weight: 650;
   color: var(--ink);
+  text-align: left;
+}
+/* The card's single primary action. Its ::after covers the card so a pointer can
+   still click anywhere, while the a11y tree sees one button rather than a
+   button-inside-a-button. */
+.note-card__open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+}
+/* Controls must sit ABOVE the stretched hit area or the card-wide ::after would
+   swallow every click meant for pin/⋯. */
+.note-card__controls {
+  position: relative;
+  z-index: 1;
+}
+/* Focus lands on the title button but should read as "the card is focused", so
+   the ring is drawn on the stretched overlay instead of the text box. */
+.note-card__open:focus-visible {
+  box-shadow: none;
+}
+.note-card__open:focus-visible::after {
+  box-shadow: var(--focus-ring);
+}
+.note-card:has(.note-card__open:hover) {
+  border-color: var(--ink-3);
+  box-shadow: var(--shadow-1);
 }
 .note-card__snippet {
   font-size: 12.5px;

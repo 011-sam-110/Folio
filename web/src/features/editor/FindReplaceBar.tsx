@@ -76,6 +76,7 @@ export default function FindReplaceBar({ editor, mode, onModeChange, onClose }: 
         <input
           ref={findInputRef}
           className="folio-find-input"
+          aria-label="Find in note"
           value={query}
           placeholder="Find in note"
           onChange={(e) => handleQueryChange(e.target.value)}
@@ -127,6 +128,7 @@ export default function FindReplaceBar({ editor, mode, onModeChange, onClose }: 
         <div className="folio-find-row folio-find-replace-row">
           <input
             className="folio-find-input"
+            aria-label="Replace with"
             value={replacement}
             placeholder="Replace with"
             onChange={(e) => setReplacement(e.target.value)}

@@ -18,6 +18,7 @@ import { toast } from './Toast';
 import Icon from './Icon';
 import Spinner from './Spinner';
 import HashGlyph from './HashGlyph';
+import { useDialogFocus } from './useDialogFocus';
 
 type Row = { type: 'header'; label: string } | { type: 'cmd'; cmd: Command; index: number };
 
@@ -41,6 +42,7 @@ export default function CommandPalette({
   const [busy, setBusy] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   // Merges :notebookId / :noteId from whichever child route is currently
@@ -266,6 +268,11 @@ export default function CommandPalette({
     };
   }, [allCommands, q]);
 
+  // Makes the role="dialog" claim true: traps Tab, closes on Escape from anywhere,
+  // and restores focus to the trigger. `false` because this panel focuses its own
+  // search input (handleClose is hoisted, so referencing it here is fine).
+  useDialogFocus(open, panelRef, handleClose, false);
+
   if (!open) return null;
 
   function handleClose() {
@@ -348,11 +355,13 @@ export default function CommandPalette({
       }}
     >
       <div
+        ref={panelRef}
         className="folio-cmdk"
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
         data-testid="command-palette"
+        tabIndex={-1}
         onKeyDown={onKeyDown}
       >
         <div className="folio-cmdk__input-row">

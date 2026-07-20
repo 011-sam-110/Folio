@@ -42,10 +42,20 @@ export function uniqueName(prefix: string): string {
 }
 
 /**
- * The signature the server produces once every model in a pool has been refused by
- * the provider — i.e. the free gateway's burst/day allowance is spent.
+ * Failures that come from the AI provider rather than from Folio.
+ *
+ *  • "All AI models failed (…)" — every model in the pool refused; the free
+ *    gateway's burst/day allowance is spent.
+ *  • "AI offline — is the gateway running?" — the server's 502, i.e. the gateway
+ *    call did not complete at all.
+ *
+ * The second one is only safe to treat as environmental because every AI spec
+ * calls `ensureAiHealthy` first: a gateway that is genuinely missing or
+ * misconfigured fails there, loudly, before any of this is reached. A 502 *after*
+ * that precondition has passed means the gateway was up moments ago and faltered.
  */
-export const UPSTREAM_QUOTA_RE = /All AI models failed|rate.?limit(ed)?|quota|429/i;
+export const UPSTREAM_QUOTA_RE =
+  /All AI models failed|rate.?limit(ed)?|quota|429|AI offline/i;
 
 /**
  * Classify an AI failure as "the upstream free tier is exhausted" rather than "the

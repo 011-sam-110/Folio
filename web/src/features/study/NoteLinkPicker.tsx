@@ -75,6 +75,7 @@ export default function NoteLinkPicker({
         ref={inputRef}
         className="sy-note-picker__input"
         type="text"
+        aria-label="Link a note"
         placeholder="Link a note (optional)…"
         value={query}
         onFocus={() => setOpen(true)}

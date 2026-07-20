@@ -4,7 +4,9 @@ import { createPortal } from 'react-dom';
 import Icon from './Icon';
 
 const FOCUSABLE =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])';
+
+let titleSeq = 0;
 
 export default function Modal({
   open,
@@ -21,6 +23,9 @@ export default function Modal({
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
+  // Stable per-instance id so the visible title can NAME the dialog via
+  // aria-labelledby rather than duplicating the string into aria-label.
+  const titleId = useRef(`folio-modal-title-${++titleSeq}`).current;
   // Read onClose from a ref inside the handler so the trap effect can depend on [open]
   // ONLY. Callers pass a fresh onClose closure every render; depending on it here made the
   // effect tear down and re-run on every parent re-render, stealing focus back to the first
@@ -34,8 +39,14 @@ export default function Modal({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    const toFocus = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
-    (toFocus ?? panelRef.current)?.focus();
+    // Consumers mark their intended first field with autoFocus. React applies that
+    // during commit, but this passive effect runs afterwards, so focusing "the first
+    // focusable" used to yank focus onto the header Close button and silently defeat
+    // every consumer's autoFocus. Honour the marked element when there is one.
+    const panel = panelRef.current;
+    const preferred = panel?.querySelector<HTMLElement>('[autofocus], [data-autofocus]');
+    const toFocus = preferred ?? panel?.querySelector<HTMLElement>(FOCUSABLE);
+    (toFocus ?? panel)?.focus();
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -77,12 +88,20 @@ export default function Modal({
         style={width ? { width } : undefined}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        // Point at the visible title where there is one, so the dialog's name and its
+        // heading are the same node; fall back to a generic name for untitled dialogs
+        // (aria-label={undefined} left those completely unnamed).
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : 'Dialog'}
         tabIndex={-1}
       >
         {title && (
           <div className="folio-modal__header">
-            <div className="folio-modal__title">{title}</div>
+            {/* A real heading: dialog content should start with one so screen-reader
+                users can orient with heading navigation inside the dialog. */}
+            <h2 className="folio-modal__title" id={titleId}>
+              {title}
+            </h2>
             <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
               <Icon name="x" size={16} />
             </button>

@@ -35,17 +35,33 @@ strategies like the Banker's algorithm instead only grant requests that leave th
 system in a provably safe state.
 `.trim();
 
+/**
+ * Precondition for every spec in this file: the gateway must actually be able to
+ * answer. Two distinct situations get told apart here, because they call for
+ * opposite responses:
+ *
+ *   • The gateway is unreachable or misconfigured — a setup error. Fail loudly;
+ *     that is the only way a wrong FOLIO_AI_BASE_URL ever gets noticed.
+ *   • The gateway answered, but every model in the pool refused (the free tier's
+ *     burst/day allowance is spent) — an external quota condition. Skip, so a
+ *     drought does not turn the whole file red and drown out real regressions.
+ *
+ * Before this split, a spent quota reported as "Start the gateway before running
+ * this spec", which was actively misleading: the gateway was running fine.
+ */
 async function ensureAiHealthy(request: APIRequestContext): Promise<void> {
   const res = await request.get('/api/meta/ai-health');
   const body = await res.json().catch(() => ({}));
-  if (!res.ok() || !body?.ok) {
-    throw new Error(
-      `ai.spec.ts requires a running local AI gateway (FOLIO_AI_BASE_URL, pinned in ` +
-        `playwright.config.ts) — ` +
-        `GET /api/meta/ai-health responded ${res.status()} ${JSON.stringify(body)}. ` +
-        `Start the gateway before running this spec.`,
-    );
-  }
+  if (res.ok() && body?.ok) return;
+
+  const detail = typeof body?.error === 'string' ? body.error : '';
+  skipIfUpstreamQuota(detail);
+
+  throw new Error(
+    `ai.spec.ts requires a reachable AI gateway (FOLIO_AI_BASE_URL, pinned in ` +
+      `playwright.config.ts) — GET /api/meta/ai-health responded ${res.status()} ` +
+      `${JSON.stringify(body)}.`,
+  );
 }
 
 async function openAiMenuAction(page: import('@playwright/test').Page, actionPattern: RegExp): Promise<void> {

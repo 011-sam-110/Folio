@@ -208,6 +208,7 @@ function TextBody({
     <textarea
       ref={ref}
       className="cv-body cv-body--edit"
+      aria-label={placeholder || 'Item text'}
       value={draft}
       placeholder={placeholder}
       // Stop the board's marquee/drag and its keyboard shortcuts from seeing the

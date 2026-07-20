@@ -55,6 +55,7 @@ export default function CardComposer({
       <div className="sy-composer__fields">
         <textarea
           className="sy-composer__field"
+          aria-label="Question"
           placeholder="Question"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
@@ -63,6 +64,7 @@ export default function CardComposer({
         />
         <textarea
           className="sy-composer__field"
+          aria-label="Answer"
           placeholder="Answer"
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}

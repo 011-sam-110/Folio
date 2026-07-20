@@ -243,14 +243,16 @@
   padding: 0;
 }
 
-/* lowlight tokens — a light, muted highlight.js-style palette */
+/* lowlight tokens — theme-aware via tokens.css. The hexes used to be inlined here
+   and were the SAME in dark mode, where several fell under 3:1 against the dark
+   code background; --code-* carries a measured AA palette per theme. */
 .hljs-comment, .hljs-quote { color: var(--ink-3); font-style: italic; }
-.hljs-keyword, .hljs-selector-tag, .hljs-literal { color: #a626a4; }
-.hljs-string, .hljs-attr, .hljs-template-tag { color: #50a14f; }
-.hljs-number, .hljs-built_in { color: #986801; }
-.hljs-title, .hljs-name, .hljs-function { color: #4078f2; }
-.hljs-variable, .hljs-attribute { color: #e45649; }
-.hljs-type, .hljs-class .hljs-title { color: #c18401; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal { color: var(--code-keyword); }
+.hljs-string, .hljs-attr, .hljs-template-tag { color: var(--code-string); }
+.hljs-number, .hljs-built_in { color: var(--code-number); }
+.hljs-title, .hljs-name, .hljs-function { color: var(--code-title); }
+.hljs-variable, .hljs-attribute { color: var(--code-variable); }
+.hljs-type, .hljs-class .hljs-title { color: var(--code-type); }
 
 /* ---------- Callout ---------- */
 

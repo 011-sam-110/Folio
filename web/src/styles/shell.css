@@ -2,7 +2,12 @@
 
 .app-shell {
   display: flex;
+  /* vh first as the fallback for browsers without dvh. dvh is what actually
+     matters here: on iOS/Android the on-screen keyboard shrinks the visual
+     viewport, and a 100vh shell keeps its full height behind the keyboard,
+     pushing the editor's caret and toolbar off-screen. dvh tracks the shrink. */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: var(--bg);
 }
@@ -65,11 +70,15 @@
   top: 0;
   left: 0;
   right: 0;
-  height: var(--topbar-h);
+  /* Grows by the notch/status-bar inset so the bar's controls clear the cutout
+     on an iPhone rather than sitting under it. */
+  height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: max(8px, env(safe-area-inset-left, 0px));
+  padding-right: max(8px, env(safe-area-inset-right, 0px));
   z-index: 45;
   align-items: center;
   gap: 6px;
-  padding: 0 8px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
@@ -90,7 +99,9 @@
     display: flex;
   }
   .app-main {
-    padding-top: var(--topbar-h);
+    padding-top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+    /* Home-indicator clearance, so the last row of content is not under the bar. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .app-sidebar-wrap {
     position: fixed;
@@ -116,6 +127,13 @@
   }
   .sidebar {
     width: min(84vw, 300px);
+    /* The drawer covers the full screen height, so its own column carries the
+       notch/home-indicator insets. Padding goes here rather than on the wrapper
+       because the wrapper's fixed width would otherwise squeeze this column and
+       clip it against `overflow: hidden`. */
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
   }
 }
 

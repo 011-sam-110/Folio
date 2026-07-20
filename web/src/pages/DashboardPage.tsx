@@ -412,6 +412,7 @@ function OnboardingCreateNotebook({ onCreated }: { onCreated: (nb: Notebook) => 
             <EmojiPicker value={emoji} onSelect={setEmoji} size={18} label="Notebook emoji" />
             <input
               className="text-input"
+              aria-label="Notebook name"
               placeholder="e.g. Algorithms & Data Structures"
               value={name}
               onChange={(e) => setName(e.target.value)}

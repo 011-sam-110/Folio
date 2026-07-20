@@ -75,6 +75,122 @@ ul, ol {
   border-radius: var(--radius);
 }
 
+/* Skip link — first tab stop on every page, so a keyboard user can jump past the
+   sidebar's long notebook list straight into the page content. Visually hidden
+   until focused, then pinned over the top-left chrome. */
+.folio-skip-link {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 300;
+  padding: 10px 16px;
+  margin: 8px;
+  background: var(--bg-elevated);
+  color: var(--ink);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  font-size: 13px;
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.folio-skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+/* Coarse pointers (touch/stylus) get a 44x44 minimum on standalone controls.
+   This grows the REAL box rather than overlaying an invisible pseudo-element:
+   an overlay would spill over neighbouring controls in the dense toolbars and
+   route taps to the wrong button, which is worse than the small target it fixes.
+   Growing the box makes flex/grid siblings push apart instead.
+
+   Scoped to `.folio-touch-target` opt-in plus the shared control classes, so
+   inline buttons inside prose (which WCAG 2.5.8 exempts) keep their type size. */
+@media (pointer: coarse) {
+  .folio-touch-target,
+  .icon-btn,
+  .btn,
+  .chip,
+  button.folio-emoji-trigger {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* Inline-in-text controls are exempt from target size; keep them inline-sized. */
+  p .folio-touch-target,
+  li .folio-touch-target,
+  .tiptap .icon-btn,
+  .ProseMirror .icon-btn {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /* Text fields and selects are targets too — tapping one is how you focus it.
+     Height only: their width is already set by the layout they sit in. Checkboxes,
+     radios and ranges are excluded because a 44px box would visibly resize the
+     control itself rather than just its hit area. */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']):not([type='color']),
+  select,
+  textarea {
+    min-height: 44px;
+  }
+
+  /* Standalone controls that sit outside the shared .btn/.icon-btn/.chip classes.
+     Listed explicitly rather than blanket-applied to every <button>, because the
+     editor and canvas render inline buttons inside prose that must stay text-sized. */
+  .recall-card__back-btn,
+  .folio-btn-icon,
+  .folio-btn,
+  .sh-btn,
+  .tg-row__icon-btn,
+  .tg-row__toggle,
+  .auth-field__reveal,
+  .folio-codeblock-copy,
+  .folio-tag-chip__label,
+  .folio-breadcrumb-notebook,
+  .cv-header__crumb,
+  .sy-tab,
+  .sy-chip,
+  .sy-btn,
+  .im-chip,
+  .auth-forgot,
+  .folio-skip-link {
+    min-height: 44px;
+  }
+  /* Icon-only members of that list also need the horizontal dimension. */
+  .recall-card__back-btn,
+  .folio-btn-icon,
+  .tg-row__icon-btn,
+  .auth-field__reveal,
+  .folio-codeblock-copy {
+    min-width: 44px;
+  }
+  /* Several of the above are inline/inline-flex text buttons; min-height only takes
+     effect once they establish a box, and centring keeps the label optically placed. */
+  .folio-breadcrumb-notebook,
+  .cv-header__crumb,
+  .sy-chip,
+  .auth-forgot,
+  .folio-tag-chip__label,
+  .tg-row__toggle {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* Motion: honour the OS setting globally rather than per-component. Durations are
+   collapsed to ~0 instead of `animation: none` so JS that waits on transitionend
+   or animationend still fires and never leaves the UI stuck mid-state. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Scrollbars (WebKit + Firefox) tuned to feel native but quiet. */
 * {
   scrollbar-width: thin;

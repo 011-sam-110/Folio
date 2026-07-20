@@ -10,7 +10,12 @@
   --bg-active: #eaeae8;
   --ink: #1f2328;
   --ink-2: #57606a;
-  --ink-3: #6b7280; /* 4.83:1 on --bg #fff — WCAG AA for the 11-12.5px meta text this drives */
+  /* Meta/secondary text. Tuned against the DARKEST surface it lands on, not just
+     --bg: the old #6b7280 cleared 4.83:1 on white but fell to 4.27 on --bg-hover,
+     4.01 on --bg-active and 4.32 on --accent-soft, so search hints and the
+     dashboard week-grid failed AA. Measured now: bg 5.55, sidebar 5.18,
+     hover 4.91, active 4.61, accent-soft 4.97 — all >= 4.5. */
+  --ink-3: #616974;
   --line: #e8e8e6;
   --accent: #4f46e5;
   --accent-soft: #eef2ff;
@@ -32,6 +37,18 @@
   --shadow-1: 0 1px 2px rgba(15, 15, 15, 0.06);
   --shadow-2: 0 4px 16px rgba(15, 15, 15, 0.09);
   --ring-subtle: rgba(15, 15, 15, 0.08);
+
+  /* Syntax highlighting. These were previously hard-coded light-theme hexes in
+     editor.css and were served unchanged in dark mode, where keywords measured
+     2.88:1 and numbers 3.61:1. Tokenised so each theme carries a palette that
+     clears 4.5:1 on its own code background. Light ratios on --bg #ffffff:
+     keyword 7.39, string 5.06, number 6.92, title 5.62, variable 5.44, type 5.76. */
+  --code-keyword: #8b2d8a;
+  --code-string: #3d7c3c;
+  --code-number: #7a5200;
+  --code-title: #2f62cc;
+  --code-variable: #c0392b;
+  --code-type: #8a5d00;
 
   --sidebar-w: 260px;
   --sidebar-collapsed-w: 0px;
@@ -71,7 +88,10 @@
   --bg-active: #2a2a2a;
   --ink: #e6e6e4;
   --ink-2: #a3a39e;
-  --ink-3: #8a8a86; /* 5.08:1 on --bg #191919 — WCAG AA */
+  /* Same fix as light: #8a8a86 passed on --bg (5.07) but failed on --bg-hover
+     (4.42), --bg-active (4.14) and --accent-soft (4.14). Measured now:
+     bg 5.78, sidebar 5.35, hover 5.03, active 4.71, accent-soft 4.71. */
+  --ink-3: #949490;
   --line: #303030;
   --accent: #818cf8;
   --accent-soft: rgba(129, 140, 248, 0.14);
@@ -89,6 +109,15 @@
   --warn-soft: rgba(217, 164, 65, 0.14);
   --accent-ink: #14142b;
   --danger-ink: #ffffff;
+  /* Dark-theme syntax palette. Ratios on --bg #191919: keyword 8.43,
+     string 9.77, number 9.45, title 8.34, variable 7.64, type 10.18. */
+  --code-keyword: #d7a1e0;
+  --code-string: #8fd18c;
+  --code-number: #e0b877;
+  --code-title: #8ab4f8;
+  --code-variable: #f0918a;
+  --code-type: #e5c07b;
+
   --scrim: rgba(0, 0, 0, 0.55);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-2: 0 4px 20px rgba(0, 0, 0, 0.45);

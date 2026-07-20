@@ -228,7 +228,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     const fromBody = extractHashtags(contentText);
     // Only touch React state when the set actually changed: this runs on every
     // keystroke, and a fresh array each time would re-render the chip row constantly.
-    if (fromBody.join(' ') !== bodyTagsRef.current.join(' ')) {
+    if (fromBody.join('\u0000') !== bodyTagsRef.current.join('\u0000')) {
       bodyTagsRef.current = fromBody;
       setBodyTags(fromBody);
     }
@@ -716,7 +716,16 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
               )}
             </div>
 
-            <span className={`folio-save-chip folio-save-${autosave.status}`} data-testid="autosave-status">
+            {/* Autosave is the only signal that a note's edits reached the server, and
+                it was previously conveyed by colour and text alone. A failed save is
+                assertive (the user needs to know NOW, before navigating away and
+                losing work); saving/saved are polite so they don't interrupt typing. */}
+            <span
+              className={`folio-save-chip folio-save-${autosave.status}`}
+              data-testid="autosave-status"
+              role={autosave.status === 'error' ? 'alert' : 'status'}
+              aria-live={autosave.status === 'error' ? 'assertive' : 'polite'}
+            >
               {autosave.status === 'error' ? (
                 <>
                   Save failed
@@ -730,8 +739,11 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
             </span>
           </div>
 
+          {/* Placeholder is not a label — it disappears on first keystroke and is not
+              reliably exposed. This is the highest-traffic input in the product. */}
           <input
             className="folio-title-input"
+            aria-label="Note title"
             value={title}
             placeholder="Untitled"
             onChange={handleTitleChange}

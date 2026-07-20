@@ -31,10 +31,14 @@ export default function CalloutView({ node, updateAttributes, editor }: NodeView
           </button>
           {pickerOpen && (
             <div className="folio-callout-picker" onMouseLeave={() => setPickerOpen(false)}>
+              {/* Without aria-label the name falls back to the raw glyph, which screen
+                  readers announce inconsistently (several of these read as symbol
+                  names or not at all). Mirrors EmojiPicker's labelling. */}
               {EMOJIS.map((e) => (
                 <button
                   key={e}
                   type="button"
+                  aria-label={`Use ${e} icon`}
                   onClick={() => {
                     updateAttributes({ emoji: e });
                     setPickerOpen(false);

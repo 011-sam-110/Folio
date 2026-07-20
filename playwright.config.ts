@@ -20,6 +20,13 @@ const E2E_ENV = {
   FOLIO_PORT: API_PORT,
   FOLIO_WEB_PORT: WEB_PORT,
   DATABASE_URL: 'postgresql://folio:folio@localhost:5433/folio_e2e',
+  // Turns off the auth rate limiter (server/src/auth/rateLimit.ts), which is exactly
+  // what that module's docstring says to do for a test suite: every worker signs up,
+  // and auth.spec.ts creates ~10 accounts, so a whole run makes far more than the
+  // human-tuned 12-per-15-minutes from a single address. NODE_ENV is read nowhere
+  // else in the server except a production guard in config.ts, so this changes
+  // nothing else. The limiter's own behaviour is covered by server/src unit tests.
+  NODE_ENV: 'test',
   // The repo .env points at :3001, but the local gateway container publishes on
   // :3002. Pinned here so the AI-backed specs reach a live gateway without the
   // e2e run depending on (or editing) a shared .env.

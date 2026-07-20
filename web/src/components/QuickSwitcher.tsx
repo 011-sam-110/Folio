@@ -11,6 +11,7 @@ import { useNotebooks } from './NotebooksContext';
 import { toast } from './Toast';
 import Icon from './Icon';
 import Spinner from './Spinner';
+import { useDialogFocus } from './useDialogFocus';
 
 export default function QuickSwitcher({
   open,
@@ -29,6 +30,7 @@ export default function QuickSwitcher({
   const [creating, setCreating] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const reqIdRef = useRef(0);
   const { notebooks } = useNotebooks();
   const navigate = useNavigate();
@@ -75,6 +77,11 @@ export default function QuickSwitcher({
     }, 120);
     return () => clearTimeout(t);
   }, [query, open]);
+
+  // Makes the role="dialog" claim true: traps Tab, closes on Escape from anywhere,
+  // and restores focus to the trigger. `false` because this panel focuses its own
+  // search input (handleClose is hoisted, so referencing it here is fine).
+  useDialogFocus(open, panelRef, handleClose, false);
 
   if (!open) return null;
 
@@ -169,7 +176,16 @@ export default function QuickSwitcher({
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div className="folio-qs" role="dialog" aria-modal="true" aria-label="Quick switcher" data-testid="quick-switcher" onKeyDown={onKeyDown}>
+      <div
+        ref={panelRef}
+        className="folio-qs"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Quick switcher"
+        data-testid="quick-switcher"
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
+      >
         <div className="folio-qs__input-row">
           <Icon name="search" size={16} style={{ color: 'var(--ink-3)', flex: '0 0 auto' }} />
           <input

@@ -245,13 +245,15 @@ export default function Sidebar({
       <div className="sidebar__divider" />
       <div className="sidebar__section-label">
         <span>Notebooks</span>
+        {/* Sized by class, not an inline 20px box: 20px is below the WCAG 2.5.8
+            minimum, and the modifier still leaves the section-label row compact. */}
         <Tooltip content="New canvas" placement="right">
-          <button type="button" className="icon-btn" aria-label="New canvas" onClick={onNewCanvas} style={{ width: 20, height: 20 }}>
+          <button type="button" className="icon-btn icon-btn--xs" aria-label="New canvas" onClick={onNewCanvas}>
             <Icon name="canvas" size={13} />
           </button>
         </Tooltip>
         <Tooltip content="New note (⌘N)" placement="right">
-          <button type="button" className="icon-btn" aria-label="New note" onClick={onNewNote} style={{ width: 20, height: 20 }}>
+          <button type="button" className="icon-btn icon-btn--xs" aria-label="New note" onClick={onNewNote}>
             <Icon name="plus" size={13} />
           </button>
         </Tooltip>
@@ -285,6 +287,9 @@ export default function Sidebar({
                 <input
                   ref={renameInputRef}
                   className="notebook-row__rename-input"
+                  // No label, no placeholder, and the only adjacent context is an
+                  // aria-hidden emoji — this field was entirely unnamed.
+                  aria-label={`Rename notebook ${nb.name}`}
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={(e) => {
@@ -338,6 +343,7 @@ export default function Sidebar({
             <input
               ref={newNameRef}
               type="text"
+              aria-label="Notebook name"
               value={newName}
               placeholder="Notebook name"
               onChange={(e) => setNewName(e.target.value)}

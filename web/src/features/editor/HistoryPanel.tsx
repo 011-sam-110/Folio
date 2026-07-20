@@ -125,6 +125,7 @@ export default function HistoryPanel({ noteId, open, onClose, onRestored }: Hist
 
         <div className="folio-history-snapshot">
           <input
+            aria-label="Snapshot label"
             value={snapshotLabel}
             onChange={(e) => setSnapshotLabel(e.target.value)}
             placeholder="Label (optional)"

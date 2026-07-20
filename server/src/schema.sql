@@ -220,6 +220,23 @@ CREATE TABLE IF NOT EXISTS note_ink (
 );
 CREATE INDEX IF NOT EXISTS idx_note_ink_note ON note_ink(note_id);
 
+-- Import jobs. Deliberately a table rather than a process-local map: the client
+-- polls for progress, and on serverless each poll may land on a different
+-- instance, so an in-memory store answers "job not found" for a job that is
+-- running perfectly well somewhere else.
+CREATE TABLE IF NOT EXISTS import_jobs (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'queued', -- queued | running | done | failed
+  step TEXT,
+  note_id TEXT,
+  attachment_id TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+  updated_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+);
+CREATE INDEX IF NOT EXISTS idx_import_jobs_user ON import_jobs(user_id, created_at DESC);
+
 -- ---------------------------------------------------------------------------
 -- Sharing: a note or canvas published behind an unguessable link, optionally
 -- password-gated. Guests may join without an account.

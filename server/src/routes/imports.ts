@@ -360,7 +360,7 @@ interface ProcessArgs {
 
 async function processImport(args: ProcessArgs): Promise<void> {
   const { jobId, attachmentId, bytes, mime, originalName, kind, mode, uid, notebookId, noteId } = args;
-  updateJob(jobId, { status: 'running', step: 'Extracting text…' });
+  await updateJob(jobId, { status: 'running', step: 'Extracting text…' });
   await markAttachment(attachmentId, 'extracting', uid);
 
   try {
@@ -395,7 +395,7 @@ async function processImport(args: ProcessArgs): Promise<void> {
         .split(/\n\n--- Page \d+ ---\n\n/)
         .map(s => s.trim())
         .filter(Boolean);
-      updateJob(jobId, { step: 'Improving with AI…' });
+      await updateJob(jobId, { step: 'Improving with AI…' });
       const { text } = await chat(slidesRestructurePrompt(pages.length ? pages : [rawText]));
       extractedMarkdown = text.trim();
     } else {
@@ -403,12 +403,12 @@ async function processImport(args: ProcessArgs): Promise<void> {
         const { text } = await extractFromUpload(filePath, mime, originalName);
         return text;
       });
-      updateJob(jobId, { step: 'Improving with AI…' });
+      await updateJob(jobId, { step: 'Improving with AI…' });
       const { text } = await chat(transcriptNotesPrompt(rawText));
       extractedMarkdown = text.trim();
     }
 
-    updateJob(jobId, { step: 'Saving note…' });
+    await updateJob(jobId, { step: 'Saving note…' });
 
     let resultNoteId: string;
     if (mode === 'new') {
@@ -426,7 +426,7 @@ async function processImport(args: ProcessArgs): Promise<void> {
     // the note is already saved, and losing the gallery is not worth failing the import.
     if (figures.length) {
       try {
-        updateJob(jobId, { step: 'Saving figures…' });
+        await updateJob(jobId, { step: 'Saving figures…' });
         const stored = await storeFigures(figures, uid, resultNoteId);
         const section = figuresMarkdown(stored);
         if (section) await withNoteLock(resultNoteId, () => appendMarkdownToNote(resultNoteId, section, uid));
@@ -442,13 +442,13 @@ async function processImport(args: ProcessArgs): Promise<void> {
       attachmentId,
       uid,
     );
-    updateJob(jobId, { status: 'done', step: 'Done', noteId: resultNoteId });
+    await updateJob(jobId, { status: 'done', step: 'Done', noteId: resultNoteId });
   } catch (err) {
     // AiError's own message already lists which models were tried; other errors just
     // get their plain message (falling back to a generic one for non-Error throws).
     const message = err instanceof Error ? err.message : 'Import failed';
     await markAttachment(attachmentId, 'failed', uid);
-    updateJob(jobId, { status: 'failed', error: message });
+    await updateJob(jobId, { status: 'failed', error: message });
   }
 }
 
@@ -503,7 +503,7 @@ router.post('/', handleUpload(upload.single('file')), async (req, res) => {
   });
 
   const jobId = newId();
-  createJob(jobId, { status: 'queued', attachmentId });
+  await createJob(jobId, uid, { status: 'queued', attachmentId });
   res.json({ jobId });
 
   setImmediate(() => {
@@ -518,9 +518,14 @@ router.post('/', handleUpload(upload.single('file')), async (req, res) => {
       uid,
       notebookId,
       noteId,
-    }).catch(err => {
+    }).catch(async err => {
       console.error('[folio] import job crashed', jobId, err);
-      updateJob(jobId, { status: 'failed', error: err instanceof Error ? err.message : 'Import failed' });
+      // Recording the failure is itself a DB write now, and it must not throw out of
+      // a catch handler — a job stuck at "running" forever is worse than a lost log.
+      await updateJob(jobId, {
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Import failed',
+      }).catch(e => console.error('[folio] could not record job failure', jobId, e));
     });
   });
 });
@@ -528,7 +533,9 @@ router.post('/', handleUpload(upload.single('file')), async (req, res) => {
 // GET /api/import/jobs/:id
 router.get('/jobs/:id', async (req, res) => {
   const uid = userId(req);
-  const job = getJob(req.params.id);
+  // Scoped to the caller: job ids are short, and an unscoped read would expose
+  // another user's import progress and the note id it produced.
+  const job = await getJob(String(req.params.id), userId(req));
   // Jobs live in memory and carry no user_id, so ownership is checked through the attachment
   // the job was created for — otherwise any signed-in user could poll a stranger's import and
   // read its resulting noteId and error text. Every job this router creates has an

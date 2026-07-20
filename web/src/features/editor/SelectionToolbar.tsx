@@ -243,6 +243,7 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
               <div className="folio-comment-composer" onMouseDown={(e) => e.stopPropagation()}>
                 <textarea
                   autoFocus
+                  aria-label="Comment on the selected text"
                   rows={3}
                   value={commentDraft}
                   placeholder="Leave a note in the margin…"
@@ -293,6 +294,7 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
           <div className="folio-link-popover" onMouseDown={(e) => e.stopPropagation()}>
             <input
               autoFocus
+              aria-label="Link URL"
               value={linkValue}
               placeholder="https://…"
               onChange={(e) => setLinkValue(e.target.value)}

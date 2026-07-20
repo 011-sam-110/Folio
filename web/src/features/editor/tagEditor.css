@@ -76,9 +76,20 @@
   cursor: pointer;
   padding: 0 8px 0 2px;
   height: 100%;
+  /* 24px is the WCAG 2.5.8 floor; the chip's own padding left this at 21px wide. */
+  min-width: 24px;
   border-radius: 0 999px 999px 0;
   opacity: 0.5;
   transition: opacity var(--dur-fast);
+}
+
+/* On touch the chip row is a primary editing surface, so the remove control gets a
+   full 44px box. The chip grows with it rather than the "x" overlapping the label. */
+@media (pointer: coarse) {
+  .folio-tag-chip__remove {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 .folio-tag-chip__remove:hover {

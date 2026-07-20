@@ -381,6 +381,10 @@
   justify-content: center;
   width: 32px;
   height: 32px;
+  /* Without this the flex row squeezes each button to ~21px at phone widths,
+     dropping them under the WCAG 2.5.8 24px floor. The pill scrolls instead
+     (see the max-width: 720px block below), so keeping full width is safe. */
+  flex: 0 0 auto;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -651,5 +655,21 @@
   }
   .cv-header__badge {
     display: none;
+  }
+}
+
+/* Touch/stylus: the board's controls are the primary way to drive it, so they get
+   the full 44px target. The tool pill already scrolls horizontally, so widening
+   the buttons costs no layout. */
+@media (pointer: coarse) {
+  .cv-tools__btn,
+  .cv-inkbar__btn,
+  .cv-chrome__btn,
+  .cv-seltoolbar__btn {
+    width: 44px;
+    height: 44px;
+  }
+  .cv-chrome__zoom {
+    min-height: 44px;
   }
 }
