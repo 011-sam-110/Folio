@@ -1,0 +1,494 @@
+{
+  "base": "http://localhost:5173",
+  "captured": [
+    {
+      "name": "dashboard",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\dashboard.png"
+    },
+    {
+      "name": "notebook",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\notebook.png"
+    },
+    {
+      "name": "note",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\note.png"
+    },
+    {
+      "name": "study",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\study.png"
+    },
+    {
+      "name": "ask-ai",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\ask-ai.png"
+    },
+    {
+      "name": "search",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\search.png"
+    },
+    {
+      "name": "tags",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\tags.png"
+    },
+    {
+      "name": "canvas",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\canvas.png"
+    },
+    {
+      "name": "quick-switcher",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\quick-switcher.png"
+    },
+    {
+      "name": "command-palette",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\command-palette.png"
+    },
+    {
+      "name": "dashboard",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\dashboard.png"
+    },
+    {
+      "name": "notebook",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\notebook.png"
+    },
+    {
+      "name": "note",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\note.png"
+    },
+    {
+      "name": "study",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\study.png"
+    },
+    {
+      "name": "ask-ai",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\ask-ai.png"
+    },
+    {
+      "name": "search",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\search.png"
+    },
+    {
+      "name": "tags",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\tags.png"
+    },
+    {
+      "name": "canvas",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\canvas.png"
+    },
+    {
+      "name": "quick-switcher",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\quick-switcher.png"
+    },
+    {
+      "name": "command-palette",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\command-palette.png"
+    },
+    {
+      "name": "dashboard",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\dashboard.png"
+    },
+    {
+      "name": "notebook",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\notebook.png"
+    },
+    {
+      "name": "note",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\note.png"
+    },
+    {
+      "name": "study",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\study.png"
+    },
+    {
+      "name": "ask-ai",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\ask-ai.png"
+    },
+    {
+      "name": "search",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\search.png"
+    },
+    {
+      "name": "tags",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\tags.png"
+    },
+    {
+      "name": "canvas",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\canvas.png"
+    },
+    {
+      "name": "quick-switcher",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\quick-switcher.png"
+    },
+    {
+      "name": "command-palette",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\command-palette.png"
+    },
+    {
+      "name": "dashboard",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\dashboard.png"
+    },
+    {
+      "name": "notebook",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\notebook.png"
+    },
+    {
+      "name": "note",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\note.png"
+    },
+    {
+      "name": "study",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\study.png"
+    },
+    {
+      "name": "ask-ai",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\ask-ai.png"
+    },
+    {
+      "name": "search",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\search.png"
+    },
+    {
+      "name": "tags",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\tags.png"
+    },
+    {
+      "name": "canvas",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\canvas.png"
+    },
+    {
+      "name": "quick-switcher",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\quick-switcher.png"
+    },
+    {
+      "name": "command-palette",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\command-palette.png"
+    },
+    {
+      "name": "dashboard",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\dashboard.png"
+    },
+    {
+      "name": "notebook",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\notebook.png"
+    },
+    {
+      "name": "note",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\note.png"
+    },
+    {
+      "name": "study",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\study.png"
+    },
+    {
+      "name": "ask-ai",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\ask-ai.png"
+    },
+    {
+      "name": "search",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\search.png"
+    },
+    {
+      "name": "tags",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\tags.png"
+    },
+    {
+      "name": "canvas",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\canvas.png"
+    },
+    {
+      "name": "quick-switcher",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\quick-switcher.png"
+    },
+    {
+      "name": "command-palette",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\command-palette.png"
+    },
+    {
+      "name": "dashboard",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\dashboard.png"
+    },
+    {
+      "name": "notebook",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\notebook.png"
+    },
+    {
+      "name": "note",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\note.png"
+    },
+    {
+      "name": "study",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\study.png"
+    },
+    {
+      "name": "ask-ai",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\ask-ai.png"
+    },
+    {
+      "name": "search",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\search.png"
+    },
+    {
+      "name": "tags",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\tags.png"
+    },
+    {
+      "name": "canvas",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\canvas.png"
+    },
+    {
+      "name": "quick-switcher",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\quick-switcher.png"
+    },
+    {
+      "name": "command-palette",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\command-palette.png"
+    },
+    {
+      "name": "login",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\login.png"
+    },
+    {
+      "name": "signup",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\signup.png"
+    },
+    {
+      "name": "recover",
+      "viewport": "phone",
+      "theme": "light",
+      "file": "phone-light\\recover.png"
+    },
+    {
+      "name": "login",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\login.png"
+    },
+    {
+      "name": "signup",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\signup.png"
+    },
+    {
+      "name": "recover",
+      "viewport": "phone",
+      "theme": "dark",
+      "file": "phone-dark\\recover.png"
+    },
+    {
+      "name": "login",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\login.png"
+    },
+    {
+      "name": "signup",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\signup.png"
+    },
+    {
+      "name": "recover",
+      "viewport": "tablet",
+      "theme": "light",
+      "file": "tablet-light\\recover.png"
+    },
+    {
+      "name": "login",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\login.png"
+    },
+    {
+      "name": "signup",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\signup.png"
+    },
+    {
+      "name": "recover",
+      "viewport": "tablet",
+      "theme": "dark",
+      "file": "tablet-dark\\recover.png"
+    },
+    {
+      "name": "login",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\login.png"
+    },
+    {
+      "name": "signup",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\signup.png"
+    },
+    {
+      "name": "recover",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\recover.png"
+    },
+    {
+      "name": "login",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\login.png"
+    },
+    {
+      "name": "signup",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\signup.png"
+    },
+    {
+      "name": "recover",
+      "viewport": "desktop",
+      "theme": "dark",
+      "file": "desktop-dark\\recover.png"
+    },
+    {
+      "name": "empty-dashboard",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\empty-dashboard.png"
+    },
+    {
+      "name": "empty-tags",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\empty-tags.png"
+    },
+    {
+      "name": "empty-study",
+      "viewport": "desktop",
+      "theme": "light",
+      "file": "desktop-light\\empty-study.png"
+    }
+  ],
+  "failed": [],
+  "startedAt": "2026-07-20T06:25:55.089Z",
+  "finishedAt": "2026-07-20T06:27:11.523Z"
+}

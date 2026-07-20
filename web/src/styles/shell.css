@@ -231,14 +231,30 @@
   flex: 0 0 auto;
 }
 
+/* Header row: the "Notebooks" caption with its new-canvas / new-note buttons
+   pushed to the right.
+
+   This must be an explicit flex row. The buttons used to be small enough to sit
+   inline by accident; once the accessibility pass grew them to the WCAG 2.5.8
+   minimum they wrapped onto their own lines and read as two orphaned, unlabelled
+   icons floating under the heading. */
 .sidebar__section-label {
-  padding: 6px 18px 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px 4px 18px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--ink-3);
   flex: 0 0 auto;
+}
+
+/* Caption takes the slack, so the buttons sit hard right regardless of its length. */
+.sidebar__section-label > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .sidebar__notebooks {
