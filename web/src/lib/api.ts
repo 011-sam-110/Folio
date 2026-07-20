@@ -53,13 +53,21 @@ const json = (method: string, body: unknown): RequestInit => ({
 export const api = {
   // auth — no tokens are passed or returned: the session is an httpOnly cookie the
   // browser attaches automatically on these same-origin requests.
+  // Signup is the only time the recovery key is ever transmitted — the server keeps
+  // just its hash, so if it isn't shown to the user here it is gone for good.
   signup: (b: { email: string; password: string; displayName?: string }) =>
-    http<{ user: User }>('/api/auth/signup', json('POST', b)),
+    http<{ user: User; recoveryKey: string }>('/api/auth/signup', json('POST', b)),
   login: (b: { email: string; password: string }) => http<{ user: User }>('/api/auth/login', json('POST', b)),
   logout: () => http<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   me: () => http<{ user: User }>('/api/auth/me'),
   changePassword: (b: { currentPassword: string; newPassword: string }) =>
     http<{ ok: true }>('/api/auth/password', json('POST', b)),
+  // Redeeming signs the user straight in and returns a replacement key, so the
+  // account is never left without a way back in.
+  recover: (b: { email: string; recoveryKey: string; newPassword: string }) =>
+    http<{ user: User; recoveryKey: string }>('/api/auth/recover', json('POST', b)),
+  regenerateRecoveryKey: (b: { password: string }) =>
+    http<{ recoveryKey: string }>('/api/auth/recovery/regenerate', json('POST', b)),
 
   // notebooks
   notebooks: () => http<{ notebooks: Notebook[] }>('/api/notebooks'),

@@ -5,6 +5,7 @@ import Spinner from '../../components/Spinner';
 import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
 import { AuthAlert, AuthAltLink, AuthShell, Field } from './AuthShell';
+import RecoveryKeyPanel from './RecoveryKeyPanel';
 import { emailError, newPasswordError, passwordStrength } from './validation';
 
 function safeRedirect(from: unknown): string {
@@ -26,8 +27,29 @@ export default function SignupPage() {
   const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [issuedKey, setIssuedKey] = useState<string | null>(null);
 
-  if (user) return <Navigate to={target} replace />;
+  // A successful signup sets `user`, which would normally satisfy the redirect
+  // below and navigate away instantly — skipping straight past the one and only
+  // render of the recovery key. Holding the redirect while a key is pending is
+  // what makes the panel reachable at all.
+  if (user && !issuedKey) return <Navigate to={target} replace />;
+
+  if (issuedKey) {
+    return (
+      <AuthShell
+        title="You’re all set"
+        subtitle="One last thing before you start."
+      >
+        <RecoveryKeyPanel
+          recoveryKey={issuedKey}
+          email={email.trim()}
+          continueLabel="Open Folio"
+          onContinue={() => navigate(target, { replace: true })}
+        />
+      </AuthShell>
+    );
+  }
 
   const strength = passwordStrength(password);
 
@@ -54,8 +76,15 @@ export default function SignupPage() {
     setSubmitting(true);
     try {
       const name = displayName.trim();
-      await signup({ email: email.trim(), password, ...(name ? { displayName: name } : {}) });
-      navigate(target, { replace: true });
+      const { recoveryKey } = await signup({
+        email: email.trim(),
+        password,
+        ...(name ? { displayName: name } : {}),
+      });
+      // Hold the user here rather than navigating: the account is already created
+      // and signed in, but the recovery key is only ever sent once and would be
+      // lost the moment we route away.
+      setIssuedKey(recoveryKey);
     } catch (err) {
       // 409 "An account with that email already exists" is about the email specifically,
       // so it reads best attached to that field; anything else stays form-level.

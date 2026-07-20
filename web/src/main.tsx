@@ -14,6 +14,7 @@ import { AuthProvider } from './features/auth/AuthContext'
 import RequireAuth from './features/auth/RequireAuth'
 import LoginPage from './features/auth/LoginPage'
 import SignupPage from './features/auth/SignupPage'
+import RecoverPage from './features/auth/RecoverPage'
 import './styles/index.css'
 
 // AuthProvider sits inside the router (rather than around RouterProvider) so the auth
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       // the sidebar or trigger the shell's authenticated data fetches.
       { path: '/login', element: <LoginPage /> },
       { path: '/signup', element: <SignupPage /> },
+      { path: '/recover', element: <RecoverPage /> },
 
       // Phone capture flow renders without the desktop shell, but still needs a session:
       // it writes notes into the signed-in user's notebooks.

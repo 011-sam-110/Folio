@@ -431,3 +431,110 @@
   place-items: center;
   color: var(--ink-3);
 }
+
+/* ---------- Recovery keys ----------
+   Shown once at signup and once more after redemption. The layout leans on
+   emphasis rather than colour alone, so the "you won't see this again" warning
+   still reads for anyone who can't distinguish the accent hue. */
+
+.auth-forgot {
+  display: block;
+  margin-top: var(--space-3);
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.auth-forgot:hover,
+.auth-forgot:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.auth-recovery {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.auth-recovery__badge {
+  align-self: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft, var(--surface-2));
+  color: var(--accent);
+}
+
+.auth-recovery__title {
+  margin: 0;
+  text-align: center;
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: var(--ink-1);
+}
+
+.auth-recovery__lede {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+/* Monospace with generous tracking: the key is meant to be transcribed by hand,
+   and a proportional face makes character-level comparison harder. */
+.auth-recovery__key {
+  display: block;
+  padding: var(--space-3);
+  border: 1px dashed var(--line-2, var(--line));
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-2);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--ink-1);
+  word-break: break-all;
+  user-select: all; /* one click selects the whole key */
+}
+
+.auth-recovery__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.auth-recovery__actions .btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.auth-recovery__ack {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.auth-recovery__ack input {
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.auth-recovery__continue {
+  width: 100%;
+}
+
+.auth-recovery__hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}

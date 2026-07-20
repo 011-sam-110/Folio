@@ -9,7 +9,11 @@ export interface AuthState {
   user: User | null;
   /** True only until the first /me settles. Guards and pages must wait on it. */
   loading: boolean;
-  signup: (b: { email: string; password: string; displayName?: string }) => Promise<User>;
+  signup: (b: {
+    email: string;
+    password: string;
+    displayName?: string;
+  }) => Promise<{ user: User; recoveryKey: string }>;
   login: (b: { email: string; password: string }) => Promise<User>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -56,10 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, []);
 
+  // Returns the recovery key alongside the user: this is the only moment it exists
+  // in transmittable form, so the caller is responsible for showing it before it is
+  // dropped. See RecoveryKeyPanel.
   const signup = useCallback(async (b: { email: string; password: string; displayName?: string }) => {
-    const { user: created } = await api.signup(b);
+    const { user: created, recoveryKey } = await api.signup(b);
     setUser(created);
-    return created;
+    return { user: created, recoveryKey };
   }, []);
 
   const login = useCallback(async (b: { email: string; password: string }) => {

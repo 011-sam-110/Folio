@@ -1,7 +1,7 @@
 // Sign-in screen. Renders without the app shell (see main.tsx) — it is the first thing
 // a signed-out visitor sees.
 import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Spinner from '../../components/Spinner';
 import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
@@ -117,6 +117,10 @@ export default function LoginPage() {
           {submitting && <Spinner size={14} />}
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
+
+        <Link className="auth-forgot" to="/recover">
+          Forgot your password?
+        </Link>
       </form>
     </AuthShell>
   );
