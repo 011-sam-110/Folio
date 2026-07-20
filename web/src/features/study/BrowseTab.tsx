@@ -232,8 +232,15 @@ export default function BrowseTab({
               onChange={() => toggleSelect(card.id)}
             />
           </td>
-          <td className="sy-browse__question" onClick={() => setExpandedId(expanded ? null : card.id)}>
-            {truncate(card.question, 90)}
+          <td className="sy-browse__question">
+            <button
+              type="button"
+              className="sy-browse__question-btn"
+              aria-expanded={expanded}
+              onClick={() => setExpandedId(expanded ? null : card.id)}
+            >
+              {truncate(card.question, 90)}
+            </button>
           </td>
           <td>
             {card.noteId ? (

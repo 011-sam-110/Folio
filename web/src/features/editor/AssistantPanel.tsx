@@ -3,11 +3,12 @@
 // attached to the note) and reports what's missing, what to double-check, and what to do
 // next. The only write path is the explicit "Add to note" button, which appends the
 // analysis as a callout — the student chooses that.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import { toast } from '../../components/Toast';
 import Icon from '../../components/Icon';
 import Spinner from '../../components/Spinner';
+import { useDialogFocus } from '../../components/useDialogFocus';
 import { markdownToSafeHtml } from './markdown';
 import type { Attachment } from '../../lib/types';
 
@@ -42,13 +43,21 @@ export default function AssistantPanel({ noteId, attachments, open, onClose, onI
     }
   }
 
+  const panelRef = useRef<HTMLElement | null>(null);
+  // Non-modal drawer: the note behind stays readable, so Tab is NOT trapped. But
+  // focus must move in, otherwise the Escape handler below never fires (focus is
+  // still on the trigger outside the panel) and the drawer is a dead end.
+  useDialogFocus(open, panelRef, onClose, { trap: false });
+
   if (!open) return null;
 
   return (
     <div className="folio-history-overlay">
       <aside
+        ref={panelRef}
         className="folio-history-panel folio-assistant"
         role="dialog"
+        tabIndex={-1}
         aria-label="Study assistant"
         data-testid="assistant-panel"
         onKeyDown={(e) => {
@@ -82,7 +91,7 @@ export default function AssistantPanel({ noteId, attachments, open, onClose, onI
         )}
 
         {phase === 'loading' && (
-          <div className="folio-assistant__loading">
+          <div className="folio-assistant__loading" role="status">
             <Spinner size={18} />
             <span>Reading your note{sourceCount > 0 ? ' and sources' : ''}…</span>
           </div>
@@ -90,7 +99,7 @@ export default function AssistantPanel({ noteId, attachments, open, onClose, onI
 
         {phase === 'error' && (
           <div className="folio-assistant__start">
-            <div className="folio-assistant__error">{error}</div>
+            <div className="folio-assistant__error" role="alert">{error}</div>
             <button type="button" className="folio-btn" onClick={findGaps}>
               Retry
             </button>
@@ -107,6 +116,10 @@ export default function AssistantPanel({ noteId, attachments, open, onClose, onI
             <div
               className="folio-assistant__body"
               data-testid="assistant-result"
+              // The analysis is the whole point of the panel; without a live region it
+              // arrives silently and a screen-reader user has no cue to go read it.
+              role="status"
+              aria-live="polite"
               // Sanitized via DOMPurify inside markdownToSafeHtml.
               dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(result.markdown) }}
             />

@@ -41,9 +41,19 @@ export function Toaster() {
   }
 
   return createPortal(
-    <div className="folio-toaster" aria-live="polite" aria-atomic="true">
+    <div
+      className="folio-toaster"
+      // Errors are the app's primary failure channel (~30 call sites) and were being
+      // announced politely, i.e. often not at all before the toast auto-dismissed.
+      aria-live={items.some((i) => i.kind === 'error') ? 'assertive' : 'polite'}
+      // Per-toast, not per-stack: aria-atomic on the container re-announced every
+      // visible toast each time a new one arrived.
+      aria-atomic="false"
+    >
       {items.map((i) => (
-        <div key={i.id} className={`folio-toast ${i.kind}`} role="status">
+        // No role here: the container above is the live region. Nesting role="status"
+        // inside an aria-live parent double-registers and some AT announces twice.
+        <div key={i.id} className={`folio-toast ${i.kind}`}>
           <span className="folio-toast__icon">{ICONS[i.kind]}</span>
           <span className="folio-toast__msg">{i.message}</span>
           {i.action && (

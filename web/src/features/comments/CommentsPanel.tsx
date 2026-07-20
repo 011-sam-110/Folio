@@ -9,7 +9,7 @@
 //
 // Unlike HistoryPanel, this component fetches regardless of `open` so the action-bar
 // toggle button can show a live unresolved-count badge even while the drawer is closed.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import { api } from '../../lib/api';
 import type { NoteComment } from '../../lib/types';
@@ -18,6 +18,7 @@ import { toast } from '../../components/Toast';
 import Icon from '../../components/Icon';
 import Spinner from '../../components/Spinner';
 import CommentIcon from './CommentIcon';
+import { useDialogFocus } from '../../components/useDialogFocus';
 import { setCommentsListener } from './commentsBus';
 import './comments.css';
 
@@ -165,13 +166,21 @@ export default function CommentsPanel({ noteId, open, onClose, editor, onUnresol
     }
   }
 
+  const panelRef = useRef<HTMLElement | null>(null);
+  // Non-modal drawer: the note behind stays readable, so Tab is NOT trapped. But
+  // focus must move in, otherwise the Escape handler below never fires (focus is
+  // still on the trigger outside the panel) and the drawer is a dead end.
+  useDialogFocus(open, panelRef, onClose, { trap: false });
+
   if (!open) return null;
 
   return (
     <div className="folio-comments-overlay">
       <aside
+        ref={panelRef}
         className="folio-comments-panel"
         role="dialog"
+        tabIndex={-1}
         aria-label="Comments"
         data-testid="comments-drawer"
         onKeyDown={(e) => {

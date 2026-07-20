@@ -6,12 +6,15 @@ import { apiCreateNotebook, exact, skipIfUpstreamQuota, uniqueName } from './uti
 // See import.spec.ts — `__dirname` is not defined in this ESM repo.
 const FIXTURES_DIR = fileURLToPath(new URL('fixtures', import.meta.url));
 
-// CapturePage.tsx (web/src/features/import/CapturePage.tsx) already exists with real
-// markup at the time this suite was written, so these selectors are matched against
-// its actual DOM rather than guessed: kind switch + notebook chips are
-// role="tablist" containers (kind items are role="tab", notebook chips are plain
-// buttons), the big CTA is a `.cp-cta` button, and success is an
-// "Note ready" heading with a `.cp-success__title` paragraph + an "Open note" link.
+// Selectors are matched against CapturePage.tsx's real DOM
+// (web/src/features/import/CapturePage.tsx):
+//   • kind switch — role="tablist", items are role="tab"
+//   • notebook chips — role="radiogroup", items are role="radio". These used to be
+//     plain buttons in a tablist; the owning agent corrected that (a tablist with no
+//     tabpanels is a lie, and "pick exactly one" is what radiogroup means), so the
+//     selectors here follow.
+//   • the big CTA is a `.cp-cta` button
+//   • success is a "Note ready" heading with `.cp-success__title` + an "Open note" link
 
 /**
  * Waits for a capture job to reach a terminal state, whichever it is.
@@ -43,7 +46,7 @@ test.describe('Mobile capture page (Pixel 7)', () => {
     const captureButton = page.getByRole('button', { name: /photo of notes|capture|take photo|camera/i });
     await expect(captureButton.first()).toBeVisible({ timeout: 10_000 });
 
-    const notebookChips = page.getByRole('button', { name: /E2E Mobile Chip/ });
+    const notebookChips = page.getByRole('radio', { name: /E2E Mobile Chip/ });
     await expect(notebookChips.first()).toBeVisible({ timeout: 10_000 });
     expect(await notebookChips.count()).toBeGreaterThanOrEqual(2);
   });
@@ -57,7 +60,7 @@ test.describe('Mobile capture page (Pixel 7)', () => {
 
     await page.goto('/capture');
 
-    const notebookChip = page.getByRole('button', { name: exact(notebook.name) });
+    const notebookChip = page.getByRole('radio', { name: exact(notebook.name) });
     await notebookChip.first().click();
 
     // Kind switch to transcript ("Transcript or essay").
@@ -85,7 +88,7 @@ test.describe('Mobile capture page (Pixel 7)', () => {
     const notebook = await apiCreateNotebook(request, uniqueName('E2E Capture Chain Notebook'));
 
     await page.goto('/capture');
-    await page.getByRole('button', { name: exact(notebook.name) }).first().click();
+    await page.getByRole('radio', { name: exact(notebook.name) }).first().click();
     await page.getByRole('tab', { name: /transcript/i }).click();
 
     // Page 1: the deadlocks transcript.

@@ -3,29 +3,42 @@ import { useEffect, useRef, type RefObject } from 'react';
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])';
 
+export interface DialogFocusOptions {
+  /**
+   * Trap Tab inside the panel and lock body scroll. True for modal overlays
+   * (palettes, dialogs); false for the side drawers, which are deliberately
+   * non-modal — the note stays readable and editable behind them.
+   */
+  trap?: boolean;
+  /** Pass false when the panel focuses its own field (e.g. a search input). */
+  takeInitialFocus?: boolean;
+}
+
 /**
- * Modal-dialog focus behaviour for overlays that don't use `Modal`.
+ * Dialog/drawer focus behaviour for overlays that don't use `Modal`.
  *
- * The palette-style overlays (CommandPalette, QuickSwitcher) each declared
- * `role="dialog" aria-modal="true"` but implemented none of the behaviour the
- * role promises: Tab walked straight out into the page behind, and Escape was a
- * React `onKeyDown` on the panel, so it silently stopped working the moment focus
- * left the panel — which, with no trap, happened on the very first Tab.
+ * Two bugs this exists to fix, both found by keyboard-only walkthrough:
  *
- * Handles: initial focus, Tab/Shift+Tab wrap, Escape at the document level
- * (capture phase, so it works wherever focus currently is), focus restore to the
- * trigger, and body scroll lock.
+ * 1. The palette overlays (CommandPalette, QuickSwitcher) declared
+ *    `role="dialog" aria-modal="true"` but implemented none of it — Tab walked
+ *    straight into the page behind (13 of 14 stops leaked), and Escape was a React
+ *    `onKeyDown` on the panel, so it stopped working the instant focus left.
  *
- * `onClose` is read through a ref internally, so callers may pass a fresh closure
- * each render without the effect tearing down and stealing focus back.
+ * 2. The side drawers (HistoryPanel, AssistantPanel, CommentsPanel) put `onKeyDown`
+ *    on the panel but never moved focus into it, so Escape was dead on arrival:
+ *    focus was still on the trigger button outside the panel when it opened.
+ *
+ * Escape is therefore handled on the document in the capture phase — it works
+ * wherever focus currently is — and focus is always restored to the trigger.
+ *
+ * `onClose` is read through a ref, so callers may pass a fresh closure each render
+ * without the effect tearing down and stealing focus back mid-interaction.
  */
 export function useDialogFocus(
   open: boolean,
   panelRef: RefObject<HTMLElement | null>,
   onClose: () => void,
-  // Some panels own their own initial focus (a search input they also select text
-  // in). Those pass false so this hook does not fight them for it.
-  takeInitialFocus = true,
+  { trap = true, takeInitialFocus = true }: DialogFocusOptions = {},
 ) {
   // Must be a useRef, not a fresh object each render: the effect captures this
   // object once, so a new one per render would leave it holding a stale closure.
@@ -37,7 +50,7 @@ export function useDialogFocus(
     const panel = panelRef.current;
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    if (trap) document.body.style.overflow = 'hidden';
 
     if (takeInitialFocus) {
       const preferred = panel?.querySelector<HTMLElement>('[autofocus], [data-autofocus]');
@@ -50,13 +63,13 @@ export function useDialogFocus(
         closeRef.current();
         return;
       }
-      if (e.key !== 'Tab' || !panel) return;
+      if (!trap || e.key !== 'Tab' || !panel) return;
       const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
         (el) => el.getClientRects().length > 0,
       );
       if (focusables.length === 0) {
-        // Nothing tabbable inside yet (empty result list): keep focus on the panel
-        // rather than letting Tab escape to the page behind.
+        // Nothing tabbable inside yet (an empty result list): hold focus on the
+        // panel rather than letting Tab escape to the page behind.
         e.preventDefault();
         panel.focus();
         return;
@@ -79,9 +92,8 @@ export function useDialogFocus(
     document.addEventListener('keydown', onKeyDown, true);
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
-      document.body.style.overflow = prevOverflow;
+      if (trap) document.body.style.overflow = prevOverflow;
       previouslyFocused?.focus?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onClose is read via ref on purpose (see doc comment).
-  }, [open, panelRef, takeInitialFocus]);
+  }, [open, panelRef, trap, takeInitialFocus]);
 }

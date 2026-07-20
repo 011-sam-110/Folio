@@ -5,6 +5,8 @@ import { db, newId, nowIso } from '../db.js';
 import { SESSION_SECRET, IS_SERVERLESS } from '../config.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import { requireAuth, userId } from '../auth/middleware.js';
+import { plainTextFromDoc } from '../lib/plainText.js';
+import { syncLinksForNote } from '../lib/links.js';
 import { rateLimit } from '../auth/rateLimit.js';
 import { COOKIE_NAME, readCookie, resolveSession } from '../auth/session.js';
 
@@ -419,9 +421,21 @@ router.patch('/share/:token/note', requireShareAccess, async (req, res) => {
     await db.prepare('UPDATE notes SET title = ?, updated_at = ? WHERE id = ?').run(b.title, now, noteId);
   }
   if (b.contentJson && typeof b.contentJson === 'object') {
+    // content_text must be derived here, exactly as the owner's PATCH does. It backs
+    // full-text search, note snippets and the AI endpoints — writing content_json
+    // alone left everything a guest typed permanently unsearchable, behind a snippet
+    // frozen at whatever the note said before they joined.
+    const contentText =
+      typeof b.contentText === 'string' ? b.contentText : plainTextFromDoc(b.contentJson);
     await db
-      .prepare('UPDATE notes SET content_json = ?, updated_at = ? WHERE id = ?')
-      .run(JSON.stringify(b.contentJson), now, noteId);
+      .prepare('UPDATE notes SET content_json = ?, content_text = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify(b.contentJson), contentText, now, noteId);
+    // Wikilinks a guest writes should resolve like anyone else's. Scoped to the
+    // note's owner, since the link graph belongs to them, not to the guest.
+    const owner = await db
+      .prepare('SELECT user_id FROM notes WHERE id = ?')
+      .get<{ user_id: string }>(noteId);
+    if (owner) await syncLinksForNote(owner.user_id, noteId, contentText);
   }
   await db
     .prepare('INSERT INTO note_events (note_id, kind, payload, actor, created_at) VALUES (?, ?, ?, ?, ?)')

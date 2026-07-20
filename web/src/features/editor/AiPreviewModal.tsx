@@ -39,7 +39,14 @@ export default function AiPreviewModal({ open, onClose, heading, model, before, 
           <div className="folio-ai-col folio-ai-after">
             <div className="folio-ai-col-label">After</div>
             {/* eslint-disable-next-line react/no-danger */}
-            <div className="folio-ai-after-html" dangerouslySetInnerHTML={{ __html: afterHtml }} />
+            {/* Announced on arrival: the modal opens focused on its Close button,
+                so nothing otherwise tells a screen-reader user the result is here. */}
+            <div
+              className="folio-ai-after-html"
+              role="status"
+              aria-live="polite"
+              dangerouslySetInnerHTML={{ __html: afterHtml }}
+            />
           </div>
         </div>
         <div className="folio-ai-actions">

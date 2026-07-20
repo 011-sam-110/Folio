@@ -23,6 +23,7 @@ import { errorMessage } from '../../lib/format';
 import type { CanvasItem, CanvasItemData, CanvasItemKind, InkTool, Note } from '../../lib/types';
 import {
   bounds,
+  centerOf,
   rectContains,
   rectFromPoints,
   rectOf,
@@ -67,7 +68,20 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
   const doc = useCanvasBoard(note.id);
   const ink = useInkLayer(note.id, true);
   const undo = useUndoStack();
-  const { viewport, panning, spaceHeld, gestureRef, zoomTo, zoomToFit, beginPan } = useViewport(hostRef);
+  const { viewport, setViewport, panning, spaceHeld, gestureRef, zoomTo, zoomToFit, beginPan } = useViewport(hostRef);
+
+  // Scrolls an item into the middle of the board. Used by keyboard selection: a
+  // selected item that stays off-screen is no better than no selection at all.
+  const centreOn = useCallback(
+    (item: Rect) => {
+      const host = hostRef.current;
+      if (!host) return;
+      const host_ = host.getBoundingClientRect();
+      const c = centerOf(item);
+      setViewport((vp) => ({ ...vp, x: host_.width / 2 - c.x * vp.scale, y: host_.height / 2 - c.y * vp.scale }));
+    },
+    [setViewport],
+  );
 
   const [mode, setMode] = useState<BoardMode>('select');
   const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -623,6 +637,57 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
         setMode('select');
         return;
       }
+
+      // --- keyboard-only item handling ---------------------------------------
+      // A board is inherently a pointer surface, but selecting, moving and editing
+      // an item must not REQUIRE a pointer. Tab cycles the selection through items
+      // in reading order, arrows nudge, Enter edits. (Creating an item at an
+      // arbitrary point and freehand ink remain pointer/stylus-only — that
+      // limitation is stated in the board's help text rather than left silent.)
+      const ordered = [...itemsRef.current].sort((a, b) => a.y - b.y || a.x - b.x);
+      if (e.key === 'Tab' && ordered.length > 0) {
+        e.preventDefault();
+        const currentId = [...selectionRef.current][0];
+        const at = ordered.findIndex((i) => i.id === currentId);
+        const step = e.shiftKey ? -1 : 1;
+        const next = ordered[(at + step + ordered.length) % ordered.length];
+        const sel = new Set([next.id]);
+        setSelection(sel);
+        selectionRef.current = sel;
+        setSelectedEdgeId(null);
+        // Bring the newly selected item into view; off-screen selection is useless.
+        centreOn(rectOf(next));
+        return;
+      }
+
+      const NUDGE = e.shiftKey ? 40 : 8;
+      const delta =
+        e.key === 'ArrowLeft' ? { dx: -NUDGE, dy: 0 }
+        : e.key === 'ArrowRight' ? { dx: NUDGE, dy: 0 }
+        : e.key === 'ArrowUp' ? { dx: 0, dy: -NUDGE }
+        : e.key === 'ArrowDown' ? { dx: 0, dy: NUDGE }
+        : null;
+      if (delta && selectionRef.current.size > 0) {
+        e.preventDefault();
+        const ids = selectionRef.current;
+        const origin = itemsRef.current.filter((i) => ids.has(i.id)).map((i) => ({ id: i.id, x: i.x, y: i.y }));
+        if (origin.length === 0) return;
+        const after = origin.map((o) => ({ id: o.id, x: o.x + delta.dx, y: o.y + delta.dy }));
+        doc.patchLocal(after);
+        doc.queuePatch(after);
+        undo.push({
+          label: origin.length === 1 ? 'move' : `move ${origin.length} items`,
+          undo: () => { doc.patchLocal(origin); doc.queuePatch(origin); },
+          redo: () => { doc.patchLocal(after); doc.queuePatch(after); },
+        });
+        return;
+      }
+
+      if (e.key === 'Enter' && selectionRef.current.size === 1) {
+        e.preventDefault();
+        setEditingId([...selectionRef.current][0]);
+        return;
+      }
       // Single-key tool switches, the convention every board tool shares.
       const keyed: Record<string, BoardMode> = { v: 'select', s: 'sticky', t: 'text', r: 'rect', o: 'ellipse', p: 'pen', h: 'highlighter', e: 'eraser' };
       const next = keyed[e.key.toLowerCase()];
@@ -633,7 +698,7 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [undo, deleteSelection, duplicateSelection, zoomTo, selectedEdgeId, doc]);
+  }, [undo, deleteSelection, duplicateSelection, zoomTo, selectedEdgeId, doc, centreOn]);
 
   // --- ink undo entries -----------------------------------------------------
 
@@ -746,10 +811,26 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
         <ShareButton noteId={note.id} noteTitle={title} kind={note.kind} />
       </header>
 
+      {/* A board is a spatial, pointer-first surface. Rather than leave that
+          silently unusable for keyboard and screen-reader users, the region names
+          itself, states what IS keyboard-operable, and names the two things that
+          genuinely are not (placing an item at an arbitrary point, and freehand
+          ink). `cv-board__help` is visually hidden but read on focus. */}
+      <p id="cv-board-help" className="folio-visually-hidden">
+        Infinite canvas with {doc.items.length} {doc.items.length === 1 ? 'item' : 'items'}. Keyboard: Tab and
+        Shift+Tab move through items, arrow keys move the selected item (hold Shift for larger steps), Enter edits
+        it, Delete removes it, Control+A selects all, Control+0 resets zoom, and V, S, T, R, O, P, H and E switch
+        tools. Placing a new item at a chosen position and freehand ink drawing require a pointer or stylus and have
+        no keyboard equivalent; use the tool buttons to place an item at the centre of the view.
+      </p>
       <div
         ref={hostRef}
         className={`cv-board${panning ? ' is-panning' : ''}`}
         style={{ cursor }}
+        role="application"
+        aria-label={`${title || 'Untitled canvas'} board`}
+        aria-describedby="cv-board-help"
+        tabIndex={0}
         onPointerDown={handleBoardPointerDown}
         onDragOver={(e) => {
           if (e.dataTransfer.types.includes('Files')) e.preventDefault();

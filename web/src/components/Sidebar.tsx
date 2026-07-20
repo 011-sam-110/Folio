@@ -421,8 +421,14 @@ export default function Sidebar({
                   : 'Checking AI status…'
             }
           >
-            <span className="sidebar__ai-status">
-              <span className={`sidebar__ai-dot ${aiHealth.status}`} />
+            {/* The dot conveyed AI reachability by colour alone (WCAG 1.4.1) and the
+                only description lived in a Tooltip. role="status" + text makes the
+                state audible and announces it when it changes. */}
+            <span className="sidebar__ai-status" role="status">
+              <span className={`sidebar__ai-dot ${aiHealth.status}`} aria-hidden="true" />
+              <span className="folio-visually-hidden">
+                {aiHealth.status === 'ok' ? 'AI online' : aiHealth.status === 'bad' ? 'AI offline' : 'Checking AI status'}
+              </span>
             </span>
           </Tooltip>
         )}

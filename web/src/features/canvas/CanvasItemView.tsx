@@ -150,6 +150,15 @@ function ItemBody({
             e.stopPropagation();
             if (item.data.noteId) onOpenLink(item.data.noteId);
           }}
+          // Double-click is the board convention for opening, but a button that only
+          // responds to it is unusable by keyboard; Enter/Space do the same thing.
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              if (item.data.noteId) onOpenLink(item.data.noteId);
+            }
+          }}
           title="Double-click to open this note"
         >
           <span className="cv-link__icon">

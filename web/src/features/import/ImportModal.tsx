@@ -359,7 +359,9 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
               />
             </div>
 
-            {validationError && <div className="im-error-inline">{validationError}</div>}
+            {/* File-picker rejections (wrong type, too large) were shown but never
+                announced, so the import just appeared not to respond. */}
+            {validationError && <div className="im-error-inline" role="alert">{validationError}</div>}
 
             {files.length > 0 && (
               kind === 'photo' ? (
@@ -416,8 +418,10 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
           </div>
         )}
 
+        {/* ImportProgress covers the running phase; the terminal error pane sat
+            outside it and was silent. */}
         {phase === 'error' && (
-          <div className="im-result">
+          <div className="im-result" role="alert">
             <div className="im-result__icon im-result__icon--error" aria-hidden="true">⚠️</div>
             <div className="im-result__title">Import failed</div>
             {errorMessage && <div className="im-result__message">{errorMessage}</div>}

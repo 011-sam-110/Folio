@@ -81,6 +81,23 @@ check(
   JSON.stringify(inkEvents.data?.events ?? []).slice(0, 160),
 );
 
+console.log('\n== a guest edit is searchable by the owner ==');
+// Regression: the guest PATCH wrote content_json but never content_text, which is
+// what full-text search indexes. Everything a collaborator typed was invisible to
+// search forever, behind a snippet frozen from before they joined.
+await guest('PATCH', `/api/share/${token}/note`, {
+  contentJson: {
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Kruskal builds a minimum spanning forest.' }] }],
+  },
+});
+const ownerSearch = await owner('GET', '/api/search?q=Kruskal');
+check(
+  "owner's search finds what the guest wrote",
+  (ownerSearch.data?.results ?? []).length > 0,
+  JSON.stringify(ownerSearch.data).slice(0, 160),
+);
+
 console.log('\n== revoking stops the feed ==');
 await owner('DELETE', `/api/shares/${share0.data.share.id}`);
 const afterRevoke = await guest('GET', `/api/share/${token}/events?since=0`);

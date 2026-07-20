@@ -5,6 +5,7 @@ import { noteLite, noteFull, wordCountOf, type NoteRow } from '../lib/serialize.
 import { syncLinksForNote, renameWikilinksToTitle, resyncNotesReferencingTitle } from '../lib/links.js';
 import { tiptapToMarkdown, type TTNode } from '../lib/export.js';
 import { recordNoteEvent } from '../lib/events.js';
+import { plainTextFromDoc } from '../lib/plainText.js';
 
 const router = Router();
 
@@ -63,34 +64,6 @@ function validateContentJson(value: unknown): string | null {
   if (doc.type !== 'doc') return "contentJson must have type: 'doc'";
   if (!Array.isArray(doc.content)) return 'contentJson.content must be an array';
   return null;
-}
-
-/** Best-effort plain-text projection of a TipTap doc — fallback when a caller sends
- *  contentJson without contentText, and to regenerate content_text on version restore. */
-function plainTextFallback(doc: unknown): string {
-  const out: string[] = [];
-  function walk(node: unknown): void {
-    if (!node || typeof node !== 'object') return;
-    const n = node as { type?: string; text?: string; attrs?: Record<string, unknown>; content?: unknown[] };
-    if (n.type === 'text') {
-      out.push(n.text ?? '');
-      return;
-    }
-    if (n.type === 'wikilink' || n.type === 'wikiLink') {
-      out.push(`[[${(n.attrs?.title ?? n.attrs?.label ?? '') as string}]]`);
-      return;
-    }
-    if (n.type === 'hardBreak') {
-      out.push('\n');
-      return;
-    }
-    if (Array.isArray(n.content)) for (const c of n.content) walk(c);
-    if (n.type && ['paragraph', 'heading', 'listItem', 'taskItem', 'codeBlock', 'tableRow', 'blockquote', 'detailsSummary'].includes(n.type)) {
-      out.push('\n');
-    }
-  }
-  walk(doc);
-  return out.join('').replace(/\n{2,}/g, '\n').trim();
 }
 
 async function setTags(uid: string, noteId: string, tags: unknown): Promise<void> {
@@ -164,7 +137,7 @@ function versionMeta(v: VersionRow) {
     label: v.label,
     createdAt: v.created_at,
     title: v.title,
-    wordCount: wordCountOf(plainTextFallback(JSON.parse(v.content_json))),
+    wordCount: wordCountOf(plainTextFromDoc(JSON.parse(v.content_json))),
   };
 }
 
@@ -248,7 +221,7 @@ router.post('/', async (req, res) => {
   const title = b.title !== undefined ? String(b.title) : '';
   const contentJsonObj = b.contentJson !== undefined ? b.contentJson : { type: 'doc', content: [{ type: 'paragraph' }] };
   const contentJson = JSON.stringify(contentJsonObj);
-  const contentText = b.contentText !== undefined ? String(b.contentText) : b.contentJson !== undefined ? plainTextFallback(contentJsonObj) : '';
+  const contentText = b.contentText !== undefined ? String(b.contentText) : b.contentJson !== undefined ? plainTextFromDoc(contentJsonObj) : '';
 
   await db
     .prepare(
@@ -331,7 +304,7 @@ router.patch('/:id', async (req, res) => {
     b.contentText !== undefined
       ? String(b.contentText)
       : b.contentJson !== undefined
-        ? plainTextFallback(b.contentJson)
+        ? plainTextFromDoc(b.contentJson)
         : row.content_text;
   const newPinned = b.pinned !== undefined ? (b.pinned ? 1 : 0) : row.pinned;
   const newArchived = b.archived !== undefined ? (b.archived ? 1 : 0) : row.archived;
@@ -490,7 +463,7 @@ router.post('/:id/restore/:vid', async (req, res) => {
 
   await insertVersion(uid, note.id, note.title, note.content_json, 'restore');
 
-  const restoredContentText = plainTextFallback(JSON.parse(v.content_json));
+  const restoredContentText = plainTextFromDoc(JSON.parse(v.content_json));
   await db
     .prepare('UPDATE notes SET title = ?, content_json = ?, content_text = ?, updated_at = ? WHERE id = ? AND user_id = ?')
     .run(v.title, v.content_json, restoredContentText, nowIso(), note.id, uid);

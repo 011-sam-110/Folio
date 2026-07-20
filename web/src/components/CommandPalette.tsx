@@ -271,7 +271,7 @@ export default function CommandPalette({
   // Makes the role="dialog" claim true: traps Tab, closes on Escape from anywhere,
   // and restores focus to the trigger. `false` because this panel focuses its own
   // search input (handleClose is hoisted, so referencing it here is fine).
-  useDialogFocus(open, panelRef, handleClose, false);
+  useDialogFocus(open, panelRef, handleClose, { takeInitialFocus: false });
 
   if (!open) return null;
 

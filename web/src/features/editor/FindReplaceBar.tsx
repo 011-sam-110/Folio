@@ -91,7 +91,11 @@ export default function FindReplaceBar({ editor, mode, onModeChange, onClose }: 
             }
           }}
         />
-        <span className="folio-find-count">{countLabel}</span>
+        {/* "3 of 12" changes on every keystroke and every document transaction and
+            was entirely silent; polite so it does not interrupt continued typing. */}
+        <span className="folio-find-count" role="status" aria-live="polite">
+          {countLabel}
+        </span>
         <button
           type="button"
           className="folio-btn-icon"

@@ -8,6 +8,7 @@ import { relativeTime, formatDate } from '../../lib/format';
 import { toast } from '../../components/Toast';
 import Spinner from '../../components/Spinner';
 import Icon, { type IconName } from '../../components/Icon';
+import { useDialogFocus } from '../../components/useDialogFocus';
 import { createFolioExtensions } from './buildExtensions';
 import './editor.css';
 import './notePage.css';
@@ -101,6 +102,12 @@ export default function HistoryPanel({ noteId, open, onClose, onRestored }: Hist
     }
   }
 
+  const panelRef = useRef<HTMLElement | null>(null);
+  // Non-modal drawer: the note behind stays readable, so Tab is NOT trapped. But
+  // focus must move in, otherwise the Escape handler below never fires (focus is
+  // still on the trigger outside the panel) and the drawer is a dead end.
+  useDialogFocus(open, panelRef, onClose, { trap: false });
+
   if (!open) return null;
 
   const grouped = groupByDay(versions ?? []);
@@ -108,8 +115,10 @@ export default function HistoryPanel({ noteId, open, onClose, onRestored }: Hist
   return (
     <div className="folio-history-overlay">
       <aside
+        ref={panelRef}
         className="folio-history-panel"
         role="dialog"
+        tabIndex={-1}
         aria-label="Version history"
         data-testid="history-drawer"
         onKeyDown={(e) => {

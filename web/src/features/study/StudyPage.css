@@ -499,6 +499,17 @@
   color: var(--accent);
 }
 
+/* The expand toggle moved from an onClick on the <td> to a real button inside it,
+   so the button has to carry the cell's typography rather than look like a control. */
+.sy-browse__question-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  white-space: normal;
+}
+
 .sy-browse__actions {
   display: flex;
   align-items: center;

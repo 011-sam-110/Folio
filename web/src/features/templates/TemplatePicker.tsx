@@ -85,10 +85,11 @@ export default function TemplatePicker({ open, onClose, onPick }: TemplatePicker
                 const isBlank = tpl.id === BLANK_SENTINEL.id;
                 const heads = isBlank ? [] : extractHeadings(tpl.contentJson, 4);
                 return (
+                  // The button must stay a button: role="listitem" on it overrode the
+                  // button role, so these cards announced as inert list items.
+                  <div role="listitem" key={tpl.id} className="tpl-grid__cell">
                   <button
-                    key={tpl.id}
                     type="button"
-                    role="listitem"
                     className="tpl-card"
                     onClick={() => onPick(isBlank ? null : tpl)}
                   >
@@ -113,6 +114,7 @@ export default function TemplatePicker({ open, onClose, onPick }: TemplatePicker
                       )}
                     </div>
                   </button>
+                  </div>
                 );
               })}
             </div>

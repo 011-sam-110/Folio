@@ -31,6 +31,18 @@
   }
 }
 
+/* Each card is wrapped in a role="listitem" so the button inside can keep its own
+   button role. The wrapper is a pure semantic shell, so it must not introduce a
+   layout box: it becomes the grid item and the card fills it. */
+.tpl-grid__cell {
+  display: flex;
+  min-width: 0;
+}
+.tpl-grid__cell > .tpl-card {
+  flex: 1;
+  min-width: 0;
+}
+
 .tpl-card {
   display: flex;
   flex-direction: column;
