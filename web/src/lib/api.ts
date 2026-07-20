@@ -2,6 +2,7 @@ import type {
   CanvasEdge, CanvasItem, CanvasItemData, CanvasItemKind,
   DashboardData, Flashcard, ImportJob, InkStroke, MetaInfo, Note, NoteKind, NoteLite, NotebookLite, Notebook,
   NoteComment, NoteVersion, NoteVersionMeta, SearchParsed, SearchResult, StudyStats,
+  ShareCreated, ShareEvents, ShareGuest, ShareLink, SharePeek, SharePermission, SharedNote,
   Template, TitleResult, User,
 } from './types';
 
@@ -33,7 +34,14 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     // The auth endpoints own their 401s — a wrong password and the signed-out /me
     // probe are both expected answers, not expired sessions — so they must not
     // trip the global handler and bounce the user mid-login.
-    if (res.status === 401 && !path.startsWith('/api/auth/')) unauthorizedHandler?.();
+    //
+    // /api/share/* is exempt for the same reason from the other direction: a guest
+    // has no account at all, so "401, you haven't joined this link yet" is the
+    // normal pre-join answer. Letting it reach the handler would drop a signed-in
+    // OWNER's session state just because they opened one of their own links.
+    if (res.status === 401 && !path.startsWith('/api/auth/') && !path.startsWith('/api/share/')) {
+      unauthorizedHandler?.();
+    }
     let msg = `${res.status} ${res.statusText}`;
     if (isJson) {
       const body = await res.json().catch(() => null);
@@ -193,6 +201,34 @@ export const api = {
     http<{ ok: true }>(`/api/canvas/${noteId}/ink/${inkId}`, { method: 'DELETE' }),
   clearInk: (noteId: string) =>
     http<{ ok: true; removed: number }>(`/api/canvas/${noteId}/ink`, { method: 'DELETE' }),
+
+  // sharing — owner side. Requires an account and ownership of the note.
+  shares: (noteId: string) => http<{ shares: ShareLink[] }>(`/api/notes/${noteId}/shares`),
+  /** Mints a link. The `token` in the response is the ONLY time the raw token
+   *  exists on this side of the wire — the server keeps a hash, so nothing can
+   *  recover it later. Callers must show it before dropping it (see ShareDialog,
+   *  and RecoveryKeyPanel for the same contract on recovery keys). */
+  createShare: (noteId: string, b: { permission: SharePermission; password?: string; expiresAt?: string }) =>
+    http<ShareCreated>(`/api/notes/${noteId}/shares`, json('POST', b)),
+  revokeShare: (shareId: string) => http<{ ok: true }>(`/api/shares/${shareId}`, { method: 'DELETE' }),
+
+  // sharing — guest side. No account: access is a per-share httpOnly cookie the
+  // join call sets, so as with sessions no token is ever held in JS.
+  sharePeek: (token: string) => http<SharePeek>(`/api/share/${token}`),
+  shareJoin: (token: string, b: { password?: string; displayName?: string }) =>
+    http<{ guest: ShareGuest; permission: SharePermission }>(`/api/share/${token}/join`, json('POST', b)),
+  sharedNote: (token: string) => http<SharedNote>(`/api/share/${token}/note`),
+  updateSharedNote: (token: string, b: { title?: string; contentJson?: unknown }) =>
+    http<{ ok: true }>(`/api/share/${token}/note`, json('PATCH', b)),
+  /** Delta feed. Serverless cannot hold a WebSocket, so collaboration polls this
+   *  with the highest revision seen and gets only what is newer. */
+  shareEvents: (token: string, since: number) =>
+    http<ShareEvents>(`/api/share/${token}/events?since=${since}`),
+  sharedInk: (token: string) => http<{ strokes: InkStroke[] }>(`/api/share/${token}/ink`),
+  /** Append-only: the share API has no ink DELETE, which is why the shared board
+   *  offers no eraser. */
+  addSharedInk: (token: string, strokes: Array<Omit<InkStroke, 'id'>>) =>
+    http<{ ids: string[] }>(`/api/share/${token}/ink`, json('POST', { strokes })),
 
   // meta
   meta: () => http<MetaInfo>('/api/meta'),

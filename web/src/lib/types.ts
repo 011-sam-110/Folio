@@ -246,3 +246,62 @@ export interface MetaInfo {
   ai: { configured: boolean; baseUrl: string; textModels: string[] };
   lan: { urls: string[] };
 }
+
+// --- Sharing / guest collaboration ---------------------------------------------
+
+export type SharePermission = 'view' | 'edit';
+
+/** A share link as the OWNER sees it. Deliberately has no token field: the raw
+ *  token is returned exactly once, by createShare, and only its hash is stored —
+ *  so a link listed here can be revoked but never re-read. */
+export interface ShareLink {
+  id: string;
+  permission: SharePermission;
+  hasPassword: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+/** The one-time result of minting a link. `token` exists nowhere else, ever. */
+export interface ShareCreated {
+  share: Omit<ShareLink, 'createdAt'>;
+  token: string;
+  /** Server-supplied path, e.g. `/join/<token>`. */
+  url: string;
+}
+
+/** What a visitor is told BEFORE they clear the gate — title only, no content. */
+export interface SharePeek {
+  title: string;
+  kind: NoteKind;
+  permission: SharePermission;
+  needsPassword: boolean;
+}
+
+export interface ShareGuest {
+  displayName: string;
+  color: string;
+}
+
+export interface SharedNote {
+  note: { id: string; title: string; contentJson: Record<string, unknown>; kind: NoteKind; updatedAt: string };
+  canEdit: boolean;
+  /** Display name of whoever is asking — not an id, so it cannot identify actors. */
+  you: string;
+  revision: number;
+}
+
+/** One entry from the delta feed. `actor` is a user id or an opaque guest id. */
+export interface ShareEvent {
+  seq: number;
+  kind: 'doc' | 'ink' | 'item' | 'edge' | 'presence' | string;
+  payload: Record<string, unknown>;
+  actor: string;
+  at: string;
+}
+
+export interface ShareEvents {
+  events: ShareEvent[];
+  revision: number;
+  presence: Array<{ name: string; color: string }>;
+}

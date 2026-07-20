@@ -2,6 +2,8 @@
   "name": "folio",
   "private": true,
   "version": "0.1.0",
+  "// type": "ESM, so Vercel compiles api/index.ts as an ES module. Without this it defaults to CommonJS and require()ing the ESM server throws ERR_REQUIRE_ESM at runtime — a failure that only appears once deployed.",
+  "type": "module",
   "description": "Folio — a student notebook. Notion x Obsidian x Google Docs, local-first, AI-powered.",
   "workspaces": [
     "server",
