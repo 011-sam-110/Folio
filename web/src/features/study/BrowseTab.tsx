@@ -374,7 +374,7 @@ export default function BrowseTab({
         <EmptyState
           icon="🗂️"
           title="No flashcards yet"
-          hint="Generate a batch from a note's AI menu, or add your own with New card above."
+          hint="Select a sentence in any note and pick 'Add to flashcards' from the toolbar that appears — or write one here with New card."
           action={<button type="button" className="sy-btn sy-btn--primary" onClick={() => setComposerOpen(true)}>Add your first card</button>}
         />
       ) : filtered.length === 0 ? (

@@ -8,7 +8,7 @@
  * the first place, so they clear it and drive the real forms.
  */
 import { expect, test, uniqueEmail, TEST_PASSWORD } from './auth.fixture';
-import { apiCreateNote, apiCreateNotebook, exact, sidebarNav, uniqueName } from './utils';
+import { apiCreateNote, apiCreateNotebook, dismissTourIfPresent, exact, sidebarNav, uniqueName } from './utils';
 
 /**
  * No cookies: every test below starts as a stranger.
@@ -50,6 +50,9 @@ async function leaveRecoveryPanel(page: import('@playwright/test').Page) {
   await page.getByRole('checkbox').check();
   await expect(continueBtn).toBeEnabled();
   await continueBtn.click();
+  // Landing on / as a brand-new account means the tutorial is offered. Clear it so
+  // these specs can reach the app chrome they are actually about.
+  await dismissTourIfPresent(page);
 }
 
 test.describe('The login wall', () => {
@@ -148,6 +151,9 @@ test.describe('Login and logout', () => {
     await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await page.waitForURL((url) => url.pathname === '/', { timeout: 15_000 });
+    // This account was created through the API and is signing in for the first time
+    // in this browser, so it has never answered the tutorial offer either.
+    await dismissTourIfPresent(page);
 
     const accountMenu = page.getByRole('button', { name: /Account menu for Round Tripper/ });
     await expect(accountMenu).toBeVisible({ timeout: 15_000 });

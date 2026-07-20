@@ -1,0 +1,537 @@
+/* Onboarding: guided tour overlay, first-run hints, shortcut cheatsheet.
+   Every colour is a token from styles/tokens.css, so both themes come for free.
+
+   Stacking: the app's existing layers top out at 300 (tooltips, skip link), with
+   toasts at 200 and modals at 100/150. The tour sits above all of it because it is
+   modal over the whole application; hints sit at 180, above page chrome and menus
+   but below toasts, which must always stay readable. */
+
+/* ---------------------------------------------------------------- tour overlay */
+
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  /* The root itself is only a coordinate space; children opt back in. */
+  pointer-events: none;
+}
+
+/* Absorbs clicks on the page behind. The tour navigates on the user's behalf, so a
+   stray click mid-step would fight it — every way out is a control on the card. */
+.tour-blocker {
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+}
+
+/* Used when no element is highlighted (welcome card, centred fallback steps). */
+.tour-dim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+}
+
+/* The spotlight. One element: the dim layer is its own outward box-shadow, so there
+   is no mask, no SVG and no second node in the accessibility tree. */
+.tour-spot {
+  position: fixed;
+  border-radius: var(--radius);
+  box-shadow:
+    0 0 0 9999px var(--scrim),
+    0 0 0 2px var(--accent);
+  transition:
+    top var(--dur-slow) var(--ease-out),
+    left var(--dur-slow) var(--ease-out),
+    width var(--dur-slow) var(--ease-out),
+    height var(--dur-slow) var(--ease-out);
+}
+
+.tour-card {
+  /* Single source of truth for the card's inset: the sticky action footer cancels
+     it with negative margins so its background spans the full card width. */
+  --tour-card-pad: 18px;
+
+  position: fixed;
+  pointer-events: auto;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  padding: var(--tour-card-pad);
+  font-family: var(--font-ui);
+  color: var(--ink);
+}
+
+.tour-card:focus-visible {
+  outline: none;
+}
+
+/* Welcome, "seeding", and any step whose target could not be resolved. */
+.tour-card--centered {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Used when the highlighted element is too large to sit a card beside — the editor
+   body, a canvas surface. Docked bottom-right so it never covers the top of the
+   spotlit region, where the thing being described usually is. */
+.tour-card--corner {
+  right: 20px;
+  bottom: 20px;
+  left: auto;
+  top: auto;
+  transform: none;
+}
+
+.tour-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.tour-card__eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.tour-card__close {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.tour-card__close:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+.tour-progress {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.tour-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.tour-card__title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 680;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.tour-card__body {
+  margin: 0;
+  font-size: var(--fs-chrome-lg);
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.tour-card__codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+}
+
+.tour-card__codes kbd,
+.ks-row__keys kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.tour-card__locating,
+.tour-card__error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0 0;
+  font-size: var(--fs-chrome);
+  color: var(--ink-3);
+}
+
+.tour-card__error {
+  color: var(--danger);
+}
+
+.tour-card__seed {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.tour-card__seed-title {
+  margin: 0 0 4px;
+  font-size: var(--fs-chrome-lg);
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.tour-card__seed-hint {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+/* Sticky so the primary action is reachable without scrolling the card, however
+   short the viewport. At 320x640 the welcome copy alone overflows the card, and an
+   off-screen "Add example & start" is exactly the kind of dead end this must not
+   have. The negative margins let the background span the card's full width. */
+.tour-card__actions {
+  position: sticky;
+  bottom: calc(var(--tour-card-pad) * -1);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px calc(var(--tour-card-pad) * -1) calc(var(--tour-card-pad) * -1);
+  padding: 12px var(--tour-card-pad) var(--tour-card-pad);
+  background: var(--bg-elevated);
+  flex-wrap: wrap;
+}
+
+.tour-card__actions-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* ------------------------------------------------------------------- buttons */
+
+.tour-btn {
+  flex: 0 0 auto;
+  /* 36px keeps every control comfortably above the 24px AAA target-size floor and
+     matches the app's own compact button height. Raised to 44px on coarse
+     pointers by the media query at the bottom of the file. */
+  min-height: 36px;
+  padding: 7px 14px;
+  font-family: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: 620;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+.tour-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--ink-3);
+}
+
+.tour-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tour-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tour-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.tour-btn--primary:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  filter: brightness(1.08);
+}
+
+.tour-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-3);
+}
+
+.tour-btn--ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+  color: var(--ink);
+}
+
+.tour-btn--sm {
+  min-height: 30px;
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------------- narrow screens */
+
+/* Below 700px the card stops chasing the target and docks to the bottom of the
+   screen. A floating popover on a phone either covers the thing it is describing or
+   gets pushed off-screen by `shift()`; a sheet does neither, and leaves the
+   spotlight fully visible above it. */
+@media (max-width: 700px) {
+  .tour-card,
+  .tour-card--centered {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+    max-width: none;
+    transform: none;
+    max-height: 62vh;
+  }
+
+  .tour-card__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .tour-card__actions-main {
+    margin-left: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .tour-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* 320px is the app's stated floor. Padding tightens rather than content wrapping
+   into an unreadable column. */
+@media (max-width: 360px) {
+  .tour-card {
+    --tour-card-pad: 14px;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .tour-card__title {
+    font-size: 16px;
+  }
+}
+
+/* Short viewports (a 320x640 phone, or any handset in landscape) have almost no
+   vertical room once the sheet is docked. Give the card more of it — the sticky
+   footer keeps the actions in reach regardless. */
+@media (max-height: 700px) and (max-width: 700px) {
+  .tour-card,
+  .tour-card--centered {
+    max-height: 76vh;
+  }
+}
+
+/* The spotlight ring animating between targets is the one piece of motion the
+   global reduce rule in base.css cannot flatten on its own, because it is a
+   position transition rather than an animation. */
+@media (prefers-reduced-motion: reduce) {
+  .tour-spot,
+  .tour-progress__fill {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------- first-run hint */
+
+.hint-bubble {
+  position: fixed;
+  z-index: 180;
+  width: min(320px, calc(100vw - 32px));
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+  padding: 12px 13px;
+  font-family: var(--font-ui);
+  animation: folio-pop-in var(--dur) var(--ease-out);
+}
+
+.hint-bubble--sheet {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  top: auto;
+  width: auto;
+}
+
+.hint-bubble__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.hint-bubble__icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+}
+
+.hint-bubble__title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-chrome-lg);
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.hint-bubble__x {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.hint-bubble__x:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+.hint-bubble__x:focus-visible,
+.tour-card__close:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.hint-bubble__body {
+  margin: 6px 0 0;
+  font-size: var(--fs-chrome);
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.hint-bubble__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+/* ------------------------------------------------------------ shortcut cheatsheet */
+
+.ks-sheet {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px 28px;
+}
+
+.ks-group__name {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.ks-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ks-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.ks-row:last-child {
+  border-bottom: none;
+}
+
+.ks-row__keys {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  order: 2;
+}
+
+.ks-row__label {
+  flex: 1;
+  margin: 0;
+  order: 1;
+  font-size: var(--fs-chrome);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+@media (max-width: 480px) {
+  .ks-sheet {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* Coarse pointers get the 44px target the rest of the app already guarantees. */
+@media (pointer: coarse) {
+  .tour-btn {
+    min-height: 44px;
+  }
+
+  .tour-btn--sm {
+    min-height: 40px;
+  }
+
+  .tour-card__close,
+  .hint-bubble__x {
+    width: 44px;
+    height: 44px;
+  }
+}

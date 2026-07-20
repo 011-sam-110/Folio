@@ -11,6 +11,9 @@ import Icon from '../components/Icon';
 import EmojiPicker from '../components/EmojiPicker';
 import { useNotebooks } from '../components/NotebooksContext';
 import { toast } from '../components/Toast';
+import { openImportModal } from '../components/importModalBus';
+import { resolveFilingNotebook } from '../lib/notebookContext';
+import { startTour } from '../features/onboarding/onboardingBus';
 
 const SUGGESTED_NOTEBOOKS = [
   { name: 'Algorithms & Data Structures', emoji: '📗' },
@@ -25,6 +28,24 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { notebooks } = useNotebooks();
+
+  // Same filing rules the sidebar and Ctrl+N already use, so a note created from the
+  // empty state lands where the user would expect rather than in notebooks[0].
+  const firstNotebookId = resolveFilingNotebook(undefined, notebooks);
+
+  const createFirstNote = useCallback(async () => {
+    if (!firstNotebookId) {
+      toast('Create a notebook first', 'error');
+      return;
+    }
+    try {
+      const { note } = await api.createNote({ notebookId: firstNotebookId });
+      navigate(`/note/${note.id}`);
+    } catch (e) {
+      toast(errorMessage(e, 'Could not create note'), 'error');
+    }
+  }, [firstNotebookId, navigate]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -121,10 +142,31 @@ export default function DashboardPage() {
             <h2 className="dash__section-title">Recent lessons</h2>
           </div>
           {data.recent.length === 0 ? (
+            /* The first screen a new account lands on, and the only zero-state that
+               used to offer no way out of itself. It now names the two ways notes
+               get here — write one, or import one you already have — and offers the
+               tour for anyone who would rather be shown. */
             <EmptyState
               icon="📝"
-              title="No notes yet"
-              hint="Create a note from a notebook in the sidebar, or import a photo of your lecture notes."
+              title="Your notes will show up here"
+              hint="Write one from scratch, or bring in what you already have — lecture slides, a PDF, a photo of your handwriting, even a recording of the lecture itself."
+              action={
+                <div className="dash__empty-actions">
+                  <button type="button" className="btn btn-primary" onClick={createFirstNote}>
+                    <Icon name="plus" size={14} /> Write a note
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => openImportModal({ notebookId: firstNotebookId ?? undefined, defaultKind: 'slides' })}
+                  >
+                    <Icon name="upload" size={14} /> Import slides or a PDF
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => startTour()}>
+                    <Icon name="sparkles" size={14} /> Show me around
+                  </button>
+                </div>
+              }
             />
           ) : (
             <div className="note-grid" data-testid="recent-notes">

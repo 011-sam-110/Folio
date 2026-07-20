@@ -467,6 +467,34 @@
   text-align: center;
 }
 
+/* Actions under the "no notes yet" empty state. Wraps to a column on a phone so
+   three buttons never squeeze into unreadable slivers. */
+.dash__empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.dash__empty-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 560px) {
+  .dash__empty-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: min(100%, 300px);
+    margin: 0 auto;
+  }
+
+  .dash__empty-actions .btn {
+    justify-content: center;
+  }
+}
+
 .notebook-create-form {
   display: flex;
   flex-direction: column;

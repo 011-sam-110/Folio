@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import type { IconName } from '../components/Icon';
 import { toggleTheme } from './theme';
+import { openShortcuts, startTour } from '../features/onboarding/onboardingBus';
 
 export interface CommandContext {
   navigate: NavigateFunction;
@@ -118,7 +119,7 @@ export function matchCommand(query: string, cmd: Pick<Command, 'title' | 'keywor
 
 /** Fixed section order for the browse-with-empty-query view; any other
  *  section name (from a future registrant) is appended alphabetically after. */
-export const SECTION_ORDER = ['Navigate', 'Create', 'Note', 'View', 'Study'];
+export const SECTION_ORDER = ['Navigate', 'Create', 'Note', 'View', 'Study', 'Help'];
 
 // ---------------------------------------------------------------------------
 // Built-ins that need no page/route context beyond `navigate` — registered
@@ -181,5 +182,27 @@ registerCommands([
     run: () => {
       toggleTheme();
     },
+  },
+  // These two go through a module bus rather than being assembled in
+  // CommandPalette.tsx, because the surfaces they open live in the App shell and
+  // `run(ctx)` only ever receives `{ navigate }` per this file's contract.
+  {
+    id: 'help-tutorial',
+    title: 'Take the tutorial',
+    section: 'Help',
+    hint: 'A guided walk through what Folio can do',
+    keywords: ['onboarding', 'tour', 'guide', 'walkthrough', 'help', 'getting started'],
+    icon: 'sparkles',
+    run: () => startTour(),
+  },
+  {
+    id: 'help-shortcuts',
+    title: 'Keyboard shortcuts',
+    section: 'Help',
+    hint: 'Every binding, in one list',
+    shortcut: '?',
+    keywords: ['keys', 'cheatsheet', 'bindings', 'help'],
+    icon: 'info',
+    run: () => openShortcuts(),
   },
 ]);

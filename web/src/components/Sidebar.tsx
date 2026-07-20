@@ -259,7 +259,8 @@ export default function Sidebar({
         </Tooltip>
       </div>
 
-      <div className="sidebar__notebooks">
+      {/* data-tour: stable anchor for the onboarding tour's first coach mark. */}
+      <div className="sidebar__notebooks" data-tour="notebooks">
         {loading && notebooks.length === 0 && (
           <div style={{ padding: '4px 10px' }}>
             <Skeleton lines={4} />

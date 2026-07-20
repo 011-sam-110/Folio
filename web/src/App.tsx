@@ -13,6 +13,7 @@ import { errorMessage } from './lib/format';
 import { resolveFilingNotebook, setActiveNotebook } from './lib/notebookContext';
 import ImportModal from './features/import/ImportModal';
 import { _subscribeImportModal, type OpenImportModalArgs } from './components/importModalBus';
+import OnboardingHost from './features/onboarding/OnboardingHost';
 
 const COLLAPSE_KEY = 'folio:sidebarCollapsed';
 
@@ -60,6 +61,9 @@ function AppShell() {
   // Lifted out of Sidebar so the command palette's "Open phone capture QR"
   // command can trigger the same modal Sidebar's footer button opens.
   const [qrOpen, setQrOpen] = useState(false);
+  // Lifted for the same reason as qrOpen: the "?" chord, the command palette and the
+  // account menu all open the same cheatsheet.
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const sidebarWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -157,6 +161,7 @@ function AppShell() {
     onFocusSearch: () => setQuickSwitcherOpen(true),
     onToggleSidebar: () => setCollapsed((c) => !c),
     onCommandPalette: () => setCommandPaletteOpen((o) => !o),
+    onShortcutsHelp: () => setShortcutsOpen((o) => !o),
   });
 
   return (
@@ -168,13 +173,20 @@ function AppShell() {
         Skip to content
       </a>
 
-      <div className="app-topbar">
+      {/* A <header> rather than a <div>: the mobile topbar sits outside the sidebar
+          <nav> and outside <main>, so as a plain div its wordmark was page content
+          belonging to no landmark — axe's `region` rule, reproducible at 390px with
+          nothing else on screen. */}
+      <header className="app-topbar">
         <button
           type="button"
           className="icon-btn"
           aria-label="Open menu"
           aria-expanded={mobileOpen}
           aria-controls="folio-sidebar-drawer"
+          // On a phone the sidebar is off-canvas, so the tour's notebook step points
+          // at the control that reveals it rather than at a hidden element.
+          data-tour="mobile-menu"
           onClick={() => setMobileOpen(true)}
         >
           <Icon name="menu" size={18} />
@@ -187,7 +199,7 @@ function AppShell() {
         <button type="button" className="icon-btn" aria-label="Search notes" onClick={() => setQuickSwitcherOpen(true)}>
           <Icon name="search" size={17} />
         </button>
-      </div>
+      </header>
 
       <div
         className={`app-scrim${mobileOpen ? ' is-visible' : ''}`}
@@ -257,6 +269,7 @@ function AppShell() {
         onOpenPhoneCapture={() => setQrOpen(true)}
       />
       <ImportModalHost />
+      <OnboardingHost shortcutsOpen={shortcutsOpen} onShortcutsChange={setShortcutsOpen} />
     </>
   );
 }

@@ -18,6 +18,10 @@ export interface ShortcutHandlers {
   /** Ctrl/Cmd+P — open the command palette. Always intercepted (even while
    *  typing) so it never falls through to the browser's print dialog. */
   onCommandPalette?: () => void;
+  /** `?` — open the keyboard shortcut cheatsheet. Unmodified, so unlike every
+   *  other binding here it must yield while the user is typing: `?` is a real
+   *  character in a note. */
+  onShortcutsHelp?: () => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -41,6 +45,15 @@ export function useShortcuts(handlers: ShortcutHandlers): void {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
+
+      // The one unmodified binding. Checked before the `mod` guard below, and only
+      // ever outside a text field — `?` has to keep working as a question mark.
+      if (!mod && e.key === '?' && !isTypingTarget(e.target)) {
+        e.preventDefault();
+        ref.current.onShortcutsHelp?.();
+        return;
+      }
+
       if (!mod) return;
       const key = e.key.toLowerCase();
       const typing = isTypingTarget(e.target);

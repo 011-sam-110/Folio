@@ -7,6 +7,7 @@ import { toast } from '../../components/Toast';
 import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
 import ChangePasswordModal from './ChangePasswordModal';
+import { openShortcuts, startTour } from '../onboarding/onboardingBus';
 import './auth.css';
 
 /** First letter of the display name, falling back to the email — a name is optional
@@ -61,6 +62,21 @@ export default function AccountMenu() {
             label: 'Change password',
             icon: 'lock',
             onSelect: () => setPasswordOpen(true),
+          }),
+          menuDivider('d0'),
+          // Help lives here because this is where people look for it a week in,
+          // once the first-run prompts are long gone.
+          menuItem({
+            key: 'tutorial',
+            label: 'Take the tutorial',
+            icon: 'sparkles',
+            onSelect: () => startTour(),
+          }),
+          menuItem({
+            key: 'shortcuts',
+            label: 'Keyboard shortcuts',
+            icon: 'info',
+            onSelect: () => openShortcuts(),
           }),
           menuDivider('d1'),
           menuItem({ key: 'signout', label: 'Sign out', icon: 'log-out', onSelect: signOut }),

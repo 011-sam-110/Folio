@@ -89,6 +89,36 @@ export function dialog(page: Page): Locator {
 }
 
 /**
+ * Dismisses the first-run tutorial, if it appears.
+ *
+ * Most specs never see it: auth.fixture.ts writes the "already answered" record
+ * into the storageState it hands them. The exception is the auth specs, which sign
+ * up or sign in through the real forms as a genuinely new account — and a genuinely
+ * new account IS offered the tutorial, whose overlay deliberately blocks clicks on
+ * the page behind it.
+ *
+ * So those specs dismiss it the way a person would, rather than the app growing a
+ * "disable onboarding in tests" flag. Suppressing a feature to keep a test green
+ * would mean the suite stops exercising the shell a real new user actually meets.
+ *
+ * Tolerant on purpose: waits a beat for the card, and simply carries on if it never
+ * shows (an account that has answered before, or a page where it does not apply).
+ */
+export async function dismissTourIfPresent(page: Page): Promise<void> {
+  // The tutorial opens from an effect on the app shell's own mount, so once the
+  // sidebar is on screen the card is either already there or one frame away. Gate
+  // on the shell first, then give the card a short window — that keeps the no-op
+  // case (an account that has answered before) cheap instead of costing a full
+  // timeout on every call.
+  await sidebarNav(page).waitFor({ state: 'visible', timeout: 15_000 }).catch(() => undefined);
+  const card = page.getByTestId('tour-card');
+  await card.waitFor({ state: 'visible', timeout: 1_500 }).catch(() => undefined);
+  if (!(await card.isVisible().catch(() => false))) return;
+  await page.getByRole('button', { name: /^not now$/i }).click();
+  await expect(card).toBeHidden({ timeout: 5_000 });
+}
+
+/**
  * Creates a notebook through the sidebar "+ New notebook" control and waits for it
  * to appear in the sidebar. The sidebar reveals an inline create form (not a modal)
  * with a "Notebook name" field + a "Create notebook" submit button. Returns once the

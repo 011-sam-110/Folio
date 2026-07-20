@@ -41,6 +41,8 @@ import {
   request as playwrightRequest,
   type APIRequestContext,
 } from '@playwright/test';
+// Imported from the app so the two lists can never drift apart.
+import { HINT_IDS } from '../web/src/features/onboarding/hintIds';
 
 /** Where per-worker storageState files land. Gitignored via test-results/. */
 const STATE_DIR = fileURLToPath(new URL('../test-results/.auth/', import.meta.url));
@@ -68,6 +70,50 @@ export function uniqueEmail(tag: string): string {
   const stamp = Date.now().toString(36);
   const rand = Math.random().toString(36).slice(2, 8);
   return `e2e-${tag}-${stamp}-${rand}@folio.test`;
+}
+
+/**
+ * Marks the onboarding tutorial as already answered, in the storageState the
+ * browser will load.
+ *
+ * The tutorial auto-opens exactly once per account per device, for an account that
+ * has never answered its offer — which describes every account this fixture makes.
+ * Its overlay is modal and deliberately swallows clicks on the page behind, so
+ * without this every spec in the suite would open onto a coach mark and time out
+ * trying to click the app underneath.
+ *
+ * Doing it here rather than with a "disable onboarding" env flag keeps the app
+ * itself free of test-only branches: this writes the same localStorage record a
+ * real user writes by pressing "Not now", so specs run against exactly the code
+ * path a returning user gets. The tutorial's own behaviour is covered
+ * deliberately, and only, in onboarding.spec.ts — which clears this key first.
+ *
+ * `storageState` is captured from an APIRequestContext, which has no localStorage
+ * of its own, so the origins entry is written into the JSON by hand.
+ */
+async function markOnboardingSeen(statePath: string, baseURL: string, userId: string): Promise<void> {
+  const raw = JSON.parse(await fs.readFile(statePath, 'utf8')) as {
+    cookies: unknown[];
+    origins: Array<{ origin: string; localStorage: Array<{ name: string; value: string }> }>;
+  };
+  const origin = new URL(baseURL).origin;
+  const entry = {
+    name: `folio:onboarding:v1:${userId}`,
+    value: JSON.stringify({
+      status: 'skipped',
+      step: 0,
+      seeded: null,
+      // The first-run hints are pre-dismissed too. They are non-modal, but they are
+      // still elements on top of the page, and a bubble appearing a second into an
+      // unrelated spec intercepted a click on the control behind it. Specs get the
+      // app as an established user sees it: quiet.
+      hints: Object.fromEntries(HINT_IDS.map((id) => [id, true])),
+    }),
+  };
+  const existing = raw.origins.find((o) => o.origin === origin);
+  if (existing) existing.localStorage.push(entry);
+  else raw.origins.push({ origin, localStorage: [entry] });
+  await fs.writeFile(statePath, JSON.stringify(raw, null, 2));
 }
 
 /**
@@ -100,6 +146,7 @@ export async function createAccount(
 
     await fs.mkdir(path.dirname(statePath), { recursive: true });
     await context.storageState({ path: statePath });
+    await markOnboardingSeen(statePath, baseURL, user.id);
 
     return {
       userId: user.id,

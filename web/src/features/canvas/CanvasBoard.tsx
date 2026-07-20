@@ -972,7 +972,7 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
             />
           )}
 
-          <div className="cv-tools" role="toolbar" aria-label="Canvas tools">
+          <div className="cv-tools" role="toolbar" aria-label="Canvas tools" data-tour="canvas-tools">
             <ToolButton mode={mode} value="select" icon="cursor" label="Select" hint="V" onSelect={setMode} />
             <span className="cv-tools__sep" aria-hidden="true" />
             <ToolButton mode={mode} value="sticky" icon="sticky" label="Sticky note" hint="S" onSelect={setMode} />
