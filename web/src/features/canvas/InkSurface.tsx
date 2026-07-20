@@ -76,6 +76,8 @@ export default function InkSurface({
   const drawPointerRef = useRef<number | null>(null);
   const lastPenAtRef = useRef(0);
   const erasedRef = useRef<LocalStroke[]>([]);
+  /** Ids already claimed during THIS eraser gesture — see eraseAt. */
+  const erasedIdsRef = useRef<Set<string>>(new Set());
   const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
   const rafRef = useRef<number | null>(null);
 
@@ -213,8 +215,13 @@ export default function InkSurface({
     // The eraser's reach is a fixed number of SCREEN pixels, so it feels the same
     // size however far the board is zoomed out.
     const worldRadius = ERASER_RADIUS / cfg.viewport.scale;
-    const hits = strokesNear(cfg.layer.strokes, world, worldRadius);
+    // cfg.layer.strokes is one React render stale, and a single pointermove can
+    // call this a dozen times (once per coalesced sample) before that render
+    // lands — so without this guard the same stroke is "erased" repeatedly and
+    // fires a redundant DELETE each time.
+    const hits = strokesNear(cfg.layer.strokes, world, worldRadius).filter((id) => !erasedIdsRef.current.has(id));
     if (hits.length === 0) return;
+    for (const id of hits) erasedIdsRef.current.add(id);
     erasedRef.current.push(...cfg.layer.removeStrokes(hits));
   }, []);
 
@@ -230,13 +237,22 @@ export default function InkSurface({
       return;
     }
     e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // Capture keeps a fast stroke from being stolen by whatever element the pen
+    // happens to fly over, but it is an OPTIMISATION, not a precondition: it
+    // throws if the pointer is already gone (or is synthetic), and letting that
+    // propagate would abandon the stroke the user is actively drawing.
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // Fall through — window-level move/up handling still completes the stroke.
+    }
     drawPointerRef.current = e.pointerId;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const world = toWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top }, cfgRef.current.viewport);
     samplesRef.current = [{ x: world.x, y: world.y, p: pressureOf(e) }];
     erasedRef.current = [];
+    erasedIdsRef.current = new Set();
     if (cfgRef.current.tool === 'eraser') eraseAt(world);
     scheduleLive();
   }

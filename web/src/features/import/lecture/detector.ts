@@ -188,7 +188,6 @@ export class SlideDetector {
 
   private prevGrid: Float32Array | null = null;
   private prevGray: Float32Array | null = null;
-  private prevTime = 0;
 
   private curStart = 0;
   private curCaptureTime = 0;
@@ -210,7 +209,6 @@ export class SlideDetector {
     if (!this.prevGrid || !this.prevGray) {
       this.prevGrid = grid;
       this.prevGray = Float32Array.from(gray);
-      this.prevTime = time;
       this.curStart = time;
       this.curCaptureTime = time;
       this.curCaptureGrid = Float32Array.from(grid);
@@ -251,7 +249,6 @@ export class SlideDetector {
       }
       this.prevGrid = grid;
       this.prevGray = Float32Array.from(gray);
-      this.prevTime = time;
       return;
     }
 
@@ -273,7 +270,6 @@ export class SlideDetector {
 
     this.prevGrid = grid;
     this.prevGray = Float32Array.from(gray);
-    this.prevTime = time;
   }
 
   /** @param endTime total duration, used to close the final slide. */

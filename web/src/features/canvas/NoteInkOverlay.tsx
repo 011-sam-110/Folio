@@ -122,11 +122,16 @@ export default function NoteInkOverlay({ noteId, anchorRef, open, onClose }: Not
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [open, undo, onClose]);
 
+  // useInkLayer returns a fresh object each render, so depending on `ink` here
+  // would re-run this on EVERY render. Only the toggle matters, so the flush is
+  // reached through a ref instead.
+  const flushRef = useRef(ink.flush);
+  flushRef.current = ink.flush;
   useEffect(() => {
     if (open) return;
     // Leaving the layer must not strand unsaved strokes in the debounce window.
-    void ink.flush();
-  }, [open, ink]);
+    void flushRef.current();
+  }, [open]);
 
   const handleStrokeCommitted = useCallback(
     (stroke: LocalStroke) => {

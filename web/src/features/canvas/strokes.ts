@@ -86,7 +86,17 @@ export function toInkPoints(samples: readonly SamplePoint[]): InkPoint[] {
   return samples.map((s) => [r(s.x), r(s.y), Math.round(s.p * 1000) / 1000]);
 }
 
-const mid = (a: SamplePoint, b: SamplePoint): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+/**
+ * Midpoint of two points IN THE SAME SPACE.
+ *
+ * Typed as Point (not SamplePoint) deliberately: the pen renderer draws in screen
+ * space, and an earlier version took world-space samples here while passing the
+ * result to a screen-space moveTo. At scale 1 that offset the segment ends by the
+ * viewport translation and split one stroke into several parallel ghosts; at any
+ * other zoom it also scaled them apart. Keeping the parameter type narrow makes
+ * that mistake a compile error rather than a rendering artefact.
+ */
+const mid = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 
 /**
  * Drop samples that are closer than `minDist` to the previously kept one.
@@ -203,8 +213,10 @@ export function drawStroke(
     // Each segment spans midpoint(i-1,i) -> midpoint(i,i+1), curving through
     // sample i. Consecutive segments therefore share an endpoint exactly, and the
     // round cap at that shared point hides the width change between them.
-    const start = i === 1 ? pts[0] : mid(samples[i - 1], samples[i]);
-    const end = mid(samples[i], samples[i + 1]);
+    // NOTE: midpoints come from `pts` (screen space), matching moveTo/curveTo —
+    // `samples` are world space and must never be mixed in here.
+    const start = i === 1 ? pts[0] : mid(pts[i - 1], pts[i]);
+    const end = mid(pts[i], pts[i + 1]);
     ctx.beginPath();
     ctx.lineWidth = Math.max(0.4, widthForPressure(screenWidth, samples[i].p));
     ctx.moveTo(start.x, start.y);
@@ -215,7 +227,7 @@ export function drawStroke(
   const n = pts.length;
   ctx.beginPath();
   ctx.lineWidth = Math.max(0.4, widthForPressure(screenWidth, samples[n - 1].p));
-  const tailStart = mid(samples[n - 2], samples[n - 1]);
+  const tailStart = mid(pts[n - 2], pts[n - 1]);
   ctx.moveTo(tailStart.x, tailStart.y);
   ctx.lineTo(pts[n - 1].x, pts[n - 1].y);
   ctx.stroke();

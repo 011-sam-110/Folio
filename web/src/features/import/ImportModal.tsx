@@ -1,7 +1,7 @@
 // Desktop import dialog: 3 kind tabs, drag-drop + click-to-browse, notebook
 // select OR (when `noteId` is given) a target-note context + append/improve
 // mode radio, multi-page photo chaining, and a live job stepper.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Modal from '../../components/Modal';
@@ -16,12 +16,17 @@ import ImportProgress from './ImportProgress';
 import './import-ui.css';
 import './ImportModal.css';
 
+// Lazily loaded: the lecture flow pulls in frame analysis and (via its worker) transformers.js,
+// which no one importing a photo should have to download.
+const LectureImport = lazy(() => import('./lecture/LectureImport'));
+
 export interface ImportModalProps {
   open: boolean;
   onClose: () => void;
   notebookId?: string;
   noteId?: string;
-  defaultKind?: 'photo' | 'slides' | 'transcript';
+  /** 'lecture' opens the client-side lecture-video flow; the rest are the server-backed kinds. */
+  defaultKind?: 'photo' | 'slides' | 'transcript' | 'lecture';
   /** Fired when an import completes successfully, with the resulting note id. Lets a host
    *  (e.g. the open note) resync its editor when the import targeted it. */
   onImported?: (resultNoteId: string) => void;
@@ -29,6 +34,8 @@ export interface ImportModalProps {
 
 type MergeMode = 'append' | 'improve';
 type Phase = 'pick' | 'running' | 'done' | 'error';
+/** The server-backed kinds, plus the fully client-side lecture-video flow. */
+type TabKey = ImportKind | 'lecture';
 
 interface ChainState {
   index: number;
@@ -37,7 +44,8 @@ interface ChainState {
 }
 
 export default function ImportModal({ open, onClose, notebookId, noteId, defaultKind, onImported }: ImportModalProps) {
-  const [kind, setKind] = useState<ImportKind>(defaultKind ?? 'photo');
+  const [kind, setKind] = useState<TabKey>(defaultKind ?? 'photo');
+  const [lectureBusy, setLectureBusy] = useState(false);
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [notebooksLoading, setNotebooksLoading] = useState(false);
   const [selectedNotebookId, setSelectedNotebookId] = useState<string>(notebookId ?? '');
@@ -58,7 +66,10 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
   const navigate = useNavigate();
   const { job, run, reset } = useImportJob();
 
-  const kindMeta = useMemo(() => findKind(kind), [kind]);
+  // The lecture tab has its own flow; everything below this line is the server-backed path,
+  // so it works against a narrowed kind that is always one the API accepts.
+  const serverKind: ImportKind = kind === 'lecture' ? 'slides' : kind;
+  const kindMeta = useMemo(() => findKind(serverKind), [serverKind]);
 
   // Fresh state every time the modal is opened.
   useEffect(() => {
@@ -113,8 +124,8 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
     return () => { urls.forEach(u => URL.revokeObjectURL(u)); };
   }, [files, kind]);
 
-  function handleKindChange(next: ImportKind) {
-    if (phase === 'running') return;
+  function handleKindChange(next: TabKey) {
+    if (phase === 'running' || lectureBusy) return;
     setKind(next);
     setFiles([]);
     setValidationError(null);
@@ -126,7 +137,7 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
     const errors: string[] = [];
     const valid: File[] = [];
     for (const f of incoming) {
-      const err = validateFile(f, kind);
+      const err = validateFile(f, serverKind);
       if (err) errors.push(err); else valid.push(f);
     }
     setValidationError(errors.length ? errors.join(' · ') : null);
@@ -168,7 +179,7 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
         const uploadFile = kind === 'photo' ? await downscaleImage(raw) : raw;
         const form = new FormData();
         form.append('file', uploadFile);
-        form.append('kind', kind);
+        form.append('kind', serverKind);
         form.append('mode', chainRef.current.mode);
         if (chainRef.current.mode === 'new') {
           form.append('notebookId', selectedNotebookId);
@@ -218,7 +229,10 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
   }
 
   const canSubmit = files.length > 0 && (noteId ? true : !!selectedNotebookId);
-  const runningOnClose = phase === 'running' ? () => {} : onClose;
+  const runningOnClose = phase === 'running' || lectureBusy ? () => {} : onClose;
+  // A lecture import always produces a NEW note, so it has nothing to offer when the modal was
+  // opened to add material to an existing one.
+  const showLectureTab = !noteId;
 
   return (
     <Modal open={open} onClose={runningOnClose} title="Import" width={560}>
@@ -237,8 +251,47 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
               <Icon name={k.iconName} size={14} /> {k.label}
             </button>
           ))}
+          {showLectureTab && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={kind === 'lecture'}
+              className={`im-tab${kind === 'lecture' ? ' is-active' : ''}`}
+              disabled={phase === 'running' || lectureBusy}
+              onClick={() => handleKindChange('lecture')}
+            >
+              <Icon name="camera" size={14} /> Lecture video
+            </button>
+          )}
         </div>
 
+        {kind === 'lecture' ? (
+          <>
+            <label className="im-field">
+              <span>Notebook</span>
+              <select
+                value={selectedNotebookId}
+                onChange={e => setSelectedNotebookId(e.target.value)}
+                disabled={notebooksLoading || lectureBusy}
+              >
+                {notebooksLoading && <option value="">Loading…</option>}
+                {!notebooksLoading && notebooks.length === 0 && <option value="">No notebooks yet</option>}
+                {notebooks.map(nb => (
+                  <option key={nb.id} value={nb.id}>{nb.emoji} {nb.name}</option>
+                ))}
+              </select>
+            </label>
+            <Suspense fallback={<div className="im-target__loading">Loading…</div>}>
+              <LectureImport
+                notebookId={selectedNotebookId}
+                onBusyChange={setLectureBusy}
+                onClose={onClose}
+                onImported={onImported}
+              />
+            </Suspense>
+          </>
+        ) : (
+        <>
         {phase === 'pick' && (
           <>
             {noteId ? (
@@ -373,6 +426,8 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
               <button type="button" className="im-btn im-btn--primary" onClick={runChain}>Retry</button>
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
     </Modal>

@@ -259,7 +259,8 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
           finish();
           return;
         }
-        const w = toWorld({ x: ev.clientX - (hostRef.current?.getBoundingClientRect().left ?? 0), y: ev.clientY - (hostRef.current?.getBoundingClientRect().top ?? 0) }, vpRef.current);
+        const rect = hostRef.current?.getBoundingClientRect();
+        const w = toWorld({ x: ev.clientX - (rect?.left ?? 0), y: ev.clientY - (rect?.top ?? 0) }, vpRef.current);
         const dx = w.x - start.x;
         const dy = w.y - start.y;
         if (!moved && Math.hypot(dx, dy) * vpRef.current.scale < DRAG_THRESHOLD_PX) return;
@@ -427,9 +428,20 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
       beginPan(e);
       return;
     }
-    // Touch on the background: leave it alone so useViewport's capture-phase
-    // handler can turn a second finger into a pinch.
-    if (e.pointerType === 'touch') return;
+    if (e.pointerType === 'touch') {
+      // A tap in a placement mode still places — otherwise the tool row would do
+      // nothing at all on a tablet.
+      if (mode !== 'select' && !isInkMode(mode)) {
+        void placeItem(mode, worldPoint(e));
+        return;
+      }
+      // Otherwise one finger NAVIGATES. That is the whole reason a stylus feels
+      // right here: the pen draws and selects, the hand scrolls the board —
+      // exactly the split Freeform uses. useViewport promotes this to a pinch if
+      // a second finger arrives, and beginPan yields to it.
+      beginPan(e);
+      return;
+    }
     if (e.pointerType === 'mouse' && e.button !== 0) return;
 
     if (mode !== 'select' && !isInkMode(mode)) {

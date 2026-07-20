@@ -99,6 +99,10 @@ export function useViewport(hostRef: React.RefObject<HTMLElement | null>): Viewp
     const start = { x: e.clientX, y: e.clientY };
     let last = start;
     function onMove(ev: PointerEvent) {
+      // A one-finger pan yields the moment a second finger turns the gesture into
+      // a pinch — otherwise both handlers would translate the viewport and the
+      // board would move at double speed.
+      if (gestureRef.current) return;
       const dx = ev.clientX - last.x;
       const dy = ev.clientY - last.y;
       last = { x: ev.clientX, y: ev.clientY };

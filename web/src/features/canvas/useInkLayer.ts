@@ -54,6 +54,11 @@ export function useInkLayer(noteId: string, enabled: boolean): InkLayer {
   // on the next page load).
   const deleteAfterFlushRef = useRef<Set<string>>(new Set());
   const inFlightRef = useRef<Promise<void> | null>(null);
+  // temp id -> server id. An undo entry captures the stroke at commit time, when
+  // it still has a temp id; by the time the user presses ⌘Z the upload has
+  // usually landed and replaced that id. Without this table the undo would look
+  // for an id that no longer exists and silently do nothing.
+  const remapRef = useRef<Map<string, string>>(new Map());
   // Guards against a stale GET for a previous note committing over this one, the
   // same monotonic-sequence trick NotePage uses for its note load.
   const loadSeqRef = useRef(0);
@@ -95,7 +100,10 @@ export function useInkLayer(noteId: string, enabled: boolean): InkLayer {
         // Positional mapping: ids[i] belongs to batch[i].
         const mapping = new Map<string, string>();
         batch.forEach((s, i) => {
-          if (ids[i]) mapping.set(s.id, ids[i]);
+          if (ids[i]) {
+            mapping.set(s.id, ids[i]);
+            remapRef.current.set(s.id, ids[i]);
+          }
         });
         setStrokes((prev) =>
           prev.map((s) => {
@@ -181,10 +189,22 @@ export function useInkLayer(noteId: string, enabled: boolean): InkLayer {
     [scheduleUpload],
   );
 
+  /** Follow the temp-id -> server-id chain for an id captured earlier. */
+  const resolveId = useCallback((id: string): string => {
+    let cur = id;
+    // Bounded: a cycle must not hang the UI.
+    for (let i = 0; i < 32; i++) {
+      const next = remapRef.current.get(cur);
+      if (!next) return cur;
+      cur = next;
+    }
+    return cur;
+  }, []);
+
   const removeStrokes = useCallback(
     (ids: readonly string[]): LocalStroke[] => {
       if (ids.length === 0) return [];
-      const idSet = new Set(ids);
+      const idSet = new Set(ids.map(resolveId));
       const removed: LocalStroke[] = [];
       setStrokes((prev) => {
         const next: LocalStroke[] = [];
@@ -210,7 +230,7 @@ export function useInkLayer(noteId: string, enabled: boolean): InkLayer {
       }
       return removed;
     },
-    [noteId],
+    [noteId, resolveId],
   );
 
   const restoreStrokes = useCallback(
