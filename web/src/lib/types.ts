@@ -23,10 +23,14 @@ export interface Notebook extends NotebookLite {
   lastNoteAt: string | null;
 }
 
+/** 'doc' opens in the TipTap editor; 'canvas' opens in the infinite board. */
+export type NoteKind = 'doc' | 'canvas';
+
 export interface NoteLite {
   id: string;
   notebookId: string;
   title: string;
+  kind: NoteKind;
   snippet: string;
   pinned: boolean;
   archived: boolean;
@@ -52,6 +56,7 @@ export interface Note {
   id: string;
   notebookId: string;
   title: string;
+  kind: NoteKind;
   contentJson: Record<string, unknown>;
   contentText: string;
   pinned: boolean;
@@ -170,6 +175,68 @@ export interface ImportJob {
   noteId?: string;
   error?: string;
   attachmentId?: string;
+}
+
+// --- Canvas boards + stylus ink -------------------------------------------------
+
+/** Only these five are authored by the UI. The server's column also allows
+ *  'ink' and 'embed'; we deliberately do not create them (see canvas/README note
+ *  in CanvasBoard.tsx) — ink lives in note_ink so it can also overlay doc notes. */
+export type CanvasItemKind = 'sticky' | 'text' | 'image' | 'shape' | 'link';
+
+/** Kind-specific payload stored in canvas_items.data (an opaque JSON blob to the
+ *  server, so every field here is optional and must be read defensively). */
+export interface CanvasItemData {
+  /** sticky | text */
+  text?: string;
+  /** sticky background / shape stroke+fill, as a token-independent hex. */
+  color?: string;
+  /** shape */
+  shape?: 'rect' | 'ellipse' | 'arrow';
+  /** image */
+  url?: string;
+  /** link — the referenced note, plus a cached title so the card renders before
+   *  (or without) a fetch. The title is refreshed opportunistically on load. */
+  noteId?: string;
+  title?: string;
+}
+
+export interface CanvasItem {
+  id: string;
+  kind: CanvasItemKind;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  z: number;
+  data: CanvasItemData;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CanvasEdge {
+  id: string;
+  from: string;
+  to: string;
+  label: string;
+  style: string; // arrow | line | dashed
+}
+
+export type InkTool = 'pen' | 'highlighter' | 'eraser';
+
+/** A point as persisted: [x, y, pressure] in the layer's own coordinate space —
+ *  world coordinates on a board, document coordinates on a doc-note overlay.
+ *  A tuple (not an object) because a long stroke is thousands of these and the
+ *  JSON size difference is roughly 3x. */
+export type InkPoint = [number, number, number];
+
+export interface InkStroke {
+  id: string;
+  points: InkPoint[];
+  color: string;
+  width: number;
+  tool: 'pen' | 'highlighter';
 }
 
 export interface MetaInfo {

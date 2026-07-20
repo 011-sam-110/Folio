@@ -237,6 +237,11 @@ router.post('/', async (req, res) => {
     return;
   }
 
+  // A canvas is a note whose spatial children live in canvas_items/canvas_edges
+  // rather than content_json. Whitelist rather than pass-through: an unrecognised
+  // kind would make NotePage render neither the editor nor the board.
+  const kind = b.kind === 'canvas' ? 'canvas' : 'doc';
+
   const id = newId();
   const now = nowIso();
   const title = b.title !== undefined ? String(b.title) : '';
@@ -246,10 +251,10 @@ router.post('/', async (req, res) => {
 
   await db
     .prepare(
-      `INSERT INTO notes (id, user_id, notebook_id, title, content_json, content_text, pinned, archived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+      `INSERT INTO notes (id, user_id, notebook_id, title, content_json, content_text, kind, pinned, archived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
     )
-    .run(id, uid, b.notebookId, title, contentJson, contentText, now, now);
+    .run(id, uid, b.notebookId, title, contentJson, contentText, kind, now, now);
 
   if (b.tags !== undefined) await setTags(uid, id, b.tags);
   if (contentText) await syncLinksForNote(uid, id, contentText);

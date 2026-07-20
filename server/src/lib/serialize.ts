@@ -76,6 +76,10 @@ export async function tagsOf(noteId: string, uid: string): Promise<string[]> {
 // projects a narrower column set must not be typed as a NoteRow.
 export interface NoteRow {
   id: string; user_id: string; notebook_id: string; title: string; content_json: string; content_text: string;
+  // 'doc' (TipTap document) | 'canvas' (infinite board; its children live in
+  // canvas_items/canvas_edges). Optional here because a handful of older callers
+  // predate the column — they fall back to 'doc' in the serialisers below.
+  kind?: string;
   pinned: number; archived: number; created_at: string; updated_at: string;
 }
 
@@ -105,6 +109,9 @@ export async function noteLite(row: NoteRow) {
     id: row.id,
     notebookId: row.notebook_id,
     title: row.title,
+    // Lists branch their icon on this, and NotePage branches its whole editor on
+    // it, so every note projection carries it rather than forcing a second fetch.
+    kind: row.kind === 'canvas' ? 'canvas' : 'doc',
     snippet: snippetOf(row.content_text),
     pinned: Boolean(row.pinned),
     archived: Boolean(row.archived),
@@ -127,6 +134,7 @@ export async function noteFull(row: NoteRow) {
     id: row.id,
     notebookId: row.notebook_id,
     title: row.title,
+    kind: row.kind === 'canvas' ? 'canvas' : 'doc',
     contentJson: JSON.parse(row.content_json),
     contentText: row.content_text,
     pinned: Boolean(row.pinned),

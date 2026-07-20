@@ -1,20 +1,23 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import request from 'supertest';
-
-// The DB connection is opened at import time (server/src/db.ts reads FOLIO_DB_PATH via
-// config.ts), so the env var must be set BEFORE anything that transitively imports it.
-// Static `import` statements are hoisted above this, so we set the env var here and
-// pull in the app modules with dynamic imports afterwards.
-const dbPath = path.join(os.tmpdir(), `folio-dashboard2-test-${process.pid}-${Date.now()}.db`);
-process.env.FOLIO_DB_PATH = dbPath;
-
-const { db, newId } = await import('../src/db.js');
-const { buildApp } = await import('../src/app.js');
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { buildApp } from '../src/app.js';
+import { db, newId } from '../src/db.js';
+import {
+  resetDatabase,
+  resetData,
+  makeUser,
+  closeDatabase,
+  insertNotebook as mkNotebook,
+  insertNote as mkNote,
+  insertCard as mkCard,
+  type TestUser,
+} from './helpers.js';
 
 const app = buildApp();
+
+// The dashboard aggregates across notes, versions, flashcards and comments — all of
+// which are now owner-scoped — so every fixture belongs to `user`.
+let user: TestUser;
+let api: TestUser['agent'];
 
 const FAR_PAST = new Date(Date.now() - 60 * 86_400_000).toISOString(); // 60 days ago: outside any "this week" window
 
@@ -34,64 +37,29 @@ function localMondayOfThisWeek(): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0, 0);
 }
 
-function insertNotebook(name = 'Test notebook', overrides: Partial<{ emoji: string; color: string; archived: number }> = {}): string {
-  const id = newId();
-  db.prepare('INSERT INTO notebooks (id, name, emoji, color, archived) VALUES (?, ?, ?, ?, ?)').run(
-    id,
-    name,
-    overrides.emoji ?? '📓',
-    overrides.color ?? '#4f46e5',
-    overrides.archived ?? 0,
-  );
-  return id;
+async function insertNotebook(name = 'Test notebook', overrides: Partial<{ emoji: string; color: string; archived: number }> = {}): Promise<string> {
+  return mkNotebook(user.id, { name, ...overrides });
 }
 
-function insertNote(
+async function insertNote(
   notebookId: string,
   opts: Partial<{ title: string; content_text: string; content_json: string; created_at: string; updated_at: string; archived: number }> = {},
-): string {
-  const id = newId();
-  const createdAt = opts.created_at ?? FAR_PAST;
-  const updatedAt = opts.updated_at ?? createdAt;
-  db.prepare(
-    `INSERT INTO notes (id, notebook_id, title, content_json, content_text, archived, created_at, updated_at)
-     VALUES (@id, @notebook_id, @title, @content_json, @content_text, @archived, @created_at, @updated_at)`,
-  ).run({
-    id,
-    notebook_id: notebookId,
-    title: opts.title ?? 'Test note',
-    content_json: opts.content_json ?? '{"type":"doc","content":[{"type":"paragraph"}]}',
-    content_text: opts.content_text ?? 'some content',
-    archived: opts.archived ?? 0,
-    created_at: createdAt,
-    updated_at: updatedAt,
-  });
-  return id;
+): Promise<string> {
+  return mkNote(user.id, notebookId, { created_at: FAR_PAST, ...opts });
 }
 
-function insertVersion(noteId: string, createdAt: string): void {
-  db.prepare(
+async function insertVersion(noteId: string, createdAt: string): Promise<void> {
+  await db.prepare(
     `INSERT INTO note_versions (note_id, title, content_json, cause, created_at) VALUES (?, 'v', '{"type":"doc","content":[]}', 'autosave', ?)`,
   ).run(noteId, createdAt);
 }
 
-function insertCard(noteId: string, opts: Partial<{ question: string; answer: string; due_at: string; suspended: number }> = {}): string {
-  const id = newId();
-  db.prepare(
-    `INSERT INTO flashcards (id, note_id, question, answer, due_at, suspended) VALUES (@id, @note_id, @question, @answer, @due_at, @suspended)`,
-  ).run({
-    id,
-    note_id: noteId,
-    question: opts.question ?? 'Q?',
-    answer: opts.answer ?? 'A.',
-    due_at: opts.due_at ?? isoMinutesFromNow(-5),
-    suspended: opts.suspended ?? 0,
-  });
-  return id;
+async function insertCard(noteId: string, opts: Partial<{ question: string; answer: string; due_at: string; suspended: number }> = {}): Promise<string> {
+  return mkCard(user.id, noteId, { due_at: isoMinutesFromNow(-5), ...opts });
 }
 
-function insertComment(noteId: string, resolved = 0): void {
-  db.prepare(`INSERT INTO note_comments (id, note_id, anchor_text, body, resolved) VALUES (?, ?, ?, ?, ?)`).run(
+async function insertComment(noteId: string, resolved = 0): Promise<void> {
+  await db.prepare(`INSERT INTO note_comments (id, note_id, anchor_text, body, resolved) VALUES (?, ?, ?, ?, ?)`).run(
     newId(),
     noteId,
     'some anchored text',
@@ -100,33 +68,31 @@ function insertComment(noteId: string, resolved = 0): void {
   );
 }
 
+beforeAll(async () => {
+  await resetDatabase();
+});
+
+beforeEach(async () => {
+  await resetData();
+  user = await makeUser(app);
+  api = user.agent;
+});
+
+afterAll(async () => {
+  await closeDatabase();
+});
+
 const LONG_TEXT = Array.from({ length: 220 }, (_, i) => `word${i}`).join(' '); // > 200 words
 const SHORT_TEXT = 'just a few words here';
 
-beforeEach(() => {
-  db.exec(
-    'DELETE FROM review_log; DELETE FROM flashcards; DELETE FROM note_comments; DELETE FROM note_versions; DELETE FROM links; DELETE FROM note_tags; DELETE FROM notes; DELETE FROM notebooks;',
-  );
-});
-
-afterAll(() => {
-  db.close();
-  for (const suffix of ['', '-wal', '-shm']) {
-    try {
-      fs.unlinkSync(dbPath + suffix);
-    } catch {
-      /* best-effort cleanup */
-    }
-  }
-});
 
 describe('GET /api/dashboard — response shape', () => {
   it('includes weekGrid (7 Mon-Sun entries), weeklyReview, and recall alongside the existing v1 fields', async () => {
-    const nbId = insertNotebook('Databases', { emoji: '🗄️', color: '#0ea5e9' });
-    const noteId = insertNote(nbId, { title: 'B-Trees & Indexing' });
-    insertCard(noteId);
+    const nbId = await insertNotebook('Databases', { emoji: '🗄️', color: '#0ea5e9' });
+    const noteId = await insertNote(nbId, { title: 'B-Trees & Indexing' });
+    await insertCard(noteId);
 
-    const res = await request(app).get('/api/dashboard');
+    const res = await api.get('/api/dashboard');
     expect(res.status).toBe(200);
 
     // v1 fields still present (untouched contract)
@@ -167,21 +133,21 @@ describe('GET /api/dashboard — response shape', () => {
 
 describe('GET /api/dashboard — weekGrid Monday-start / local-tz boundaries', () => {
   it('counts activity inside the current Mon-Sun week and excludes activity just outside it', async () => {
-    const nbId = insertNotebook('Algorithms');
+    const nbId = await insertNotebook('Algorithms');
     // Note's own created/updated timestamps are pinned far outside the week so they can't
     // leak a stray activity event into the window under test — only the versions below are.
-    const noteId = insertNote(nbId, { created_at: FAR_PAST, updated_at: FAR_PAST });
+    const noteId = await insertNote(nbId, { created_at: FAR_PAST, updated_at: FAR_PAST });
 
     const monday = localMondayOfThisWeek();
     const insideMonday = new Date(monday.getTime() + 1_000); // Mon 00:00:01 local — inside the week
     const beforeMonday = new Date(monday.getTime() - 1_000); // previous Sun 23:59:59 local — previous week
     const nextMonday = new Date(monday.getTime() + 7 * 86_400_000); // exactly next week's start — exclusive bound
 
-    insertVersion(noteId, insideMonday.toISOString());
-    insertVersion(noteId, beforeMonday.toISOString());
-    insertVersion(noteId, nextMonday.toISOString());
+    await insertVersion(noteId, insideMonday.toISOString());
+    await insertVersion(noteId, beforeMonday.toISOString());
+    await insertVersion(noteId, nextMonday.toISOString());
 
-    const res = await request(app).get('/api/dashboard');
+    const res = await api.get('/api/dashboard');
     expect(res.status).toBe(200);
     const grid = res.body.weekGrid as Array<{ date: string; dayLabel: string; total: number; byNotebook: Array<{ id: string; count: number }> }>;
 
@@ -196,14 +162,14 @@ describe('GET /api/dashboard — weekGrid Monday-start / local-tz boundaries', (
 
 describe('GET /api/dashboard — recall', () => {
   it('picks the quiz card from the SAME notebook, never a different one', async () => {
-    const nbA = insertNotebook('Notebook A');
-    const nbB = insertNotebook('Notebook B');
-    const noteA = insertNote(nbA, { title: 'Note A' });
-    const noteB = insertNote(nbB, { title: 'Note B' });
-    insertCard(noteA, { question: 'A-question', answer: 'A-answer' });
-    insertCard(noteB, { question: 'B-question', answer: 'B-answer' });
+    const nbA = await insertNotebook('Notebook A');
+    const nbB = await insertNotebook('Notebook B');
+    const noteA = await insertNote(nbA, { title: 'Note A' });
+    const noteB = await insertNote(nbB, { title: 'Note B' });
+    await insertCard(noteA, { question: 'A-question', answer: 'A-answer' });
+    await insertCard(noteB, { question: 'B-question', answer: 'B-answer' });
 
-    const res = await request(app).get('/api/dashboard');
+    const res = await api.get('/api/dashboard');
     const entryA = res.body.recall.find((r: any) => r.notebook.id === nbA);
     const entryB = res.body.recall.find((r: any) => r.notebook.id === nbB);
 
@@ -212,35 +178,35 @@ describe('GET /api/dashboard — recall', () => {
   });
 
   it('prefers an oldest-due card over a not-yet-due card in the same notebook', async () => {
-    const nbId = insertNotebook();
-    const noteId = insertNote(nbId);
-    insertCard(noteId, { question: 'future-card', answer: 'x', due_at: isoDaysFromNow(5) });
-    insertCard(noteId, { question: 'due-card', answer: 'y', due_at: isoMinutesFromNow(-10) });
+    const nbId = await insertNotebook();
+    const noteId = await insertNote(nbId);
+    await insertCard(noteId, { question: 'future-card', answer: 'x', due_at: isoDaysFromNow(5) });
+    await insertCard(noteId, { question: 'due-card', answer: 'y', due_at: isoMinutesFromNow(-10) });
 
-    const res = await request(app).get('/api/dashboard');
+    const res = await api.get('/api/dashboard');
     const entry = res.body.recall.find((r: any) => r.notebook.id === nbId);
     expect(entry.quiz.question).toBe('due-card');
   });
 
   it('falls back to a random (non-suspended) card when nothing in the notebook is due yet', async () => {
-    const nbId = insertNotebook();
-    const noteId = insertNote(nbId);
-    insertCard(noteId, { question: 'not-due-yet', answer: 'z', due_at: isoDaysFromNow(3) });
+    const nbId = await insertNotebook();
+    const noteId = await insertNote(nbId);
+    await insertCard(noteId, { question: 'not-due-yet', answer: 'z', due_at: isoDaysFromNow(3) });
 
-    const res = await request(app).get('/api/dashboard');
+    const res = await api.get('/api/dashboard');
     const entry = res.body.recall.find((r: any) => r.notebook.id === nbId);
     expect(entry.quiz).toMatchObject({ question: 'not-due-yet', answer: 'z' });
   });
 
   it('orders by daysSince desc, with never-touched (no-note) notebooks last', async () => {
-    const nbOld = insertNotebook('Old notebook'); // edited 10 days ago
-    const nbRecent = insertNotebook('Recent notebook'); // edited 1 day ago
-    const nbEmpty = insertNotebook('Empty notebook'); // no notes at all
+    const nbOld = await insertNotebook('Old notebook'); // edited 10 days ago
+    const nbRecent = await insertNotebook('Recent notebook'); // edited 1 day ago
+    const nbEmpty = await insertNotebook('Empty notebook'); // no notes at all
 
-    insertNote(nbOld, { updated_at: new Date(Date.now() - 10 * 86_400_000).toISOString() });
-    insertNote(nbRecent, { updated_at: new Date(Date.now() - 1 * 86_400_000).toISOString() });
+    await insertNote(nbOld, { updated_at: new Date(Date.now() - 10 * 86_400_000).toISOString() });
+    await insertNote(nbRecent, { updated_at: new Date(Date.now() - 1 * 86_400_000).toISOString() });
 
-    const res = await request(app).get('/api/dashboard');
+    const res = await api.get('/api/dashboard');
     const recall = res.body.recall as Array<{ notebook: { id: string }; daysSince: number | null; lastNote: unknown }>;
 
     const idxOld = recall.findIndex(r => r.notebook.id === nbOld);
@@ -261,16 +227,16 @@ describe('GET /api/dashboard — recall', () => {
 
 describe('GET /api/dashboard — weeklyReview counts', () => {
   it('computes notesEditedThisWeek, notesWithoutSummary (word-count + h2/callout aware), and unresolvedComments', async () => {
-    const nbId = insertNotebook('Software Engineering');
+    const nbId = await insertNotebook('Software Engineering');
 
     // Edited this week vs. not.
-    insertNote(nbId, { title: 'Edited today', content_text: SHORT_TEXT, updated_at: new Date().toISOString() });
-    insertNote(nbId, { title: 'Edited long ago', content_text: SHORT_TEXT, updated_at: FAR_PAST });
+    await insertNote(nbId, { title: 'Edited today', content_text: SHORT_TEXT, updated_at: new Date().toISOString() });
+    await insertNote(nbId, { title: 'Edited long ago', content_text: SHORT_TEXT, updated_at: FAR_PAST });
 
     // Long note with no summary marker -> counts.
-    const longNoSummary = insertNote(nbId, { title: 'Long, no summary', content_text: LONG_TEXT });
+    const longNoSummary = await insertNote(nbId, { title: 'Long, no summary', content_text: LONG_TEXT });
     // Long note with an literal H2 "Summary" heading -> excluded.
-    const longWithSummaryHeading = insertNote(nbId, {
+    const longWithSummaryHeading = await insertNote(nbId, {
       title: 'Long, has summary heading',
       content_text: LONG_TEXT,
       content_json: JSON.stringify({
@@ -282,7 +248,7 @@ describe('GET /api/dashboard — weeklyReview counts', () => {
       }),
     });
     // Long note with a callout block -> excluded.
-    const longWithCallout = insertNote(nbId, {
+    const longWithCallout = await insertNote(nbId, {
       title: 'Long, has callout',
       content_text: LONG_TEXT,
       content_json: JSON.stringify({
@@ -291,14 +257,14 @@ describe('GET /api/dashboard — weeklyReview counts', () => {
       }),
     });
     // Short note (<=200 words), no summary -> not counted regardless.
-    insertNote(nbId, { title: 'Short, no summary', content_text: SHORT_TEXT });
+    await insertNote(nbId, { title: 'Short, no summary', content_text: SHORT_TEXT });
 
     // Two unresolved comments, one resolved.
-    insertComment(longNoSummary, 0);
-    insertComment(longWithSummaryHeading, 0);
-    insertComment(longWithCallout, 1);
+    await insertComment(longNoSummary, 0);
+    await insertComment(longWithSummaryHeading, 0);
+    await insertComment(longWithCallout, 1);
 
-    const res = await request(app).get('/api/dashboard');
+    const res = await api.get('/api/dashboard');
     expect(res.status).toBe(200);
     const review = res.body.weeklyReview;
 
@@ -308,12 +274,12 @@ describe('GET /api/dashboard — weeklyReview counts', () => {
   });
 
   it('includes a per-notebook due-card suggestion in the example phrasing', async () => {
-    const nbId = insertNotebook('Databases');
-    const noteId = insertNote(nbId);
-    insertCard(noteId, { due_at: isoMinutesFromNow(-5) });
-    insertCard(noteId, { due_at: isoMinutesFromNow(-5) });
+    const nbId = await insertNotebook('Databases');
+    const noteId = await insertNote(nbId);
+    await insertCard(noteId, { due_at: isoMinutesFromNow(-5) });
+    await insertCard(noteId, { due_at: isoMinutesFromNow(-5) });
 
-    const res = await request(app).get('/api/dashboard');
+    const res = await api.get('/api/dashboard');
     const suggestions: string[] = res.body.weeklyReview.suggestions;
     expect(suggestions.some(s => s === 'Databases has 2 cards due — 10 min review?')).toBe(true);
   });

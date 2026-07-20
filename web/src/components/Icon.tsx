@@ -42,7 +42,25 @@ export type IconName =
   | 'sparkles-off'
   | 'lock'
   | 'log-out'
-  | 'smile';
+  | 'smile'
+  // canvas boards + stylus ink
+  | 'canvas'
+  | 'cursor'
+  | 'hand'
+  | 'sticky'
+  | 'type'
+  | 'image'
+  | 'square'
+  | 'circle'
+  | 'arrow-right'
+  | 'pen'
+  | 'highlighter'
+  | 'eraser'
+  | 'undo'
+  | 'redo'
+  | 'maximize'
+  | 'bring-front'
+  | 'send-back';
 
 const paths: Record<IconName, ReactNode> = {
   'chevron-left': <polyline points="15 18 9 12 15 6" />,
@@ -273,6 +291,95 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M8 14s1.5 2 4 2 4-2 4-2" />
       <line x1="9" y1="9" x2="9.01" y2="9" />
       <line x1="15" y1="9" x2="15.01" y2="9" />
+    </>
+  ),
+
+  // --- canvas boards + stylus ink ---
+  // A framed board with two connected nodes — reads as "board", and stays legible
+  // at the 12–14px the sidebar and note cards render it at.
+  canvas: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <rect x="6" y="7.5" width="5" height="4" rx="1" />
+      <rect x="13" y="12.5" width="5" height="4" rx="1" />
+      <path d="M11 9.5h1.2a1.8 1.8 0 0 1 1.8 1.8v1.2" />
+    </>
+  ),
+  cursor: <path d="M5 3l6.5 16 2.2-6.3 6.3-2.2z" />,
+  hand: (
+    <>
+      <path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11" />
+      <path d="M12 11V4.5a1.5 1.5 0 0 1 3 0V11" />
+      <path d="M15 11.5V6.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.2-3l-2-3.4a1.5 1.5 0 0 1 2.4-1.8L9 15" />
+    </>
+  ),
+  // Sticky note: a square with the classic peeled corner.
+  sticky: <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5V14l-6 6H5.5A1.5 1.5 0 0 1 4 18.5zM20 14h-4.5A1.5 1.5 0 0 0 14 15.5V20" />,
+  type: (
+    <>
+      <polyline points="4 7 4 4 20 4 20 7" />
+      <line x1="12" y1="4" x2="12" y2="20" />
+      <line x1="9" y1="20" x2="15" y2="20" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8.5" cy="9.5" r="1.5" />
+      <path d="M21 16l-5-5-5.5 5.5L8 14l-5 5" />
+    </>
+  ),
+  square: <rect x="4" y="4" width="16" height="16" rx="2" />,
+  circle: <ellipse cx="12" cy="12" rx="9" ry="7.5" />,
+  'arrow-right': (
+    <>
+      <line x1="4" y1="12" x2="19" y2="12" />
+      <polyline points="13 6 19 12 13 18" />
+    </>
+  ),
+  pen: (
+    <>
+      <path d="M15.5 3.5l5 5L8 21l-5.5 1.5L4 17z" />
+      <line x1="13" y1="6" x2="18" y2="11" />
+    </>
+  ),
+  highlighter: (
+    <>
+      <path d="M13 3.5l7.5 7.5-7 7H8l-3.5-3.5z" />
+      <line x1="3" y1="21.2" x2="21" y2="21.2" strokeWidth="2.4" />
+    </>
+  ),
+  eraser: (
+    <>
+      <path d="M8.5 20H20" />
+      <path d="M14.5 3.5l6 6a1.5 1.5 0 0 1 0 2.1l-7.2 7.2a1.5 1.5 0 0 1-2.1 0l-6-6a1.5 1.5 0 0 1 0-2.1l7.2-7.2a1.5 1.5 0 0 1 2.1 0z" />
+      <line x1="8" y1="8" x2="16" y2="16" />
+    </>
+  ),
+  undo: (
+    <>
+      <polyline points="3 8 3 14 9 14" />
+      <path d="M3.5 14a8 8 0 1 1 2.2 5.3" />
+    </>
+  ),
+  redo: (
+    <>
+      <polyline points="21 8 21 14 15 14" />
+      <path d="M20.5 14a8 8 0 1 0-2.2 5.3" />
+    </>
+  ),
+  // Zoom-to-fit: four corners pulling outward.
+  maximize: <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />,
+  'bring-front': (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="2" fill="currentColor" stroke="none" opacity="0.85" />
+      <path d="M4 16V6a2 2 0 0 1 2-2h10" />
+    </>
+  ),
+  'send-back': (
+    <>
+      <rect x="4" y="4" width="12" height="12" rx="2" fill="currentColor" stroke="none" opacity="0.85" />
+      <path d="M20 8v10a2 2 0 0 1-2 2H8" />
     </>
   ),
 };

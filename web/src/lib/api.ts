@@ -1,5 +1,6 @@
 import type {
-  DashboardData, Flashcard, ImportJob, MetaInfo, Note, NoteLite, NotebookLite, Notebook,
+  CanvasEdge, CanvasItem, CanvasItemData, CanvasItemKind,
+  DashboardData, Flashcard, ImportJob, InkStroke, MetaInfo, Note, NoteKind, NoteLite, NotebookLite, Notebook,
   NoteComment, NoteVersion, NoteVersionMeta, SearchParsed, SearchResult, StudyStats,
   Template, TitleResult, User,
 } from './types';
@@ -80,7 +81,7 @@ export const api = {
   },
   recentNotes: (limit = 12) => http<{ notes: NoteLite[] }>(`/api/notes/recent?limit=${limit}`),
   note: (id: string) => http<{ note: Note; backlinks: NoteLite[]; outgoingLinks: NoteLite[] }>(`/api/notes/${id}`),
-  createNote: (b: { notebookId: string; title?: string; contentJson?: unknown; contentText?: string; tags?: string[] }) =>
+  createNote: (b: { notebookId: string; title?: string; contentJson?: unknown; contentText?: string; tags?: string[]; kind?: NoteKind }) =>
     http<{ note: Note }>('/api/notes', json('POST', b)),
   updateNote: (id: string, b: Partial<{ title: string; contentJson: unknown; contentText: string; pinned: boolean; archived: boolean; notebookId: string; tags: string[] }>) =>
     http<{ note: Note }>(`/api/notes/${id}`, json('PATCH', b)),
@@ -158,6 +159,32 @@ export const api = {
   // full search page (iteration 2) — same endpoint, optional parsed echo
   searchFull: (q: string, limit = 50) =>
     http<{ results: SearchResult[]; parsed?: SearchParsed }>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+
+  // canvas boards — spatial children of a note with kind='canvas'.
+  canvas: (noteId: string) => http<{ items: CanvasItem[]; edges: CanvasEdge[] }>(`/api/canvas/${noteId}`),
+  createCanvasItem: (noteId: string, b: { kind: CanvasItemKind; x: number; y: number; width: number; height: number; data?: CanvasItemData }) =>
+    http<{ item: CanvasItem }>(`/api/canvas/${noteId}/items`, json('POST', b)),
+  /** BULK and atomic. Every drag/resize/z-order commit goes through here as ONE
+   *  request — never one per item and never one per pointermove frame. */
+  updateCanvasItems: (noteId: string, items: Array<{ id: string } & Partial<Omit<CanvasItem, 'id' | 'createdAt' | 'updatedAt'>>>) =>
+    http<{ items: CanvasItem[] }>(`/api/canvas/${noteId}/items`, json('PATCH', { items })),
+  deleteCanvasItem: (noteId: string, itemId: string) =>
+    http<{ ok: true }>(`/api/canvas/${noteId}/items/${itemId}`, { method: 'DELETE' }),
+  createCanvasEdge: (noteId: string, b: { from: string; to: string; label?: string; style?: string }) =>
+    http<{ edge: CanvasEdge }>(`/api/canvas/${noteId}/edges`, json('POST', b)),
+  deleteCanvasEdge: (noteId: string, edgeId: string) =>
+    http<{ ok: true }>(`/api/canvas/${noteId}/edges/${edgeId}`, { method: 'DELETE' }),
+
+  // ink — works on ANY note id, not just canvases, which is what lets the same
+  // layer annotate a normal document note.
+  ink: (noteId: string) => http<{ strokes: InkStroke[] }>(`/api/canvas/${noteId}/ink`),
+  /** Append-only, and batched: one request per stroke-flush, never per point. */
+  addInk: (noteId: string, strokes: Array<Omit<InkStroke, 'id'>>) =>
+    http<{ ids: string[] }>(`/api/canvas/${noteId}/ink`, json('POST', { strokes })),
+  deleteInk: (noteId: string, inkId: string) =>
+    http<{ ok: true }>(`/api/canvas/${noteId}/ink/${inkId}`, { method: 'DELETE' }),
+  clearInk: (noteId: string) =>
+    http<{ ok: true; removed: number }>(`/api/canvas/${noteId}/ink`, { method: 'DELETE' }),
 
   // meta
   meta: () => http<MetaInfo>('/api/meta'),

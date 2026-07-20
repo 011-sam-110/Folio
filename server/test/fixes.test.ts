@@ -1,66 +1,68 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import request from 'supertest';
-
-// Env must be set before anything transitively imports db.ts (see data.test.ts).
-const dbPath = path.join(os.tmpdir(), `folio-fixes-test-${process.pid}-${Date.now()}.db`);
-process.env.FOLIO_DB_PATH = dbPath;
-
-const { db, newId } = await import('../src/db.js');
-const { buildApp } = await import('../src/app.js');
-const { capForAi, AI_MAX_CHARS } = await import('../src/ai/client.js');
-const { kindAccepts, stripLeadingTitleHeading, appendMarkdownToNote, withNoteLock } = await import('../src/routes/imports.js');
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { buildApp } from '../src/app.js';
+import { db, newId } from '../src/db.js';
+import { capForAi, AI_MAX_CHARS } from '../src/ai/client.js';
+import { kindAccepts, stripLeadingTitleHeading, appendMarkdownToNote, withNoteLock } from '../src/routes/imports.js';
+import {
+  resetDatabase,
+  resetData,
+  makeUser,
+  closeDatabase,
+  insertCard as mkCard,
+  type TestUser,
+} from './helpers.js';
 
 const app = buildApp();
 
+let user: TestUser;
+let api: TestUser['agent'];
+
 async function mkNotebook(name = 'NB') {
-  const res = await request(app).post('/api/notebooks').send({ name });
+  const res = await api.post('/api/notebooks').send({ name });
   return res.body.notebook;
 }
 async function mkNote(notebookId: string, overrides: Record<string, unknown> = {}) {
-  const res = await request(app).post('/api/notes').send({ notebookId, title: 'Untitled', ...overrides });
+  const res = await api.post('/api/notes').send({ notebookId, title: 'Untitled', ...overrides });
   return res.body.note;
 }
-function insertCard(noteId: string | null, opts: Partial<{ ease: number; interval_days: number; reps: number; due_at: string; suspended: number }> = {}): string {
-  const id = newId();
-  db.prepare(
-    `INSERT INTO flashcards (id, note_id, question, answer, ease, interval_days, reps, lapses, due_at, suspended)
-     VALUES (@id, @note_id, 'Q?', 'A.', @ease, @interval_days, @reps, 0, @due_at, @suspended)`,
-  ).run({
-    id, note_id: noteId,
-    ease: opts.ease ?? 2.5, interval_days: opts.interval_days ?? 0, reps: opts.reps ?? 0,
-    due_at: opts.due_at ?? new Date(Date.now() - 5 * 60_000).toISOString(), suspended: opts.suspended ?? 0,
-  });
-  return id;
+async function insertCard(
+  noteId: string | null,
+  opts: Partial<{ ease: number; interval_days: number; reps: number; due_at: string; suspended: number }> = {},
+): Promise<string> {
+  return mkCard(user.id, noteId, opts);
 }
 
-beforeEach(() => {
-  db.exec('DELETE FROM review_log; DELETE FROM flashcards; DELETE FROM note_versions; DELETE FROM links; DELETE FROM note_tags; DELETE FROM attachments; DELETE FROM notes; DELETE FROM notebooks;');
+beforeAll(async () => {
+  await resetDatabase();
 });
-afterAll(() => {
-  db.close();
-  for (const s of ['', '-wal', '-shm']) { try { fs.unlinkSync(dbPath + s); } catch { /* ignore */ } }
+
+beforeEach(async () => {
+  await resetData();
+  user = await makeUser(app);
+  api = user.agent;
+});
+
+afterAll(async () => {
+  await closeDatabase();
 });
 
 // --- Fix 8: contentJson validation --------------------------------------------------------
 describe('contentJson validation (fix 8)', () => {
   it('rejects null / non-doc contentJson with 400 on create and patch', async () => {
     const nb = await mkNotebook();
-    expect((await request(app).post('/api/notes').send({ notebookId: nb.id, contentJson: null })).status).toBe(400);
-    expect((await request(app).post('/api/notes').send({ notebookId: nb.id, contentJson: 'nope' })).status).toBe(400);
-    expect((await request(app).post('/api/notes').send({ notebookId: nb.id, contentJson: { type: 'paragraph' } })).status).toBe(400);
-    expect((await request(app).post('/api/notes').send({ notebookId: nb.id, contentJson: { type: 'doc' } })).status).toBe(400); // no content array
+    expect((await api.post('/api/notes').send({ notebookId: nb.id, contentJson: null })).status).toBe(400);
+    expect((await api.post('/api/notes').send({ notebookId: nb.id, contentJson: 'nope' })).status).toBe(400);
+    expect((await api.post('/api/notes').send({ notebookId: nb.id, contentJson: { type: 'paragraph' } })).status).toBe(400);
+    expect((await api.post('/api/notes').send({ notebookId: nb.id, contentJson: { type: 'doc' } })).status).toBe(400); // no content array
 
     const note = await mkNote(nb.id);
-    expect((await request(app).patch(`/api/notes/${note.id}`).send({ contentJson: null })).status).toBe(400);
-    expect((await request(app).patch(`/api/notes/${note.id}`).send({ contentJson: { type: 'doc', content: [] } })).status).toBe(200);
+    expect((await api.patch(`/api/notes/${note.id}`).send({ contentJson: null })).status).toBe(400);
+    expect((await api.patch(`/api/notes/${note.id}`).send({ contentJson: { type: 'doc', content: [] } })).status).toBe(200);
   });
 
   it('accepts a valid TipTap doc', async () => {
     const nb = await mkNotebook();
-    const res = await request(app).post('/api/notes').send({ notebookId: nb.id, contentJson: { type: 'doc', content: [{ type: 'paragraph' }] } });
+    const res = await api.post('/api/notes').send({ notebookId: nb.id, contentJson: { type: 'doc', content: [{ type: 'paragraph' }] } });
     expect(res.status).toBe(201);
   });
 });
@@ -71,17 +73,17 @@ describe('soft-delete + undelete (fix 13)', () => {
     const nb = await mkNotebook();
     const note = await mkNote(nb.id, { title: 'Trashable', contentText: 'find me softdelete', contentJson: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'find me softdelete' }] }] } });
 
-    expect((await request(app).delete(`/api/notes/${note.id}`)).status).toBe(200);
-    expect((await request(app).get(`/api/notes/${note.id}`)).status).toBe(404); // gone from GET
-    expect((await request(app).get(`/api/notes?notebookId=${nb.id}`)).body.total).toBe(0); // gone from list
-    expect((await request(app).get('/api/search?q=softdelete')).body.results).toHaveLength(0); // gone from search
-    expect((await request(app).get('/api/notes/recent')).body.notes.map((n: { id: string }) => n.id)).not.toContain(note.id);
+    expect((await api.delete(`/api/notes/${note.id}`)).status).toBe(200);
+    expect((await api.get(`/api/notes/${note.id}`)).status).toBe(404); // gone from GET
+    expect((await api.get(`/api/notes?notebookId=${nb.id}`)).body.total).toBe(0); // gone from list
+    expect((await api.get('/api/search?q=softdelete')).body.results).toHaveLength(0); // gone from search
+    expect((await api.get('/api/notes/recent')).body.notes.map((n: { id: string }) => n.id)).not.toContain(note.id);
 
-    const undo = await request(app).post(`/api/notes/${note.id}/undelete`);
+    const undo = await api.post(`/api/notes/${note.id}/undelete`);
     expect(undo.status).toBe(200);
     expect(undo.body.note.id).toBe(note.id);
-    expect((await request(app).get(`/api/notes/${note.id}`)).status).toBe(200); // back
-    expect((await request(app).get(`/api/notes?notebookId=${nb.id}`)).body.total).toBe(1);
+    expect((await api.get(`/api/notes/${note.id}`)).status).toBe(200); // back
+    expect((await api.get(`/api/notes?notebookId=${nb.id}`)).body.total).toBe(1);
   });
 
   it('undelete restores incoming backlinks', async () => {
@@ -89,22 +91,22 @@ describe('soft-delete + undelete (fix 13)', () => {
     const target = await mkNote(nb.id, { title: 'Deadlock' });
     const source = await mkNote(nb.id, { title: 'OS', contentText: 'See [[Deadlock]] notes.' });
     // sanity: backlink exists
-    expect((await request(app).get(`/api/notes/${target.id}`)).body.backlinks.map((n: { id: string }) => n.id)).toContain(source.id);
+    expect((await api.get(`/api/notes/${target.id}`)).body.backlinks.map((n: { id: string }) => n.id)).toContain(source.id);
 
-    await request(app).delete(`/api/notes/${target.id}`);
-    await request(app).post(`/api/notes/${target.id}/undelete`);
-    const detail = await request(app).get(`/api/notes/${target.id}`);
+    await api.delete(`/api/notes/${target.id}`);
+    await api.post(`/api/notes/${target.id}/undelete`);
+    const detail = await api.get(`/api/notes/${target.id}`);
     expect(detail.body.backlinks.map((n: { id: string }) => n.id)).toContain(source.id);
   });
 
   it('purges notes deleted more than 30 days ago on the sweep', async () => {
     const nb = await mkNotebook();
     const note = await mkNote(nb.id);
-    await request(app).delete(`/api/notes/${note.id}`);
-    db.prepare('UPDATE notes SET deleted_at = ? WHERE id = ?').run(new Date(Date.now() - 31 * 86_400_000).toISOString(), note.id);
+    await api.delete(`/api/notes/${note.id}`);
+    await db.prepare('UPDATE notes SET deleted_at = ? WHERE id = ?').run(new Date(Date.now() - 31 * 86_400_000).toISOString(), note.id);
     const { purgeExpiredDeletedNotes } = await import('../src/db.js');
-    expect(purgeExpiredDeletedNotes(30)).toBe(1);
-    expect(db.prepare('SELECT COUNT(*) as c FROM notes WHERE id = ?').get(note.id)).toMatchObject({ c: 0 });
+    expect(await purgeExpiredDeletedNotes(30)).toBe(1);
+    expect(await db.prepare('SELECT COUNT(*) as c FROM notes WHERE id = ?').get(note.id)).toMatchObject({ c: 0 });
   });
 });
 
@@ -122,15 +124,15 @@ describe('rename note keeps backlinks (fix 7)', () => {
         { type: 'text', text: ' here.' },
       ] }] },
     });
-    expect((await request(app).get(`/api/notes/${target.id}`)).body.backlinks.map((n: { id: string }) => n.id)).toContain(source.id);
+    expect((await api.get(`/api/notes/${target.id}`)).body.backlinks.map((n: { id: string }) => n.id)).toContain(source.id);
 
-    await request(app).patch(`/api/notes/${target.id}`).send({ title: 'New Title' });
+    await api.patch(`/api/notes/${target.id}`).send({ title: 'New Title' });
 
     // Backlink survives the rename.
-    const targetDetail = await request(app).get(`/api/notes/${target.id}`);
+    const targetDetail = await api.get(`/api/notes/${target.id}`);
     expect(targetDetail.body.backlinks.map((n: { id: string }) => n.id)).toContain(source.id);
     // The referencing note's text + wikilink node now show the new title.
-    const src = await request(app).get(`/api/notes/${source.id}`);
+    const src = await api.get(`/api/notes/${source.id}`);
     expect(src.body.note.contentText).toContain('[[New Title]]');
     const wl = JSON.stringify(src.body.note.contentJson);
     expect(wl).toContain('New Title');
@@ -145,9 +147,9 @@ describe('import wikilink extraction handles aliases (fix 6)', () => {
     const target = await mkNote(nb.id, { title: 'Binary Search' });
     const host = await mkNote(nb.id, { title: 'Host', contentText: 'start' });
 
-    appendMarkdownToNote(host.id, 'See [[Binary Search|the search]] for detail.');
+    await appendMarkdownToNote(host.id, 'See [[Binary Search|the search]] for detail.', user.id);
 
-    const detail = await request(app).get(`/api/notes/${host.id}`);
+    const detail = await api.get(`/api/notes/${host.id}`);
     expect(detail.body.outgoingLinks.map((n: { id: string }) => n.id)).toContain(target.id);
   });
 });
@@ -158,8 +160,8 @@ describe('concurrent import appends are serialized (fix 5)', () => {
     const nb = await mkNotebook();
     const note = await mkNote(nb.id, { title: 'Log', contentText: 'base' });
     const markers = ['ALPHA', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO'];
-    await Promise.all(markers.map(m => withNoteLock(note.id, () => appendMarkdownToNote(note.id, `Marker ${m} line.`))));
-    const detail = await request(app).get(`/api/notes/${note.id}`);
+    await Promise.all(markers.map(m => withNoteLock(note.id, () => appendMarkdownToNote(note.id, `Marker ${m} line.`, user.id))));
+    const detail = await api.get(`/api/notes/${note.id}`);
     for (const m of markers) expect(detail.body.note.contentText).toContain(m);
   });
 });
@@ -181,17 +183,17 @@ describe('SM-2 scheduler (fix 12)', () => {
   it('a fresh card rated hard twice in a row graduates out of the relearn loop', async () => {
     const nb = await mkNotebook();
     const note = await mkNote(nb.id);
-    const cardId = insertCard(note.id, { ease: 2.5, interval_days: 0, reps: 0 });
+    const cardId = await insertCard(note.id, { ease: 2.5, interval_days: 0, reps: 0 });
 
     // First hard → 10-minute relearning step, still new.
-    await request(app).post('/api/study/review').send({ cardId, rating: 'hard' });
-    let row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    await api.post('/api/study/review').send({ cardId, rating: 'hard' });
+    let row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.reps).toBe(0);
     expect(row.interval_days).toBe(0);
 
     // Second consecutive hard → graduate to a 1-day interval.
-    await request(app).post('/api/study/review').send({ cardId, rating: 'hard' });
-    row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    await api.post('/api/study/review').send({ cardId, rating: 'hard' });
+    row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.reps).toBe(1);
     expect(row.interval_days).toBe(1);
     const dueAt = new Date(row.due_at).getTime();
@@ -201,9 +203,9 @@ describe('SM-2 scheduler (fix 12)', () => {
   it('caps ease at 3.0 no matter how many easy ratings', async () => {
     const nb = await mkNotebook();
     const note = await mkNote(nb.id);
-    const cardId = insertCard(note.id, { ease: 2.95, interval_days: 5, reps: 3 });
-    await request(app).post('/api/study/review').send({ cardId, rating: 'easy' });
-    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    const cardId = await insertCard(note.id, { ease: 2.95, interval_days: 5, reps: 3 });
+    await api.post('/api/study/review').send({ cardId, rating: 'easy' });
+    const row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.ease).toBe(3.0);
   });
 });
@@ -213,12 +215,12 @@ describe('reviewedToday local-day boundary (fix 9)', () => {
   it('counts a review done now and ignores one from days ago', async () => {
     const nb = await mkNotebook();
     const note = await mkNote(nb.id);
-    const cardId = insertCard(note.id);
-    await request(app).post('/api/study/review').send({ cardId, rating: 'good' });
+    const cardId = await insertCard(note.id);
+    await api.post('/api/study/review').send({ cardId, rating: 'good' });
     // A stray old review must not inflate today's count.
-    db.prepare('INSERT INTO review_log (card_id, rating, reviewed_at) VALUES (?, ?, ?)').run(cardId, 'good', new Date(Date.now() - 3 * 86_400_000).toISOString());
+    await db.prepare('INSERT INTO review_log (card_id, rating, reviewed_at) VALUES (?, ?, ?)').run(cardId, 'good', new Date(Date.now() - 3 * 86_400_000).toISOString());
 
-    const stats = await request(app).get('/api/study/stats');
+    const stats = await api.get('/api/study/stats');
     expect(stats.body.reviewedToday).toBe(1);
   });
 });
@@ -230,15 +232,15 @@ describe('study queue notebookId filter (fix 24)', () => {
     const nbB = await mkNotebook('B');
     const noteA = await mkNote(nbA.id, { title: 'A note' });
     const noteB = await mkNote(nbB.id, { title: 'B note' });
-    insertCard(noteA.id);
-    insertCard(noteA.id);
-    insertCard(noteB.id);
+    await insertCard(noteA.id);
+    await insertCard(noteA.id);
+    await insertCard(noteB.id);
 
-    const all = await request(app).get('/api/study/queue');
+    const all = await api.get('/api/study/queue');
     expect(all.body.total).toBe(3);
     expect(all.body.due).toBe(3);
 
-    const scoped = await request(app).get(`/api/study/queue?notebookId=${nbA.id}`);
+    const scoped = await api.get(`/api/study/queue?notebookId=${nbA.id}`);
     expect(scoped.body.total).toBe(2);
     expect(scoped.body.due).toBe(2);
     expect(scoped.body.cards).toHaveLength(2);
@@ -278,20 +280,20 @@ describe('stripLeadingTitleHeading (fix 23)', () => {
 // --- AI clean + gaps endpoints: validation paths (no gateway calls) ------------------------
 describe('AI clean/gaps endpoint validation', () => {
   it('POST /api/ai/clean rejects a missing noteId with 400 and an unknown note with 404', async () => {
-    expect((await request(app).post('/api/ai/clean').send({})).status).toBe(400);
-    expect((await request(app).post('/api/ai/clean').send({ noteId: 'nope' })).status).toBe(404);
+    expect((await api.post('/api/ai/clean').send({})).status).toBe(400);
+    expect((await api.post('/api/ai/clean').send({ noteId: 'nope' })).status).toBe(404);
   });
 
   it('POST /api/ai/gaps rejects a missing noteId with 400 and an unknown note with 404', async () => {
-    expect((await request(app).post('/api/ai/gaps').send({})).status).toBe(400);
-    expect((await request(app).post('/api/ai/gaps').send({ noteId: 'nope' })).status).toBe(404);
+    expect((await api.post('/api/ai/gaps').send({})).status).toBe(400);
+    expect((await api.post('/api/ai/gaps').send({ noteId: 'nope' })).status).toBe(404);
   });
 
   it('POST /api/ai/gaps 404s for a soft-deleted note (assistant never reads the trash)', async () => {
     const nb = await mkNotebook();
     const note = await mkNote(nb.id);
-    await request(app).delete(`/api/notes/${note.id}`);
-    expect((await request(app).post('/api/ai/gaps').send({ noteId: note.id })).status).toBe(404);
+    await api.delete(`/api/notes/${note.id}`);
+    expect((await api.post('/api/ai/gaps').send({ noteId: note.id })).status).toBe(404);
   });
 });
 
@@ -301,12 +303,12 @@ describe('attachments on GET note (fix 21)', () => {
     const nb = await mkNotebook();
     const note = await mkNote(nb.id);
     const attId = newId();
-    db.prepare(
-      `INSERT INTO attachments (id, note_id, kind, original_name, stored_name, mime, size, status, created_at)
-       VALUES (?, ?, 'photo', 'page.png', 'stored123.png', 'image/png', 1234, 'ready', ?)`,
-    ).run(attId, note.id, new Date().toISOString());
+    await db.prepare(
+      `INSERT INTO attachments (id, user_id, note_id, kind, original_name, stored_name, mime, size, status, created_at)
+       VALUES (?, ?, ?, 'photo', 'page.png', 'stored123.png', 'image/png', 1234, 'ready', ?)`,
+    ).run(attId, user.id, note.id, new Date().toISOString());
 
-    const detail = await request(app).get(`/api/notes/${note.id}`);
+    const detail = await api.get(`/api/notes/${note.id}`);
     expect(detail.body.note.attachments).toHaveLength(1);
     expect(detail.body.note.attachments[0]).toMatchObject({ id: attId, kind: 'photo', url: '/uploads/stored123.png', mime: 'image/png' });
   });
