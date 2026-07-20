@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db, nowIso } from '../db.js';
+import { db, newId, nowIso } from '../db.js';
 
 const router = Router();
 
@@ -83,6 +83,36 @@ router.get('/queue', (req, res) => {
 router.get('/cards', (_req, res) => {
   const cards = db.prepare(`${withNoteTitleSql} ORDER BY f.created_at DESC`).all() as FlashcardRow[];
   res.json({ cards: cards.map(flashcardDto) });
+});
+
+// POST /api/study/cards { noteId?, question, answer } — manual card creation (iteration 2).
+// New card starts fresh (ease 2.5, interval 0, reps 0) with due_at = now, so it shows up
+// in the review queue immediately alongside any other due card.
+router.post('/cards', (req, res) => {
+  const body = (req.body ?? {}) as { noteId?: unknown; question?: unknown; answer?: unknown };
+
+  const question = typeof body.question === 'string' ? body.question.trim() : '';
+  if (!question) return res.status(400).json({ error: 'question is required' });
+
+  const answer = typeof body.answer === 'string' ? body.answer.trim() : '';
+  if (!answer) return res.status(400).json({ error: 'answer is required' });
+
+  let noteId: string | null = null;
+  if (body.noteId !== undefined && body.noteId !== null && body.noteId !== '') {
+    if (typeof body.noteId !== 'string') return res.status(400).json({ error: 'noteId must be a string' });
+    const note = db.prepare('SELECT id FROM notes WHERE id = ? AND deleted_at IS NULL').get(body.noteId);
+    if (!note) return res.status(400).json({ error: 'unknown noteId' });
+    noteId = body.noteId;
+  }
+
+  const id = newId();
+  const now = nowIso();
+  db.prepare(
+    `INSERT INTO flashcards (id, note_id, question, answer, ease, interval_days, reps, lapses, due_at, suspended, created_at)
+     VALUES (?, ?, ?, ?, 2.5, 0, 0, 0, ?, 0, ?)`,
+  ).run(id, noteId, question, answer, now, now);
+
+  res.status(201).json({ card: flashcardDto(getCardWithTitle(id)!) });
 });
 
 type Rating = 'again' | 'hard' | 'good' | 'easy';

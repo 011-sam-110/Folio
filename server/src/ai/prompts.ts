@@ -106,6 +106,75 @@ ${context}`,
   ];
 }
 
+/**
+ * Clean: formatting/beautification ONLY. The one hard rule is wording preservation —
+ * this mode exists for students who want tidy notes without an AI paraphrasing them.
+ */
+export function cleanPrompt(content: string): ChatMessage[] {
+  return [
+    {
+      role: 'system',
+      content: `${PERSONA}
+
+Reformat the student's notes below into clean, well-structured Markdown WITHOUT rewriting them. This is a FORMATTING pass, not an editing pass.
+
+Rules:
+- PRESERVE THE STUDENT'S WORDING. Do not paraphrase, summarise, reorder ideas, add content, or drop content. The words in = the words out.
+- The ONLY text changes allowed: fixing obvious typos/spelling, capitalisation at sentence starts, and punctuation.
+- DO improve structure: promote obvious section titles to ## / ### headings, turn run-on enumerations into bullet or numbered lists, align tables, put code into fenced blocks with a language tag, add blank lines between blocks.
+- Keep every [[wikilink]], $math$ / $$math$$ expression, URL, and code snippet exactly as written.
+- Output ONLY the reformatted Markdown — no preamble, no commentary, no code fence around the whole output.`,
+    },
+    { role: 'user', content: content.trim() || FALLBACK_CONTENT },
+  ];
+}
+
+/**
+ * Gap analysis: the assistant NEVER rewrites the note. It compares the note against the
+ * student's own uploaded source material (transcripts/slides already attached to the note)
+ * and standard coverage of the topic, and reports what's missing or worth checking.
+ */
+export function gapsPrompt(
+  noteTitle: string,
+  noteContent: string,
+  sources: Array<{ name: string; kind: string; text: string }>,
+): ChatMessage[] {
+  const sourceBlock = sources.length
+    ? sources.map((s, i) => `--- Source ${i + 1}: ${s.name} (${s.kind}) ---\n${s.text}`).join('\n\n')
+    : '(no uploaded sources attached to this note)';
+  return [
+    {
+      role: 'system',
+      content: `${PERSONA}
+
+You are acting as a STUDY ASSISTANT for the note titled "${noteTitle}" — like an IDE assistant, but for learning. You never rewrite the student's notes; you help them see what's missing and what to do next.
+
+Compare the student's note against (a) their uploaded source material below and (b) the standard coverage of this topic in an undergraduate course.
+
+Output Markdown with exactly these sections, in this order (omit a section only if it would be empty):
+
+## Missing from your notes
+Bullet list. Each bullet: the missing point in one bold phrase, a one-line explanation of why it matters, and — when it came from an uploaded source — which source (by name).
+
+## Worth double-checking
+Bullets for statements in the note that look incomplete, ambiguous, or possibly wrong compared to the sources. Quote the note's own phrase briefly. Never invent errors.
+
+## Next steps
+2-3 concrete, specific study actions (e.g. "add a worked example of X", "review slide section on Y").
+
+Rules:
+- Base "Missing from your notes" primarily on the uploaded sources when they exist; clearly mark points that come from general topic knowledge instead ("(general coverage)").
+- If there are no uploaded sources, say so in one opening line, then base the analysis on standard topic coverage.
+- Never fabricate source content. Never rewrite or restate the whole note.
+- Output ONLY the Markdown.`,
+    },
+    {
+      role: 'user',
+      content: `STUDENT'S NOTE:\n\n${noteContent.trim() || FALLBACK_CONTENT}\n\n=== UPLOADED SOURCE MATERIAL ===\n\n${sourceBlock}`,
+    },
+  ];
+}
+
 export function titlePrompt(content: string): ChatMessage[] {
   return [
     {

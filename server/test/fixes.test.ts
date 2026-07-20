@@ -275,6 +275,26 @@ describe('stripLeadingTitleHeading (fix 23)', () => {
   });
 });
 
+// --- AI clean + gaps endpoints: validation paths (no gateway calls) ------------------------
+describe('AI clean/gaps endpoint validation', () => {
+  it('POST /api/ai/clean rejects a missing noteId with 400 and an unknown note with 404', async () => {
+    expect((await request(app).post('/api/ai/clean').send({})).status).toBe(400);
+    expect((await request(app).post('/api/ai/clean').send({ noteId: 'nope' })).status).toBe(404);
+  });
+
+  it('POST /api/ai/gaps rejects a missing noteId with 400 and an unknown note with 404', async () => {
+    expect((await request(app).post('/api/ai/gaps').send({})).status).toBe(400);
+    expect((await request(app).post('/api/ai/gaps').send({ noteId: 'nope' })).status).toBe(404);
+  });
+
+  it('POST /api/ai/gaps 404s for a soft-deleted note (assistant never reads the trash)', async () => {
+    const nb = await mkNotebook();
+    const note = await mkNote(nb.id);
+    await request(app).delete(`/api/notes/${note.id}`);
+    expect((await request(app).post('/api/ai/gaps').send({ noteId: note.id })).status).toBe(404);
+  });
+});
+
 // --- Attachments surfaced on GET note (fix 21) --------------------------------------------
 describe('attachments on GET note (fix 21)', () => {
   it('returns an attachments array with a public url', async () => {

@@ -14,6 +14,10 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import { useNotebooks } from '../components/NotebooksContext';
 import { toast } from '../components/Toast';
 import { openImportModal } from '../components/importModalBus';
+import TemplatePicker from '../features/templates/TemplatePicker';
+import { deriveContentText } from '../features/templates/deriveContentText';
+import { saveNoteAsTemplate } from '../features/templates/saveAsTemplate';
+import type { Template } from '../lib/types';
 
 type Sort = 'updated' | 'created' | 'title';
 
@@ -32,6 +36,7 @@ export default function NotebookPage() {
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<NoteLite | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const load = useCallback(() => {
     if (!notebookId) return;
@@ -77,6 +82,32 @@ export default function NotebookPage() {
       navigate(`/note/${note.id}`);
     } catch (e) {
       toast(errorMessage(e, 'Could not create note'), 'error');
+    }
+  }
+
+  // Split-button chevron: pick a template (or "Blank note", which is just createNewNote).
+  async function createNoteFromTemplate(template: Template | null) {
+    if (!notebookId) return;
+    setPickerOpen(false);
+    if (!template) {
+      await createNewNote();
+      return;
+    }
+    try {
+      const contentText = deriveContentText(template.contentJson);
+      const { note } = await api.createNote({ notebookId, contentJson: template.contentJson, contentText });
+      navigate(`/note/${note.id}`);
+    } catch (e) {
+      toast(errorMessage(e, 'Could not create note'), 'error');
+    }
+  }
+
+  async function handleSaveAsTemplate(note: NoteLite) {
+    try {
+      const { note: full } = await api.note(note.id);
+      saveNoteAsTemplate(full);
+    } catch (e) {
+      toast(errorMessage(e, 'Could not load note'), 'error');
     }
   }
 
@@ -180,6 +211,7 @@ export default function NotebookPage() {
     const items: MenuEntry[] = [
       menuItem({ key: 'pin', label: note.pinned ? 'Unpin' : 'Pin', icon: 'pin', onSelect: () => togglePin(note) }),
       menuItem({ key: 'duplicate', label: 'Duplicate', icon: 'copy', onSelect: () => duplicateNote(note) }),
+      menuItem({ key: 'save-template', label: 'Save as template', icon: 'file-text', onSelect: () => handleSaveAsTemplate(note) }),
       menuItem({
         key: 'move',
         label: 'Move to notebook',
@@ -311,10 +343,22 @@ export default function NotebookPage() {
               }),
             ]}
           />
-          <button type="button" className="btn btn-primary" onClick={createNewNote}>
-            <Icon name="plus" size={14} />
-            New note
-          </button>
+          <div className="btn-split">
+            <button type="button" className="btn btn-primary btn-split__main" onClick={createNewNote}>
+              <Icon name="plus" size={14} />
+              New note
+            </button>
+            <Tooltip content="Choose a template">
+              <button
+                type="button"
+                className="btn btn-primary btn-split__chevron"
+                aria-label="New note from template"
+                onClick={() => setPickerOpen(true)}
+              >
+                <Icon name="chevron-down" size={13} />
+              </button>
+            </Tooltip>
+          </div>
         </div>
       </div>
 
@@ -423,6 +467,8 @@ export default function NotebookPage() {
         onConfirm={confirmDeleteNote}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <TemplatePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={createNoteFromTemplate} />
     </div>
   );
 }

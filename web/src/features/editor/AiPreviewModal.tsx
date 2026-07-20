@@ -1,7 +1,7 @@
 // Generic AI result preview: BEFORE (muted plain text) / AFTER (rendered markdown),
 // with a caller-supplied set of primary/secondary actions plus a built-in Discard.
 import Modal from '../../components/Modal';
-import { markdownToSafeHtml } from './markdown';
+import { markdownToSafeHtml, renderMathForPreview } from './markdown';
 
 export interface AiPreviewAction {
   label: string;
@@ -20,7 +20,10 @@ export interface AiPreviewModalProps {
 }
 
 export default function AiPreviewModal({ open, onClose, heading, model, before, afterMarkdown, actions }: AiPreviewModalProps) {
-  const afterHtml = markdownToSafeHtml(afterMarkdown);
+  // This "After" pane has no live TipTap instance behind it, so math nodes are rendered to
+  // real KaTeX HTML here (see markdown.ts) rather than left as the inert markers TipTap's own
+  // node view would otherwise fill in once this markdown is actually applied to the editor.
+  const afterHtml = renderMathForPreview(markdownToSafeHtml(afterMarkdown));
 
   return (
     <Modal open={open} onClose={onClose} title={heading} width={760}>

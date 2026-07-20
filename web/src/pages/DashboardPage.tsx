@@ -114,6 +114,8 @@ export default function DashboardPage() {
           </Link>
         )}
 
+        <RecallRow recall={data.recall} />
+
         <section className="dash__section">
           <div className="dash__section-head">
             <h2 className="dash__section-title">Recent lessons</h2>
@@ -187,9 +189,11 @@ export default function DashboardPage() {
         </div>
 
         <div className="rail-card">
-          <div className="rail-card__title">Last 14 days</div>
-          <Heatmap data={data.weekActivity} />
+          <div className="rail-card__title">This week</div>
+          <WeekStrip data={data.weekGrid} />
         </div>
+
+        <WeeklyReviewCard review={data.weeklyReview} />
 
         <div className="rail-card">
           <div className="rail-card__title">Stats</div>
@@ -204,26 +208,172 @@ export default function DashboardPage() {
   );
 }
 
-function Heatmap({ data }: { data: DashboardData['weekActivity'] }) {
-  const max = Math.max(1, ...data.map((d) => d.count));
+/** Local (browser) 'YYYY-MM-DD' for today, to match the server's local-day date strings
+ *  in weekGrid so "today" highlights the right column regardless of tz. */
+function localDayKey(d = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Replaces the old flat 14-day heatmap with a Mon-Sun "this week" grid: each day shows
+ *  a small stack of notebook-colored dots (which modules got attention) plus a count. */
+function WeekStrip({ data }: { data: DashboardData['weekGrid'] }) {
+  const today = localDayKey();
   return (
-    <div>
-      <div className="heatmap">
-        {data.map((d) => {
-          const intensity = d.count === 0 ? 0 : 0.25 + 0.75 * (d.count / max);
-          return (
-            <div
-              key={d.date}
-              className="heatmap__cell"
-              title={`${plural(d.count, 'edit')} on ${d.date}`}
-              style={d.count > 0 ? { backgroundColor: 'var(--accent)', opacity: intensity } : undefined}
-            />
-          );
-        })}
+    <div className="week-grid">
+      {data.map((d) => (
+        <div
+          key={d.date}
+          className={`week-grid__day${d.date === today ? ' is-today' : ''}`}
+          title={`${d.dayLabel} · ${plural(d.total, 'edit')}`}
+        >
+          <div className="week-grid__label">{d.dayLabel}</div>
+          <div className="week-grid__dots">
+            {d.byNotebook.length === 0 ? (
+              <span className="week-grid__dot week-grid__dot--empty" />
+            ) : (
+              d.byNotebook.slice(0, 5).map((nb) => <span key={nb.id} className="week-grid__dot" style={{ background: nb.color }} />)
+            )}
+          </div>
+          <div className="week-grid__count">{d.total > 0 ? d.total : ''}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WeeklyReviewCard({ review }: { review: DashboardData['weeklyReview'] }) {
+  const items: Array<{ key: string; label: string; done: boolean }> = [
+    { key: 'edited', label: `${plural(review.notesEditedThisWeek, 'note')} edited this week`, done: review.notesEditedThisWeek > 0 },
+    { key: 'due', label: `${plural(review.flashcardsDue, 'card')} due`, done: review.flashcardsDue === 0 },
+    { key: 'summary', label: `${plural(review.notesWithoutSummary, 'note')} could use a summary`, done: review.notesWithoutSummary === 0 },
+    { key: 'comments', label: `${plural(review.unresolvedComments, 'comment')} unresolved`, done: review.unresolvedComments === 0 },
+  ];
+  return (
+    <div className="rail-card">
+      <div className="rail-card__title">Weekly review</div>
+      <ul className="review-checklist">
+        {items.map((it) => (
+          <li key={it.key} className="review-checklist__item">
+            <span className={`review-checklist__box${it.done ? ' is-done' : ''}`} aria-hidden="true">
+              {it.done && <Icon name="check" size={9} />}
+            </span>
+            {it.label}
+          </li>
+        ))}
+      </ul>
+      {review.suggestions.length > 0 && (
+        <div className="review-suggestions">
+          {review.suggestions.map((s) => (
+            <div key={s} className="review-suggestions__item">
+              {s}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecallRow({ recall }: { recall: DashboardData['recall'] }) {
+  const withHistory = recall.filter((r) => r.lastNote);
+  if (withHistory.length === 0) return null;
+  return (
+    <section className="dash__section">
+      <div className="dash__section-head">
+        <h2 className="dash__section-title">Pick up where you left off</h2>
       </div>
-      <div className="heatmap__legend">
-        <span>{data.length} days</span>
-        <span>Today</span>
+      <div className="recall-row" data-testid="recall-row">
+        {withHistory.map((entry) => (
+          <RecallCard key={entry.notebook.id} entry={entry} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RecallCard({ entry }: { entry: DashboardData['recall'][number] }) {
+  const { notebook, lastNote, quiz } = entry;
+  const [flipped, setFlipped] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!lastNote) return null;
+
+  function flipBack() {
+    setFlipped(false);
+    setRevealed(false);
+  }
+
+  async function handleGotIt() {
+    if (!quiz || submitting) return;
+    setSubmitting(true);
+    try {
+      await api.review(quiz.cardId, 'good');
+      toast('Marked as reviewed', 'ok');
+      flipBack();
+    } catch (e) {
+      toast(errorMessage(e, 'Could not save that review'), 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className={`recall-card${flipped ? ' is-flipped' : ''}`} onMouseEnter={() => setFlipped(true)}>
+      <div className="recall-card__inner">
+        <button type="button" className="recall-card__face recall-card__face--front" onClick={() => setFlipped(true)}>
+          <span className="recall-card__emoji" aria-hidden="true">
+            {notebook.emoji}
+          </span>
+          <div className="recall-card__label">Last time in {notebook.name}</div>
+          <div className="recall-card__title">{lastNote.title || 'Untitled'}</div>
+          <div className="recall-card__meta">{relativeTime(lastNote.updatedAt)}</div>
+          {quiz && (
+            <div className="recall-card__hint">
+              <Icon name="sparkles" size={11} /> Tap to self-test
+            </div>
+          )}
+        </button>
+
+        <div className="recall-card__face recall-card__face--back">
+          <button type="button" className="recall-card__back-btn" onClick={flipBack} aria-label="Back">
+            <Icon name="chevron-left" size={13} />
+          </button>
+          <div className="recall-card__quiz-label">Quick check</div>
+          {quiz ? (
+            !revealed ? (
+              <>
+                <div className="recall-card__question">{quiz.question}</div>
+                <button type="button" className="btn btn-secondary" onClick={() => setRevealed(true)}>
+                  Reveal answer
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="recall-card__question recall-card__question--small">{quiz.question}</div>
+                <div className="recall-card__answer">{quiz.answer}</div>
+                <div className="recall-card__actions">
+                  <button type="button" className="btn btn-primary" disabled={submitting} onClick={handleGotIt}>
+                    {submitting ? <Spinner size={12} /> : 'Got it'}
+                  </button>
+                  <Link className="btn btn-secondary" to={`/study?notebook=${notebook.id}`}>
+                    Study
+                  </Link>
+                </div>
+              </>
+            )
+          ) : (
+            <>
+              <div className="recall-card__meta">No flashcards in this notebook yet.</div>
+              <Link className="btn btn-secondary" to={`/notebook/${notebook.id}`}>
+                Open notebook
+              </Link>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -39,6 +39,7 @@ export type IconName =
   | 'download'
   | 'rotate-ccw'
   | 'link'
+  | 'sparkles-off'
   | 'smile';
 
 const paths: Record<IconName, ReactNode> = {
@@ -222,6 +223,12 @@ const paths: Record<IconName, ReactNode> = {
     <>
       <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
       <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+    </>
+  ),
+  'sparkles-off': (
+    <>
+      <path d="M12 2 13.4 9 20.5 12 13.4 15 12 22 10.6 15 3.5 12 10.6 9Z" />
+      <line x1="4" y1="4" x2="20" y2="20" />
     </>
   ),
   'folder-plus': (

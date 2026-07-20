@@ -7,6 +7,7 @@ import { api, ApiError } from '../../lib/api';
 import type { Notebook } from '../../lib/types';
 import { toast } from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
+import { useAiEnabled } from '../../lib/aiPrefs';
 import { markdownToDoc } from './mdToTiptap';
 import './AskPage.css';
 
@@ -30,6 +31,7 @@ export default function AskPage() {
   const [pairs, setPairs] = useState<Pair[]>([]);
   const [asking, setAsking] = useState(false);
   const [insertingId, setInsertingId] = useState<string | null>(null);
+  const [aiOn, setAiOn] = useAiEnabled();
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
@@ -41,6 +43,25 @@ export default function AskPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [pairs.length]);
+
+  // The AI kill-switch removes this whole surface — show a plain explanation instead of
+  // a broken page for anyone who lands here via URL/bookmark. (After all hooks.)
+  if (!aiOn) {
+    return (
+      <div className="ask-page" data-testid="ask-disabled">
+        <EmptyState
+          icon="📓"
+          title="AI features are turned off"
+          hint="You switched Folio to plain-notebook mode. Turn AI back on any time — nothing about your notes changes either way."
+          action={
+            <button type="button" className="btn btn-primary" onClick={() => setAiOn(true)}>
+              Turn AI back on
+            </button>
+          }
+        />
+      </div>
+    );
+  }
 
   async function ask() {
     const q = question.trim();

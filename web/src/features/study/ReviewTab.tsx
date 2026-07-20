@@ -1,6 +1,7 @@
 // Full-screen-ish distraction-light review flow: reveal (Space/click) → grade
 // (1-4 keys or click) → auto-advance. Keyboard bindings are only attached
-// while this tab is mounted and a card is actively being reviewed.
+// while this tab is mounted and a card is actively being reviewed (and are
+// suspended while the inline "Edit card" form has focus).
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
@@ -8,10 +9,12 @@ import type { Flashcard, StudyStats } from '../../lib/types';
 import { toast } from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import Skeleton from '../../components/Skeleton';
-import { nextIntervalHints, type Rating } from './sm2';
+import { nextIntervalHints, formatDueIn, type Rating } from './sm2';
 import './StudyPage.css';
 
-type Phase = 'loading' | 'empty' | 'active' | 'summary' | 'error';
+// 'no-cards': the deck itself is empty (zero flashcards exist at all).
+// 'nothing-due': cards exist but none are due right now — offers "Study ahead".
+type Phase = 'loading' | 'no-cards' | 'nothing-due' | 'active' | 'summary' | 'error';
 
 const RATING_META: Array<{ key: Rating; label: string; keyHint: string; tone: string }> = [
   { key: 'again', label: 'Again', keyHint: '1', tone: 'again' },
@@ -30,7 +33,8 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
   /** Scope the queue to one notebook (cram a single module before its exam). */
   notebookId?: string;
   onReviewed: () => void;
-  onSwitchToBrowse: () => void;
+  /** Send the user to the Browse tab; pass `true` to also pop its "New card" composer open. */
+  onSwitchToBrowse: (withComposer?: boolean) => void;
 }) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [queue, setQueue] = useState<Flashcard[]>([]);
@@ -39,15 +43,45 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
   const [submitting, setSubmitting] = useState(false);
   const [reviewedCount, setReviewedCount] = useState(0);
 
+  // "Nothing due" empty state: next-up card time + the up-to-10 not-yet-due cards
+  // 'Study ahead' can pull from, computed client-side from the full deck (api.studyCards) —
+  // /queue is due-only by design, so it can't tell us what's coming next.
+  const [nextDueAt, setNextDueAt] = useState<string | null>(null);
+  const [aheadCards, setAheadCards] = useState<Flashcard[]>([]);
+  const [aheadMode, setAheadMode] = useState(false);
+
+  // Inline "Edit card" affordance, available once the answer is revealed.
+  const [editingCard, setEditingCard] = useState(false);
+  const [editDraft, setEditDraft] = useState({ question: '', answer: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const load = useCallback(async () => {
     setPhase('loading');
     setIndex(0);
     setRevealed(false);
     setReviewedCount(0);
+    setAheadMode(false);
+    setEditingCard(false);
     try {
       const res = await api.studyQueue(20, notebookId);
-      setQueue(res.cards);
-      setPhase(res.cards.length === 0 ? 'empty' : 'active');
+      if (res.cards.length > 0) {
+        setQueue(res.cards);
+        setPhase('active');
+        return;
+      }
+      // Nothing due — figure out whether the deck is empty or just fully caught up, and
+      // stage the next-up cards in case the student wants to study ahead of schedule.
+      const all = await api.studyCards();
+      const upcoming = all.cards
+        .filter(c => !c.suspended && (!notebookId || c.notebookId === notebookId))
+        .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+      if (upcoming.length === 0) {
+        setPhase('no-cards');
+      } else {
+        setNextDueAt(upcoming[0].dueAt);
+        setAheadCards(upcoming.slice(0, 10));
+        setPhase('nothing-due');
+      }
     } catch {
       setPhase('error');
     }
@@ -56,6 +90,17 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
   useEffect(() => { load(); }, [load]);
 
   const card = queue[index];
+
+  function startStudyAhead() {
+    if (aheadCards.length === 0) return;
+    setQueue(aheadCards);
+    setIndex(0);
+    setRevealed(false);
+    setReviewedCount(0);
+    setEditingCard(false);
+    setAheadMode(true);
+    setPhase('active');
+  }
 
   const handleRate = useCallback(async (rating: Rating) => {
     if (!card || submitting) return;
@@ -70,6 +115,7 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
       } else {
         setIndex(next);
         setRevealed(false);
+        setEditingCard(false);
       }
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Could not save that review', 'error');
@@ -78,9 +124,38 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
     }
   }, [card, submitting, index, queue.length, onReviewed]);
 
+  function startEditCard() {
+    if (!card) return;
+    setEditDraft({ question: card.question, answer: card.answer });
+    setEditingCard(true);
+  }
+
+  function cancelEditCard() {
+    setEditingCard(false);
+  }
+
+  async function saveEditCard() {
+    if (!card) return;
+    if (!editDraft.question.trim() || !editDraft.answer.trim()) {
+      toast("Question and answer can't be empty", 'error');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const res = await api.updateCard(card.id, { question: editDraft.question.trim(), answer: editDraft.answer.trim() });
+      setQueue(q => q.map((c, i) => (i === index ? res.card : c)));
+      setEditingCard(false);
+      toast('Card updated', 'ok');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not save changes', 'error');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (phase !== 'active') return;
+      if (phase !== 'active' || editingCard) return;
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
       if (e.code === 'Space') {
@@ -96,7 +171,7 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [phase, revealed, handleRate]);
+  }, [phase, revealed, editingCard, handleRate]);
 
   if (phase === 'loading') {
     return (
@@ -117,13 +192,35 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
     );
   }
 
-  if (phase === 'empty') {
+  if (phase === 'no-cards') {
+    return (
+      <EmptyState
+        icon="🗂️"
+        title="No flashcards yet"
+        hint="Generate a batch from any note's AI menu (⋯ → Generate flashcards), or add your own."
+        action={
+          <div className="sy-empty-actions">
+            <button type="button" className="sy-btn sy-btn--primary" onClick={() => onSwitchToBrowse(true)}>Add a card manually</button>
+          </div>
+        }
+      />
+    );
+  }
+
+  if (phase === 'nothing-due') {
     return (
       <EmptyState
         icon="🎉"
         title="You're all caught up"
-        hint="0 cards due right now — generate flashcards from any note's AI menu to add more."
-        action={<button type="button" className="sy-btn" onClick={onSwitchToBrowse}>Browse all cards</button>}
+        hint={nextDueAt ? `Next card due ${formatDueIn(nextDueAt)}.` : 'Nothing due right now.'}
+        action={
+          <div className="sy-empty-actions">
+            <button type="button" className="sy-btn sy-btn--primary" onClick={startStudyAhead}>
+              Study ahead ({aheadCards.length})
+            </button>
+            <button type="button" className="sy-btn" onClick={() => onSwitchToBrowse()}>Browse all cards</button>
+          </div>
+        }
       />
     );
   }
@@ -141,7 +238,7 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
         )}
         <div className="sy-summary__actions">
           <button type="button" className="sy-btn sy-btn--primary" onClick={load}>Review again</button>
-          <button type="button" className="sy-btn" onClick={onSwitchToBrowse}>Browse cards</button>
+          <button type="button" className="sy-btn" onClick={() => onSwitchToBrowse()}>Browse cards</button>
         </div>
       </div>
     );
@@ -155,7 +252,9 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
   return (
     <div className="sy-review">
       <div className="sy-review__meta">
-        <span className="sy-review__counter">{queue.length - reviewedCount} due</span>
+        <span className="sy-review__counter">
+          {aheadMode ? `Studying ahead · ${queue.length - reviewedCount} left` : `${queue.length - reviewedCount} due`}
+        </span>
         <div className="sy-review__progress">
           <div className="sy-review__progress-bar" style={{ width: `${progress}%` }} />
         </div>
@@ -183,25 +282,47 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
             <div className="sy-review-card__question sy-review-card__question--small">{card.question}</div>
             <div className="sy-review-card__divider" />
             <div className="sy-review-card__answer">{card.answer}</div>
+            {revealed && !editingCard && (
+              <button type="button" className="sy-link-btn sy-review-card__edit-link" onClick={startEditCard}>
+                ✏️ Edit card
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="sy-ratings">
-        {RATING_META.map(r => (
-          <button
-            key={r.key}
-            type="button"
-            className={`sy-rating-btn sy-rating-btn--${r.tone}`}
-            disabled={!revealed || submitting}
-            onClick={() => handleRate(r.key)}
-          >
-            <span className="sy-rating-btn__label">{r.label}</span>
-            <span className="sy-rating-btn__hint">{hints[r.key]}</span>
-            <span className="sy-key-hint">{r.keyHint}</span>
-          </button>
-        ))}
-      </div>
+      {editingCard ? (
+        <div className="sy-review__edit">
+          <label>
+            Question
+            <textarea value={editDraft.question} onChange={e => setEditDraft(d => ({ ...d, question: e.target.value }))} rows={2} />
+          </label>
+          <label>
+            Answer
+            <textarea value={editDraft.answer} onChange={e => setEditDraft(d => ({ ...d, answer: e.target.value }))} rows={3} />
+          </label>
+          <div className="sy-review__edit-actions">
+            <button type="button" className="sy-btn sy-btn--primary" disabled={savingEdit} onClick={saveEditCard}>Save</button>
+            <button type="button" className="sy-btn" disabled={savingEdit} onClick={cancelEditCard}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="sy-ratings">
+          {RATING_META.map(r => (
+            <button
+              key={r.key}
+              type="button"
+              className={`sy-rating-btn sy-rating-btn--${r.tone}`}
+              disabled={!revealed || submitting}
+              onClick={() => handleRate(r.key)}
+            >
+              <span className="sy-rating-btn__label">{r.label}</span>
+              <span className="sy-rating-btn__hint">{hints[r.key]}</span>
+              <span className="sy-key-hint">{r.keyHint}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

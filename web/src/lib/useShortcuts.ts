@@ -15,6 +15,9 @@ export interface ShortcutHandlers {
   onFocusSearch?: () => void;
   /** Ctrl/Cmd+\ — toggle sidebar collapse. */
   onToggleSidebar?: () => void;
+  /** Ctrl/Cmd+P — open the command palette. Always intercepted (even while
+   *  typing) so it never falls through to the browser's print dialog. */
+  onCommandPalette?: () => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -46,6 +49,14 @@ export function useShortcuts(handlers: ShortcutHandlers): void {
       if (key === 'k' && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         ref.current.onQuickSwitcher?.();
+        return;
+      }
+
+      // Command palette always works too, and must always block the
+      // browser's print dialog — including while focused in the editor.
+      if (key === 'p' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        ref.current.onCommandPalette?.();
         return;
       }
 

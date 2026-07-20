@@ -83,7 +83,11 @@ export default function QuickSwitcher({
   const q = query.trim();
   const exactMatch = titleResults.some((r) => r.title.toLowerCase() === q.toLowerCase());
   const showCreate = q.length > 0 && !exactMatch;
-  const rowCount = titleResults.length + filteredText.length + (showCreate ? 1 : 0);
+  // Always-available escape hatch to the full /search page — its paginated,
+  // operator-aware results (tag:/notebook:/"phrase"/-exclude) go well beyond
+  // what this popup's capped title+full-text lists can show.
+  const showSearchAll = q.length > 0;
+  const rowCount = titleResults.length + filteredText.length + (showCreate ? 1 : 0) + (showSearchAll ? 1 : 0);
 
   function handleClose() {
     onClose();
@@ -114,17 +118,32 @@ export default function QuickSwitcher({
     }
   }
 
+  function goSearchAll() {
+    navigate(`/search?q=${encodeURIComponent(q)}`);
+    handleClose();
+  }
+
   function activate(index: number) {
     if (index < titleResults.length) {
       go(titleResults[index].id);
       return;
     }
-    const textIndex = index - titleResults.length;
-    if (textIndex < filteredText.length) {
-      go(filteredText[textIndex].note.id);
+    let idx = index - titleResults.length;
+    if (idx < filteredText.length) {
+      go(filteredText[idx].note.id);
       return;
     }
-    if (showCreate) createFromQuery();
+    idx -= filteredText.length;
+    if (showCreate) {
+      if (idx === 0) {
+        createFromQuery();
+        return;
+      }
+      idx -= 1;
+    }
+    if (showSearchAll && idx === 0) {
+      goSearchAll();
+    }
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
@@ -246,6 +265,25 @@ export default function QuickSwitcher({
                   </span>
                   <span className="folio-qs__row-main">
                     <span className="folio-qs__row-title">Create note: "{q}"</span>
+                  </span>
+                </div>
+              );
+            })()}
+
+          {showSearchAll &&
+            (() => {
+              const i = titleResults.length + filteredText.length + (showCreate ? 1 : 0);
+              return (
+                <div
+                  className={`folio-qs__row folio-qs__row--search-all${i === activeIndex ? ' is-active' : ''}`}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  onClick={() => goSearchAll()}
+                >
+                  <span className="folio-qs__row-icon" aria-hidden="true">
+                    <Icon name="search" size={14} />
+                  </span>
+                  <span className="folio-qs__row-main">
+                    <span className="folio-qs__row-title">Search all notes for "{q}" →</span>
                   </span>
                 </div>
               );

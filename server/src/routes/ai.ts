@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import { db, newId, nowIso } from '../db.js';
 import { chat, extractJson, AiError, capForAi } from '../ai/client.js';
-import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle } from '../ai/prompts.js';
+import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt } from '../ai/prompts.js';
 import type { NoteRow } from '../lib/serialize.js';
 
 const router = Router();
@@ -15,7 +15,8 @@ function sendAiError(res: Response, e: unknown): void {
 }
 
 function getNote(noteId: string): NoteRow | undefined {
-  return db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) as NoteRow | undefined;
+  // Trash-aware: no AI endpoint should read (or spend gateway quota on) a soft-deleted note.
+  return db.prepare('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL').get(noteId) as NoteRow | undefined;
 }
 
 /** Local FTS5 query sanitizer for retrieval-style matching (duplicated deliberately —
@@ -191,6 +192,58 @@ router.post('/ask', async (req, res) => {
   try {
     const { text, model } = await chat(askPrompt(question, contextNotes));
     res.json({ answer: text.trim(), sources: rows.map(r => ({ id: r.id, title: r.title || 'Untitled' })), model });
+  } catch (e) {
+    sendAiError(res, e);
+  }
+});
+
+// POST /api/ai/clean { noteId } — formatting-only beautification: structure improves,
+// wording stays. The client previews + applies; the server never writes the note.
+router.post('/clean', async (req, res) => {
+  const { noteId } = (req.body ?? {}) as { noteId?: unknown };
+  if (typeof noteId !== 'string' || !noteId) return res.status(400).json({ error: 'noteId is required' });
+  const note = getNote(noteId);
+  if (!note) return res.status(404).json({ error: 'note not found' });
+
+  try {
+    const { text, model } = await chat(cleanPrompt(capForAi(note.content_text)));
+    res.json({ markdown: text.trim(), model });
+  } catch (e) {
+    sendAiError(res, e);
+  }
+});
+
+// POST /api/ai/gaps { noteId } — study-assistant gap analysis. Compares the note against
+// its own uploaded source material (attachments' extracted text: transcripts, slides,
+// photos) plus standard topic coverage. NEVER rewrites the note — output is advisory
+// markdown the client renders in the Assistant panel.
+const GAP_SOURCE_CHARS = 8_000; // per source
+router.post('/gaps', async (req, res) => {
+  const { noteId } = (req.body ?? {}) as { noteId?: unknown };
+  if (typeof noteId !== 'string' || !noteId) return res.status(400).json({ error: 'noteId is required' });
+  const note = getNote(noteId);
+  if (!note) return res.status(404).json({ error: 'note not found' });
+
+  const attRows = db
+    .prepare(
+      `SELECT original_name, kind, extracted_text FROM attachments
+       WHERE note_id = ? AND status = 'ready' AND extracted_text IS NOT NULL AND extracted_text != ''
+       ORDER BY created_at ASC`,
+    )
+    .all(noteId) as Array<{ original_name: string; kind: string; extracted_text: string }>;
+  const sources = attRows.map(a => ({
+    name: a.original_name,
+    kind: a.kind,
+    text: capForAi(a.extracted_text, GAP_SOURCE_CHARS),
+  }));
+
+  try {
+    const { text, model } = await chat(gapsPrompt(note.title || 'Untitled', capForAi(note.content_text, 12_000), sources));
+    res.json({
+      markdown: text.trim(),
+      model,
+      sources: sources.map(s => ({ name: s.name, kind: s.kind })),
+    });
   } catch (e) {
     sendAiError(res, e);
   }

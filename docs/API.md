@@ -58,7 +58,10 @@ Size guard: note content sent to the model is capped at ~24k chars (8k for /titl
 - `POST /api/ai/flashcards` `{ noteId, count? (default 8) }` → `{ cards: [{ id, question, answer }] }` — generates AND inserts into flashcards table linked to note.
 - `POST /api/ai/ask` `{ question, notebookId? }` → `{ answer (markdown), sources: [{ id, title }], model }` — retrieve top 6 notes via FTS on the question keywords, stuff into context with titles, answer with citations by title. Empty corpus → helpful message, not error.
 - `POST /api/ai/title` `{ noteId }` → `{ title }` — ≤60 chars, no quotes.
+- `POST /api/ai/clean` `{ noteId }` → `{ markdown, model }` — FORMATTING-ONLY beautification: structure (headings/lists/tables/code fences), punctuation, capitalisation and obvious typos improve; the student's wording is preserved (no paraphrasing, no added/dropped content). Client previews + applies; the server never writes the note.
+- `POST /api/ai/gaps` `{ noteId }` → `{ markdown, model, sources: [{ name, kind }] }` — study-assistant gap analysis. Compares the note against its own attachments' extracted text (transcripts/slides/photos, capped 8k chars each) plus standard topic coverage, and returns advisory markdown ("Missing from your notes" / "Worth double-checking" / "Next steps"). NEVER rewrites the note; the client's Assistant panel renders it, and any insertion into the note is an explicit user action.
 - Prompts live in `ai/prompts.ts`, exported as functions.
+- CLIENT AI KILL-SWITCH: the web app has a user toggle (sidebar footer) that removes every AI affordance (AI menu, selection AI, Assistant, Ask AI, flashcard generation). It is a client-side preference (`localStorage folio:aiEnabled`); the endpoints above remain available.
 
 ## Import — routes/imports.ts (multer; 25MB limit; async jobs)
 - `POST /api/import` multipart fields: `file` (required), `kind` = `photo|slides|transcript`, `notebookId` (required for new), `noteId?` (merge target), `mode` = `new|append|improve` (default new) → `{ jobId }`

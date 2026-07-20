@@ -1,14 +1,41 @@
 // BubbleMenu shown on a non-empty text selection: formatting marks, a link popover,
-// and an "AI" quick-instruction submenu that opens AiPreviewModal on completion.
+// a Comment composer, an "Add to flashcards" action, and an "AI" quick-instruction
+// submenu that opens AiPreviewModal on completion.
 import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { BubbleMenu } from '@tiptap/react/menus';
 import type { Editor } from '@tiptap/core';
 import type { Transaction } from '@tiptap/pm/state';
 import { api, ApiError } from '../../lib/api';
 import { toast } from '../../components/Toast';
 import Icon from '../../components/Icon';
+import { useAiEnabled } from '../../lib/aiPrefs';
 import AiPreviewModal from './AiPreviewModal';
+import QuickCardModal from './QuickCardModal';
+import CommentIcon from '../comments/CommentIcon';
+import { notifyCommentAdded } from '../comments/commentsBus';
 import { markdownToSafeHtml } from './markdown';
+
+/** Closes `close()` on outside click or Escape while `active` — used for the AI dropdown and
+ *  the comment composer popover (the AI dropdown previously only closed on mouse-leave, which
+ *  iter1 review flagged as neither click-outside- nor keyboard-dismissable). */
+function useDismiss(active: boolean, ref: React.RefObject<HTMLElement | null>, close: () => void) {
+  useEffect(() => {
+    if (!active) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) close();
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') close();
+    }
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [active, ref, close]);
+}
 
 const AI_INSTRUCTIONS = [
   { id: 'improve', label: 'Improve', instruction: 'Improve the writing: clarity, flow and correctness. Keep the meaning and roughly the same length.' },
@@ -31,11 +58,23 @@ function aiErrorMessage(e: unknown): string {
 }
 
 export default function SelectionToolbar({ editor }: { editor: Editor }) {
+  const { noteId } = useParams<{ noteId: string }>();
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
+  const [aiEnabled] = useAiEnabled();
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [commentSaving, setCommentSaving] = useState(false);
+  const [quickCardOpen, setQuickCardOpen] = useState(false);
+  const [quickCardAnswer, setQuickCardAnswer] = useState('');
+
+  const aiTriggerRef = useRef<HTMLDivElement>(null);
+  const commentTriggerRef = useRef<HTMLDivElement>(null);
+  useDismiss(aiOpen, aiTriggerRef, () => setAiOpen(false));
+  useDismiss(commentOpen, commentTriggerRef, () => setCommentOpen(false));
 
   // Pin the AI-edit target range by mapping it through every transaction that lands while
   // the request is in flight (and while the preview modal is open). Without this, applying
@@ -44,13 +83,25 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
   const trackedRangeRef = useRef<{ from: number; to: number } | null>(null);
   const trackerAttachedRef = useRef(false);
 
+  // Same problem, independent tracker: the comment's anchor range must survive the async
+  // api.addComment() round trip before the mark gets applied.
+  const commentRangeRef = useRef<{ from: number; to: number } | null>(null);
+
   useEffect(() => {
     function onTransaction({ transaction }: { transaction: Transaction }) {
+      if (!transaction.docChanged) return;
       const r = trackedRangeRef.current;
-      if (!r || !transaction.docChanged) return;
-      r.from = transaction.mapping.map(r.from, 1);
-      r.to = transaction.mapping.map(r.to, -1);
-      if (r.to < r.from) r.to = r.from;
+      if (r) {
+        r.from = transaction.mapping.map(r.from, 1);
+        r.to = transaction.mapping.map(r.to, -1);
+        if (r.to < r.from) r.to = r.from;
+      }
+      const cr = commentRangeRef.current;
+      if (cr) {
+        cr.from = transaction.mapping.map(cr.from, 1);
+        cr.to = transaction.mapping.map(cr.to, -1);
+        if (cr.to < cr.from) cr.to = cr.from;
+      }
     }
     editor.on('transaction', onTransaction);
     trackerAttachedRef.current = true;
@@ -106,6 +157,47 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
     }
   }
 
+  function openCommentComposer() {
+    setLinkOpen(false);
+    setAiOpen(false);
+    setCommentDraft('');
+    setCommentOpen(true);
+  }
+
+  async function submitComment() {
+    const body = commentDraft.trim();
+    if (!body || !noteId || commentSaving) return;
+    const { from, to } = editor.state.selection;
+    const anchorText = editor.state.doc.textBetween(from, to, ' ').trim().slice(0, 200);
+    commentRangeRef.current = { from, to }; // live-mapped from here on
+    setCommentSaving(true);
+    try {
+      const { comment } = await api.addComment(noteId, { anchorText, body });
+      const range = commentRangeRef.current ?? { from, to };
+      // Graceful degradation: apply the mark only if the schema actually has it (depends on
+      // editor-blocks having wired CommentMark into buildExtensions.ts — see CommentMark.ts).
+      // The comment is still saved and visible in the margin panel either way.
+      if (editor.schema.marks.comment) {
+        editor.chain().setTextSelection(range).setMark('comment', { commentId: comment.id }).run();
+      }
+      notifyCommentAdded();
+      setCommentOpen(false);
+      toast('Comment added', 'ok');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not add comment', 'error');
+    } finally {
+      commentRangeRef.current = null;
+      setCommentSaving(false);
+    }
+  }
+
+  function openQuickCard() {
+    const { from, to } = editor.state.selection;
+    const text = editor.state.doc.textBetween(from, to, '\n').trim();
+    setQuickCardAnswer(text);
+    setQuickCardOpen(true);
+  }
+
   return (
     <>
       <BubbleMenu
@@ -141,20 +233,59 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
             <Icon name="link" size={14} />
           </button>
           <span className="folio-bubble-sep" />
-          <div className="folio-ai-trigger">
-            <button type="button" className="folio-ai-btn" disabled={aiLoading} onClick={() => setAiOpen((v) => !v)}>
-              {aiLoading ? '…' : <><Icon name="sparkles" size={13} /> AI</>}
+          <div className="folio-ai-trigger" ref={commentTriggerRef}>
+            <button type="button" title="Comment" onClick={() => (commentOpen ? setCommentOpen(false) : openCommentComposer())}>
+              <CommentIcon size={13} />
             </button>
-            {aiOpen && (
-              <div className="folio-ai-dropdown" onMouseLeave={() => setAiOpen(false)}>
-                {AI_INSTRUCTIONS.map((o) => (
-                  <button key={o.id} type="button" onClick={() => runAi(o.instruction)}>
-                    {o.label}
+            {commentOpen && (
+              <div className="folio-comment-composer" onMouseDown={(e) => e.stopPropagation()}>
+                <textarea
+                  autoFocus
+                  rows={3}
+                  value={commentDraft}
+                  placeholder="Leave a note in the margin…"
+                  onChange={(e) => setCommentDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setCommentOpen(false);
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      submitComment();
+                    }
+                  }}
+                />
+                <div className="folio-comment-composer-actions">
+                  <button type="button" onClick={() => setCommentOpen(false)} disabled={commentSaving}>
+                    Cancel
                   </button>
-                ))}
+                  <button type="button" className="primary" onClick={submitComment} disabled={commentSaving || !commentDraft.trim()}>
+                    {commentSaving ? '…' : 'Comment'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
+          <button type="button" title="Add to flashcards" onClick={openQuickCard}>
+            <Icon name="layers" size={14} />
+          </button>
+          {aiEnabled && (
+            <>
+              <span className="folio-bubble-sep" />
+              <div className="folio-ai-trigger" ref={aiTriggerRef}>
+                <button type="button" className="folio-ai-btn" disabled={aiLoading} onClick={() => setAiOpen((v) => !v)}>
+                  {aiLoading ? '…' : <><Icon name="sparkles" size={13} /> AI</>}
+                </button>
+                {aiOpen && (
+                  <div className="folio-ai-dropdown">
+                    {AI_INSTRUCTIONS.map((o) => (
+                      <button key={o.id} type="button" onClick={() => runAi(o.instruction)}>
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
         {linkOpen && (
           <div className="folio-link-popover" onMouseDown={(e) => e.stopPropagation()}>
@@ -211,6 +342,13 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
           ]}
         />
       )}
+
+      <QuickCardModal
+        open={quickCardOpen}
+        onClose={() => setQuickCardOpen(false)}
+        noteId={noteId}
+        initialAnswer={quickCardAnswer}
+      />
     </>
   );
 }

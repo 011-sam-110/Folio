@@ -3,12 +3,14 @@
 // (theme toggle, phone capture, AI status).
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import HashGlyph from './HashGlyph';
 import { api } from '../lib/api';
 import type { Notebook } from '../lib/types';
 import { errorMessage } from '../lib/format';
 import { useNotebooks } from './NotebooksContext';
 import { toast } from './Toast';
 import { useTheme } from '../lib/theme';
+import { useAiEnabled } from '../lib/aiPrefs';
 import Icon from './Icon';
 import Tooltip from './Tooltip';
 import EmojiPicker from './EmojiPicker';
@@ -38,6 +40,13 @@ export interface SidebarProps {
   onOpenSearch: () => void;
   onNewNote: () => void;
   currentNotebookId?: string;
+  /** Phone-capture QR modal — state lives in App.tsx so the command
+   *  palette's "Open phone capture QR" command can trigger the same modal. */
+  qrOpen: boolean;
+  onOpenQr: () => void;
+  onCloseQr: () => void;
+  /** Opens the Ctrl/Cmd+P command palette (footer affordance for mouse users). */
+  onOpenCommandPalette: () => void;
 }
 
 export default function Sidebar({
@@ -46,9 +55,14 @@ export default function Sidebar({
   onOpenSearch,
   onNewNote,
   currentNotebookId,
+  qrOpen,
+  onOpenQr,
+  onCloseQr,
+  onOpenCommandPalette,
 }: SidebarProps) {
   const { notebooks, loading, error, reload, createNotebook, updateNotebook, deleteNotebook } = useNotebooks();
   const [theme, , toggleTheme] = useTheme();
+  const [aiOn, setAiOn] = useAiEnabled();
   const navigate = useNavigate();
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -66,7 +80,6 @@ export default function Sidebar({
   const [aiHealth, setAiHealth] = useState<{ status: 'pending' | 'ok' | 'bad'; model?: string; error?: string }>({
     status: 'pending',
   });
-  const [qrOpen, setQrOpen] = useState(false);
 
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const newNameRef = useRef<HTMLInputElement | null>(null);
@@ -215,9 +228,19 @@ export default function Sidebar({
           <span>Study</span>
           {!!studyDue && <span className="sidebar__nav-badge">{studyDue}</span>}
         </NavLink>
-        <NavLink to="/ask" className={({ isActive }) => `sidebar__nav-link${isActive ? ' active' : ''}`} onClick={onCloseMobile}>
-          <Icon name="sparkles" size={15} />
-          <span>Ask AI</span>
+        {aiOn && (
+          <NavLink to="/ask" className={({ isActive }) => `sidebar__nav-link${isActive ? ' active' : ''}`} onClick={onCloseMobile}>
+            <Icon name="sparkles" size={15} />
+            <span>Ask AI</span>
+          </NavLink>
+        )}
+        <NavLink to="/search" className={({ isActive }) => `sidebar__nav-link${isActive ? ' active' : ''}`} onClick={onCloseMobile}>
+          <Icon name="search" size={15} />
+          <span>Search</span>
+        </NavLink>
+        <NavLink to="/tags" className={({ isActive }) => `sidebar__nav-link${isActive ? ' active' : ''}`} onClick={onCloseMobile}>
+          <HashGlyph size={15} />
+          <span>Tags</span>
         </NavLink>
       </div>
 
@@ -348,26 +371,53 @@ export default function Sidebar({
           </button>
         </Tooltip>
         <Tooltip content="Phone capture — scan to add notes from your phone">
-          <button type="button" className="sidebar__icon-btn" aria-label="Phone capture" onClick={() => setQrOpen(true)}>
+          <button type="button" className="sidebar__icon-btn" aria-label="Phone capture" onClick={onOpenQr}>
             <Icon name="phone" size={15} />
+          </button>
+        </Tooltip>
+        <Tooltip content={<>Command palette <kbd>⌘P</kbd></>}>
+          <button type="button" className="sidebar__icon-btn" aria-label="Command palette" onClick={onOpenCommandPalette}>
+            <Icon name="more" size={16} />
           </button>
         </Tooltip>
         <Tooltip
           content={
-            aiHealth.status === 'ok'
-              ? `AI online${aiHealth.model ? ` · ${aiHealth.model}` : ''}`
-              : aiHealth.status === 'bad'
-                ? `AI offline${aiHealth.error ? ` · ${aiHealth.error}` : ''}`
-                : 'Checking AI status…'
+            aiOn
+              ? 'Turn off all AI features — Folio becomes a plain notebook'
+              : 'AI features are off — click to turn them back on'
           }
         >
-          <span className="sidebar__ai-status">
-            <span className={`sidebar__ai-dot ${aiHealth.status}`} />
-          </span>
+          <button
+            type="button"
+            className={`sidebar__icon-btn${aiOn ? '' : ' is-ai-off'}`}
+            aria-label={aiOn ? 'Turn off AI features' : 'Turn on AI features'}
+            data-testid="ai-toggle"
+            onClick={() => {
+              setAiOn(!aiOn);
+              toast(aiOn ? 'AI features turned off — your notes are yours alone' : 'AI features turned back on', 'ok');
+            }}
+          >
+            <Icon name={aiOn ? 'sparkles' : 'sparkles-off'} size={15} />
+          </button>
         </Tooltip>
+        {aiOn && (
+          <Tooltip
+            content={
+              aiHealth.status === 'ok'
+                ? `AI online${aiHealth.model ? ` · ${aiHealth.model}` : ''}`
+                : aiHealth.status === 'bad'
+                  ? `AI offline${aiHealth.error ? ` · ${aiHealth.error}` : ''}`
+                  : 'Checking AI status…'
+            }
+          >
+            <span className="sidebar__ai-status">
+              <span className={`sidebar__ai-dot ${aiHealth.status}`} />
+            </span>
+          </Tooltip>
+        )}
       </div>
 
-      <PhoneCaptureModal open={qrOpen} onClose={() => setQrOpen(false)} />
+      <PhoneCaptureModal open={qrOpen} onClose={onCloseQr} />
 
       <ConfirmDialog
         open={!!deleteTarget}

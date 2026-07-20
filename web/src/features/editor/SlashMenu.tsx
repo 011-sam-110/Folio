@@ -8,7 +8,7 @@ interface SlashMenuProps {
   command: (item: SlashItem) => void;
 }
 
-const SECTION_ORDER: SlashSection[] = ['Basic', 'Lists', 'Media', 'Advanced'];
+const SECTION_ORDER: SlashSection[] = ['Basic', 'Lists', 'Media', 'Layout', 'Advanced'];
 
 const SlashMenu = forwardRef<SuggestionListHandle, SlashMenuProps>(({ items, command }, ref) => {
   const [selected, setSelected] = useState(0);

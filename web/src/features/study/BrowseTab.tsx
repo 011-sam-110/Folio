@@ -1,19 +1,32 @@
 // All-cards management table. Uses GET /api/study/cards (per docs/API.md), which
 // returns the whole deck including suspended and not-yet-due cards — the correct
 // data source for a management surface (the review /queue is due-only).
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
 import type { Flashcard, StudyStats } from '../../lib/types';
 import { toast } from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import Skeleton from '../../components/Skeleton';
-import { relativeTime } from '../../lib/format';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import Icon from '../../components/Icon';
+import { formatDueIn } from './sm2';
+import CardComposer from './CardComposer';
 import './StudyPage.css';
 
 type RowState = 'idle' | 'editing' | 'confirmDelete';
 
-export default function BrowseTab({ stats, onChanged }: { stats: StudyStats | null; onChanged: () => void }) {
+export default function BrowseTab({
+  stats,
+  onChanged,
+  openComposerSignal,
+}: {
+  stats: StudyStats | null;
+  onChanged: () => void;
+  /** Bumped by StudyPage (e.g. from the Review tab's "no cards at all" empty state) to
+   *  request the composer pop open even though the user is arriving fresh on this tab. */
+  openComposerSignal?: number;
+}) {
   const [cards, setCards] = useState<Flashcard[] | null>(null);
   const [error, setError] = useState(false);
   const [query, setQuery] = useState('');
@@ -21,6 +34,12 @@ export default function BrowseTab({ stats, onChanged }: { stats: StudyStats | nu
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const [draft, setDraft] = useState<{ question: string; answer: string }>({ question: '', answer: '' });
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [groupByNote, setGroupByNote] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setCards(null);
@@ -34,6 +53,13 @@ export default function BrowseTab({ stats, onChanged }: { stats: StudyStats | nu
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Signal-based open so the Review tab's empty states can send the user here with the
+  // composer already up (a plain callback can't distinguish "just switch tabs" from
+  // "switch tabs AND start adding a card" without this).
+  useEffect(() => {
+    if (openComposerSignal) setComposerOpen(true);
+  }, [openComposerSignal]);
 
   function startEdit(card: Flashcard) {
     setExpandedId(card.id);
@@ -92,11 +118,89 @@ export default function BrowseTab({ stats, onChanged }: { stats: StudyStats | nu
     }
   }
 
+  function onCardCreated(card: Flashcard) {
+    setCards(prev => (prev ? [card, ...prev] : [card]));
+    onChanged();
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   const filtered = (cards ?? []).filter(c => {
     if (!query.trim()) return true;
     const q = query.toLowerCase();
     return c.question.toLowerCase().includes(q) || c.answer.toLowerCase().includes(q) || (c.noteTitle ?? '').toLowerCase().includes(q);
   });
+
+  function toggleSelectAllFiltered() {
+    setSelectedIds(prev => {
+      const allSelected = filtered.length > 0 && filtered.every(c => prev.has(c.id));
+      if (allSelected) return new Set();
+      return new Set(filtered.map(c => c.id));
+    });
+  }
+
+  const selectedCards = (cards ?? []).filter(c => selectedIds.has(c.id));
+  const allSelectedSuspended = selectedCards.length > 0 && selectedCards.every(c => c.suspended);
+
+  async function bulkSuspend() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const target = !allSelectedSuspended;
+    setBulkBusy(true);
+    const snapshot = cards;
+    setCards(prev => prev?.map(c => (selectedIds.has(c.id) ? { ...c, suspended: target } : c)) ?? prev);
+    try {
+      await Promise.all(ids.map(id => api.updateCard(id, { suspended: target })));
+      onChanged();
+      toast(`${ids.length} card${ids.length === 1 ? '' : 's'} ${target ? 'suspended' : 'unsuspended'}`, 'ok');
+      setSelectedIds(new Set());
+    } catch (err) {
+      setCards(snapshot);
+      toast(err instanceof ApiError ? err.message : 'Could not update those cards', 'error');
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkDelete() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(ids.map(id => api.deleteCard(id)));
+      setCards(prev => prev?.filter(c => !selectedIds.has(c.id)) ?? prev);
+      onChanged();
+      toast(`${ids.length} card${ids.length === 1 ? '' : 's'} deleted`, 'ok');
+      setSelectedIds(new Set());
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not delete some cards — refreshing the list', 'error');
+      load();
+    } finally {
+      setBulkBusy(false);
+      setConfirmBulkDelete(false);
+    }
+  }
+
+  const grouped = useMemo(() => {
+    if (!groupByNote) return null;
+    const map = new Map<string, { title: string; cards: Flashcard[] }>();
+    for (const c of filtered) {
+      const key = c.noteId ?? '__none__';
+      const title = c.noteId ? (c.noteTitle ?? 'Untitled') : 'No linked note';
+      if (!map.has(key)) map.set(key, { title, cards: [] });
+      map.get(key)!.cards.push(c);
+    }
+    return [...map.entries()]
+      .map(([key, v]) => ({ key, title: v.title, cards: v.cards }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [groupByNote, filtered]);
 
   if (cards === null && !error) {
     return <div className="sy-browse"><Skeleton lines={6} /></div>;
@@ -113,12 +217,111 @@ export default function BrowseTab({ stats, onChanged }: { stats: StudyStats | nu
     );
   }
 
+  function renderRow(card: Flashcard) {
+    const state = rowState[card.id] ?? 'idle';
+    const expanded = expandedId === card.id;
+    const chip = dueChip(card);
+    return (
+      <Fragment key={card.id}>
+        <tr className={card.suspended ? 'is-suspended' : ''}>
+          <td className="sy-browse__checkbox-col">
+            <input
+              type="checkbox"
+              aria-label={`Select card "${truncate(card.question, 40)}"`}
+              checked={selectedIds.has(card.id)}
+              onChange={() => toggleSelect(card.id)}
+            />
+          </td>
+          <td className="sy-browse__question" onClick={() => setExpandedId(expanded ? null : card.id)}>
+            {truncate(card.question, 90)}
+          </td>
+          <td>
+            {card.noteId ? (
+              <Link className="sy-link-btn" to={`/note/${card.noteId}`}>{card.noteTitle ?? 'Untitled'}</Link>
+            ) : (
+              <span className="sy-ink-3">—</span>
+            )}
+          </td>
+          <td>
+            <span className={`sy-due-chip sy-due-chip--${chip.tone}`}>{chip.label}</span>
+          </td>
+          <td>{card.reps}</td>
+          <td className="sy-browse__actions">
+            <button
+              type="button"
+              className="sy-icon-btn"
+              title={card.suspended ? 'Unsuspend' : 'Suspend'}
+              disabled={busyId === card.id}
+              onClick={() => toggleSuspend(card)}
+            >
+              {card.suspended ? '▶️' : '⏸️'}
+            </button>
+            <button type="button" className="sy-icon-btn" title="Edit" onClick={() => startEdit(card)}>✏️</button>
+            {state === 'confirmDelete' ? (
+              <span className="sy-confirm-delete">
+                <button type="button" className="sy-link-btn sy-link-btn--danger" disabled={busyId === card.id} onClick={() => confirmDelete(card.id)}>
+                  Confirm
+                </button>
+                <button type="button" className="sy-link-btn" onClick={() => resetRow(card.id)}>Cancel</button>
+              </span>
+            ) : (
+              <button type="button" className="sy-icon-btn" title="Delete" onClick={() => setRowState(s => ({ ...s, [card.id]: 'confirmDelete' }))}>
+                🗑️
+              </button>
+            )}
+          </td>
+        </tr>
+        {expanded && (
+          <tr className="sy-browse__detail-row">
+            <td colSpan={6}>
+              {state === 'editing' ? (
+                <div className="sy-browse__edit">
+                  <label>
+                    Question
+                    <textarea value={draft.question} onChange={e => setDraft(d => ({ ...d, question: e.target.value }))} rows={2} />
+                  </label>
+                  <label>
+                    Answer
+                    <textarea value={draft.answer} onChange={e => setDraft(d => ({ ...d, answer: e.target.value }))} rows={3} />
+                  </label>
+                  <div className="sy-browse__edit-actions">
+                    <button type="button" className="sy-btn sy-btn--primary" disabled={busyId === card.id} onClick={() => saveEdit(card.id)}>Save</button>
+                    <button type="button" className="sy-btn" onClick={() => resetRow(card.id)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="sy-browse__answer"><strong>Answer:</strong> {card.answer}</div>
+              )}
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    );
+  }
+
   return (
     <div className="sy-browse">
       <div className="sy-browse__stats">
         <div className="sy-stat-pill"><strong>{stats?.due ?? '–'}</strong> due</div>
         <div className="sy-stat-pill"><strong>{stats?.total ?? cards?.length ?? 0}</strong> total</div>
         <div className="sy-stat-pill"><strong>{stats?.reviewedToday ?? '–'}</strong> reviewed today</div>
+        <button
+          type="button"
+          className="sy-btn sy-btn--primary"
+          onClick={() => setComposerOpen(o => !o)}
+          aria-expanded={composerOpen}
+        >
+          <Icon name="plus" size={14} /> New card
+        </button>
+        <button
+          type="button"
+          className={`sy-toggle-btn${groupByNote ? ' is-active' : ''}`}
+          aria-pressed={groupByNote}
+          onClick={() => setGroupByNote(g => !g)}
+          title="Group cards by their source note"
+        >
+          <Icon name="layers" size={14} /> Group by note
+        </button>
         <input
           className="sy-browse__search"
           type="search"
@@ -129,8 +332,44 @@ export default function BrowseTab({ stats, onChanged }: { stats: StudyStats | nu
         />
       </div>
 
+      {composerOpen && (
+        <CardComposer
+          onCreated={(card) => { onCardCreated(card); }}
+          onCancel={() => setComposerOpen(false)}
+        />
+      )}
+
+      {selectedIds.size > 0 && (
+        <div className="sy-bulkbar" role="toolbar" aria-label="Bulk card actions">
+          <span className="sy-bulkbar__count">{selectedIds.size} selected</span>
+          <button type="button" className="sy-btn" disabled={bulkBusy} onClick={bulkSuspend}>
+            {allSelectedSuspended ? 'Unsuspend' : 'Suspend'}
+          </button>
+          <button type="button" className="sy-btn sy-btn--danger" disabled={bulkBusy} onClick={() => setConfirmBulkDelete(true)}>
+            Delete
+          </button>
+          <button type="button" className="sy-link-btn" onClick={() => setSelectedIds(new Set())}>Clear selection</button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmBulkDelete}
+        title="Delete selected cards?"
+        message={`This permanently deletes ${selectedIds.size} card${selectedIds.size === 1 ? '' : 's'}. This can't be undone.`}
+        confirmLabel="Delete"
+        danger
+        loading={bulkBusy}
+        onConfirm={bulkDelete}
+        onCancel={() => setConfirmBulkDelete(false)}
+      />
+
       {cards && cards.length === 0 ? (
-        <EmptyState icon="🗂️" title="No flashcards yet" hint="Generate flashcards from a note using the AI menu in the editor." />
+        <EmptyState
+          icon="🗂️"
+          title="No flashcards yet"
+          hint="Generate a batch from a note's AI menu, or add your own with New card above."
+          action={<button type="button" className="sy-btn sy-btn--primary" onClick={() => setComposerOpen(true)}>Add your first card</button>}
+        />
       ) : filtered.length === 0 ? (
         <EmptyState icon="🔍" title={`No cards match "${query}"`} />
       ) : (
@@ -138,6 +377,14 @@ export default function BrowseTab({ stats, onChanged }: { stats: StudyStats | nu
           <table className="sy-browse__table">
             <thead>
               <tr>
+                <th className="sy-browse__checkbox-col">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all visible cards"
+                    checked={filtered.length > 0 && filtered.every(c => selectedIds.has(c.id))}
+                    onChange={toggleSelectAllFiltered}
+                  />
+                </th>
                 <th>Question</th>
                 <th>Note</th>
                 <th>Due</th>
@@ -146,82 +393,28 @@ export default function BrowseTab({ stats, onChanged }: { stats: StudyStats | nu
               </tr>
             </thead>
             <tbody>
-              {filtered.map(card => {
-                const state = rowState[card.id] ?? 'idle';
-                const expanded = expandedId === card.id;
-                return (
-                  <Fragment key={card.id}>
-                    <tr className={card.suspended ? 'is-suspended' : ''}>
-                      <td className="sy-browse__question" onClick={() => setExpandedId(expanded ? null : card.id)}>
-                        {truncate(card.question, 90)}
-                      </td>
-                      <td>
-                        {card.noteId ? (
-                          <Link className="sy-link-btn" to={`/note/${card.noteId}`}>{card.noteTitle ?? 'Untitled'}</Link>
-                        ) : (
-                          <span className="sy-ink-3">—</span>
-                        )}
-                      </td>
-                      <td>{relativeTime(card.dueAt)}</td>
-                      <td>{card.reps}</td>
-                      <td className="sy-browse__actions">
-                        <button
-                          type="button"
-                          className="sy-icon-btn"
-                          title={card.suspended ? 'Unsuspend' : 'Suspend'}
-                          disabled={busyId === card.id}
-                          onClick={() => toggleSuspend(card)}
-                        >
-                          {card.suspended ? '▶️' : '⏸️'}
-                        </button>
-                        <button type="button" className="sy-icon-btn" title="Edit" onClick={() => startEdit(card)}>✏️</button>
-                        {state === 'confirmDelete' ? (
-                          <span className="sy-confirm-delete">
-                            <button type="button" className="sy-link-btn sy-link-btn--danger" disabled={busyId === card.id} onClick={() => confirmDelete(card.id)}>
-                              Confirm
-                            </button>
-                            <button type="button" className="sy-link-btn" onClick={() => resetRow(card.id)}>Cancel</button>
-                          </span>
-                        ) : (
-                          <button type="button" className="sy-icon-btn" title="Delete" onClick={() => setRowState(s => ({ ...s, [card.id]: 'confirmDelete' }))}>
-                            🗑️
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                    {expanded && (
-                      <tr className="sy-browse__detail-row">
-                        <td colSpan={5}>
-                          {state === 'editing' ? (
-                            <div className="sy-browse__edit">
-                              <label>
-                                Question
-                                <textarea value={draft.question} onChange={e => setDraft(d => ({ ...d, question: e.target.value }))} rows={2} />
-                              </label>
-                              <label>
-                                Answer
-                                <textarea value={draft.answer} onChange={e => setDraft(d => ({ ...d, answer: e.target.value }))} rows={3} />
-                              </label>
-                              <div className="sy-browse__edit-actions">
-                                <button type="button" className="sy-btn sy-btn--primary" disabled={busyId === card.id} onClick={() => saveEdit(card.id)}>Save</button>
-                                <button type="button" className="sy-btn" onClick={() => resetRow(card.id)}>Cancel</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="sy-browse__answer"><strong>Answer:</strong> {card.answer}</div>
-                          )}
-                        </td>
+              {grouped
+                ? grouped.map(g => (
+                    <Fragment key={g.key}>
+                      <tr className="sy-browse__group-row">
+                        <td colSpan={6}>{g.title} <span className="sy-ink-3">· {g.cards.length}</span></td>
                       </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
+                      {g.cards.map(renderRow)}
+                    </Fragment>
+                  ))
+                : filtered.map(renderRow)}
             </tbody>
           </table>
         </div>
       )}
     </div>
   );
+}
+
+function dueChip(card: Flashcard): { label: string; tone: 'due' | 'soon' | 'suspended' } {
+  if (card.suspended) return { label: 'Suspended', tone: 'suspended' };
+  if (new Date(card.dueAt).getTime() <= Date.now()) return { label: 'Due now', tone: 'due' };
+  return { label: formatDueIn(card.dueAt), tone: 'soon' };
 }
 
 function truncate(s: string, n: number): string {

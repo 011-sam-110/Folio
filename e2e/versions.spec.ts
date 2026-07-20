@@ -74,7 +74,10 @@ test.describe('Version history', () => {
     await drawer.getByTestId(TESTIDS.historyVersionItem).filter({ hasText: label }).first().click();
     await drawer.getByRole('button', { name: /restore/i }).click();
 
-    await expect(page.getByText(/restor/i)).toBeVisible({ timeout: 10_000 });
+    // Exact toast copy — a page-wide /restor/i regex also matches any notebook/note whose
+    // NAME contains "restor" (sidebar rows), which made this assertion collide with other
+    // specs' leftover fixtures.
+    await expect(page.getByText('Note restored')).toBeVisible({ timeout: 10_000 });
     await expect(body).toContainText(originalText);
     await expect(body).not.toContainText(laterText);
   });

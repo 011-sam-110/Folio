@@ -21,6 +21,8 @@ import Callout from './Callout';
 import Wikilink from './WikilinkExtension';
 import SlashCommand from './SlashCommand';
 import { createMathClickHandler } from './mathEdit';
+import { Column, ColumnList } from './Columns';
+import { createTextColorExtensions } from './TextColor';
 
 const lowlight = createLowlight(common);
 
@@ -33,7 +35,7 @@ export interface BuildExtensionsOpts {
 
 const UNIQUE_ID_TYPES = [
   'heading', 'paragraph', 'bulletList', 'orderedList', 'taskList',
-  'blockquote', 'codeBlock', 'table', 'image', 'callout', 'details',
+  'blockquote', 'codeBlock', 'table', 'image', 'callout', 'details', 'columnList',
 ];
 
 export function createFolioExtensions(opts: BuildExtensionsOpts): Extensions {
@@ -80,6 +82,9 @@ export function createFolioExtensions(opts: BuildExtensionsOpts): Extensions {
     UniqueID.configure({ types: UNIQUE_ID_TYPES }),
     Callout,
     Wikilink.configure({ getNotebookId: opts.getNotebookId }),
+    ColumnList,
+    Column,
+    ...createTextColorExtensions(),
   ];
 
   if (opts.editable) {

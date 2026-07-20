@@ -645,6 +645,87 @@
   color: var(--ink-3);
 }
 
+/* ---------- Assistant panel (study assistant — reuses the history drawer chrome) ---------- */
+
+.folio-assistant .folio-history-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.folio-assistant__tagline {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.folio-assistant__start {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+.folio-assistant__sources {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  padding: 8px 10px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+}
+.folio-assistant__loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.folio-assistant__error {
+  font-size: 13px;
+  color: var(--danger);
+}
+.folio-assistant__body {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 12px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.folio-assistant__body h2 {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin: 16px 0 6px;
+}
+.folio-assistant__body h2:first-child {
+  margin-top: 0;
+}
+.folio-assistant__body ul {
+  padding-left: 18px;
+  margin: 6px 0;
+}
+.folio-assistant__body li {
+  margin: 5px 0;
+}
+.folio-assistant__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.folio-assistant__model {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--ink-3);
+  text-align: right;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {
@@ -655,4 +736,146 @@
   .folio-title-input {
     font-size: 30px;
   }
+}
+
+/* ---------- Find/replace bar (docked top-right of the editor area) ---------- */
+/* Match/current-match highlight decorations render inside .folio-prosemirror (from
+   FindReplace.ts's ProseMirror plugin); styled here rather than editor.css, which is
+   another agent's file this wave — CSS is global regardless of which stylesheet loads it. */
+
+.folio-prosemirror .folio-find-match {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 2px;
+}
+
+.folio-prosemirror .folio-find-match-current {
+  background: color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: 2px;
+}
+
+.folio-find-bar {
+  position: fixed;
+  top: 74px;
+  right: 32px;
+  z-index: 70;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 340px;
+  max-width: calc(100vw - 48px);
+  animation: folio-find-in 0.14s ease-out;
+}
+
+@keyframes folio-find-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.folio-find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.folio-find-row > svg {
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.folio-find-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: inherit;
+}
+
+.folio-find-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.folio-find-count {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  min-width: 54px;
+  text-align: center;
+}
+
+.folio-find-row .folio-btn-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.folio-find-row .folio-btn-icon svg {
+  transition: transform 0.14s ease-out;
+}
+
+.folio-find-row .folio-btn-icon.active svg {
+  transform: rotate(180deg);
+}
+
+.folio-find-replace-row .folio-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .folio-find-bar {
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* ---------- Quick flashcard composer (QuickCardModal) ---------- */
+
+.folio-quickcard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.folio-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.folio-field-input {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 7px 10px;
+  font-size: 13.5px;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--ink);
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.folio-field-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.folio-quickcard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }

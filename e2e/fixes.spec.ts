@@ -221,6 +221,43 @@ test.describe('Context filing (Ctrl+N)', () => {
   });
 });
 
+test.describe('AI kill-switch', () => {
+  test('the sidebar toggle removes every AI affordance and restores them', async ({ page, request }) => {
+    const notebook = await apiCreateNotebook(request, uniqueName('E2E AI Toggle Notebook'));
+    const note = await apiCreateNote(request, notebook.id, uniqueName('AI Toggle Note'));
+
+    await page.goto(`/note/${note.id}`);
+    await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
+
+    // AI surfaces present while enabled.
+    await expect(page.getByRole('button', { name: 'AI', exact: true })).toBeVisible();
+    await expect(page.getByTestId('assistant-open')).toBeVisible();
+    await expect(sidebarNav(page).getByRole('link', { name: 'Ask AI' })).toBeVisible();
+
+    // Flip the switch off.
+    await page.getByTestId('ai-toggle').click();
+    await expect(page.getByRole('button', { name: 'AI', exact: true })).toHaveCount(0);
+    await expect(page.getByTestId('assistant-open')).toHaveCount(0);
+    await expect(sidebarNav(page).getByRole('link', { name: 'Ask AI' })).toHaveCount(0);
+
+    // The Ask page (direct URL) explains the state instead of rendering the AI chat.
+    await page.goto('/ask');
+    await expect(page.getByTestId('ask-disabled')).toBeVisible({ timeout: 10_000 });
+
+    // The preference survives a reload.
+    await page.goto(`/note/${note.id}`);
+    await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
+    await expect(page.getByRole('button', { name: 'AI', exact: true })).toHaveCount(0);
+
+    // And "Turn AI back on" from the Ask page restores everything.
+    await page.goto('/ask');
+    await page.getByRole('button', { name: /turn ai back on/i }).click();
+    await expect(sidebarNav(page).getByRole('link', { name: 'Ask AI' })).toBeVisible({ timeout: 5_000 });
+    await page.goto(`/note/${note.id}`);
+    await expect(page.getByRole('button', { name: 'AI', exact: true })).toBeVisible({ timeout: 10_000 });
+  });
+});
+
 test.describe('Study notebook filter', () => {
   test('the Review tab can be scoped to one notebook via chips', async ({ page }) => {
     // Uses the seeded vault: 'Databases' has exactly one due card (the 2NF one) while

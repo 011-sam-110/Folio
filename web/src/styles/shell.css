@@ -379,6 +379,10 @@
   background: var(--bg-hover);
   color: var(--ink);
 }
+/* AI kill-switch: dimmed slashed-sparkles state while AI features are off */
+.sidebar__icon-btn.is-ai-off {
+  color: var(--ink-3);
+}
 .sidebar__ai-status {
   margin-left: auto;
   display: flex;

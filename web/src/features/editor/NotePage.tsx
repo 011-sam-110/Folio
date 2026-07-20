@@ -16,13 +16,19 @@ import NoteCard from '../../components/NoteCard';
 import FolioEditor from './FolioEditor';
 import OutlinePane from './OutlinePane';
 import HistoryPanel from './HistoryPanel';
+import AssistantPanel from './AssistantPanel';
 import AiPreviewModal from './AiPreviewModal';
 import DropdownButton from './DropdownButton';
 import ImportModal from '../import/ImportModal';
+import { useAiEnabled } from '../../lib/aiPrefs';
 import { useAutosave } from './useAutosave';
 import { setActiveFlush } from './autosaveBus';
 import { markdownToSafeHtml } from './markdown';
 import type { OutlineItem } from './outline';
+import CommentsPanel from '../comments/CommentsPanel';
+import CommentIcon from '../comments/CommentIcon';
+import FindReplaceBar, { type FindReplaceMode } from './FindReplaceBar';
+import { createFindReplacePlugin, FindReplacePluginKey } from './FindReplace';
 import './notePage.css';
 
 export default function NotePage() {
@@ -135,19 +141,28 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const [title, setTitle] = useState(initialNote.title);
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [unresolvedComments, setUnresolvedComments] = useState(0);
+  const [findMode, setFindMode] = useState<FindReplaceMode | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importKind, setImportKind] = useState<'photo' | 'slides' | 'transcript'>('photo');
   const [aiBusy, setAiBusy] = useState<string | null>(null);
+  const [aiOn] = useAiEnabled();
   const [flashcardStep, setFlashcardStep] = useState(false);
   const [flashcardBanner, setFlashcardBanner] = useState<number | null>(null);
-  const [aiWholeResult, setAiWholeResult] = useState<{ kind: 'improve' | 'summarize'; model: string; markdown: string } | null>(null);
+  const [aiWholeResult, setAiWholeResult] = useState<{ kind: 'improve' | 'summarize' | 'clean'; model: string; markdown: string } | null>(null);
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
 
   const editorRef = useRef<Editor | null>(null);
   const titleRef = useRef(title);
   titleRef.current = title;
+  // Read from the keydown handler below, which is bound once (empty dep array) — a ref keeps
+  // it seeing the latest findMode without re-subscribing the window listener every toggle.
+  const findModeRef = useRef<FindReplaceMode | null>(findMode);
+  findModeRef.current = findMode;
 
   // Snapshot of the latest editable content, refreshed on every title/doc change.
   // The autosave flush reads THIS (not the live editor) so a pending save still
@@ -228,9 +243,34 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
 
   useEffect(() => {
     function onKeyDown(e: globalThis.KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      // Esc closes the find bar even when focus isn't inside its own input (e.g. the user
+      // clicked back into the editor while it was open).
+      if (findModeRef.current && e.key === 'Escape') {
+        e.preventDefault();
+        setFindMode(null);
+        return;
+      }
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === 's') {
         e.preventDefault();
         void manualSnapshot();
+        return;
+      }
+      // Ctrl/Cmd+F and +H are bound HERE (window-scoped, only while this note page is
+      // mounted) rather than in buildExtensions.ts/FolioEditor.tsx's editorProps/keymap —
+      // those are editor-blocks' files this wave, not ours. A page-level listener also
+      // naturally satisfies "editor focused-or-page" (e.g. focus sitting in the title
+      // input still opens find) without touching lib/useShortcuts.ts.
+      if (key === 'f') {
+        e.preventDefault();
+        setFindMode('find');
+        return;
+      }
+      if (key === 'h') {
+        e.preventDefault();
+        setFindMode('replace');
       }
     }
     window.addEventListener('keydown', onKeyDown);
@@ -250,6 +290,13 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
 
   function handleEditorReady(editor: Editor) {
     editorRef.current = editor;
+    // Attach the find/replace ProseMirror plugin directly to this editor instance —
+    // registerPlugin() is how we add it without needing a slot in buildExtensions.ts's
+    // shared extensions array (editor-blocks' file). Guard against double-registration:
+    // React 18 StrictMode's mount→cleanup→mount can call this twice for the same editor.
+    if (!FindReplacePluginKey.get(editor.state)) {
+      editor.registerPlugin(createFindReplacePlugin());
+    }
     capturePending();
     setWordCount(editor.storage.characterCount?.words() ?? 0);
     setCharCount(editor.storage.characterCount?.characters() ?? 0);
@@ -320,6 +367,19 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
       setAiBusy(null);
     }
   }
+  /** Clean: formatting-only pass — structure improves, the student's wording stays. */
+  async function handleClean(close: () => void) {
+    close();
+    setAiBusy('clean');
+    try {
+      const res = await api.aiClean(note.id);
+      setAiWholeResult({ kind: 'clean', model: res.model, markdown: res.markdown });
+    } catch (e) {
+      aiError(e);
+    } finally {
+      setAiBusy(null);
+    }
+  }
   async function handleTitleSuggest(close: () => void) {
     close();
     setAiBusy('title');
@@ -354,6 +414,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   function applyImprove() {
     if (!aiWholeResult || !editorRef.current) return;
     const editor = editorRef.current;
+    const isClean = aiWholeResult.kind === 'clean';
     api
       .snapshot(note.id)
       .catch(() => {})
@@ -361,8 +422,18 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
         const html = markdownToSafeHtml(aiWholeResult.markdown);
         editor.commands.setContent(html, { emitUpdate: true });
         setAiWholeResult(null);
-        toast('Improved note applied', 'ok');
+        toast(isClean ? 'Formatting cleaned up' : 'Improved note applied', 'ok');
       });
+  }
+
+  /** Assistant "Add to note": append the gap analysis as a callout at the end —
+   *  the ONLY way the assistant ever writes into a note, and the student clicked it. */
+  function insertAssistantNotes(markdown: string) {
+    const ed = editorRef.current;
+    if (!ed || ed.isDestroyed) return;
+    const bodyHtml = markdownToSafeHtml(markdown);
+    const calloutHtml = `<div data-type="callout" data-emoji="🧭" data-tone="info"><h2>Assistant: gaps to fill</h2>${bodyHtml}</div>`;
+    ed.chain().focus('end').insertContent(calloutHtml).run();
   }
   function applySummary() {
     if (!aiWholeResult || !editorRef.current) return;
@@ -428,48 +499,59 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
               <Icon name={note.pinned ? 'pin-filled' : 'pin'} size={15} />
             </button>
 
-            <DropdownButton
-              label={
-                <>
-                  <Icon name="sparkles" size={14} /> {aiBusy ? 'AI…' : 'AI'}
-                </>
-              }
-              disabled={!!aiBusy}
-            >
-              {(close) => (
-                <>
-                  <button type="button" onClick={() => handleImprove(close)}>
-                    Improve writing
-                  </button>
-                  <button type="button" onClick={() => handleSummarize(close)}>
-                    Summarize
-                  </button>
-                  {!flashcardStep ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFlashcardStep(true);
-                      }}
-                    >
-                      Generate flashcards
+            {aiOn && (
+              <DropdownButton
+                label={
+                  <>
+                    <Icon name="sparkles" size={14} /> {aiBusy ? 'AI…' : 'AI'}
+                  </>
+                }
+                disabled={!!aiBusy}
+              >
+                {(close) => (
+                  <>
+                    <button type="button" onClick={() => handleClean(close)}>
+                      Clean up formatting
                     </button>
-                  ) : (
-                    <div className="folio-flashcard-count">
-                      <span>How many?</span>
-                      {[5, 8, 12].map((n) => (
-                        <button key={n} type="button" onClick={() => handleFlashcards(n, close)}>
-                          {n}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <button type="button" onClick={() => handleTitleSuggest(close)}>
-                    Suggest title
-                  </button>
-                </>
-              )}
-            </DropdownButton>
+                    <button type="button" onClick={() => handleImprove(close)}>
+                      Improve writing
+                    </button>
+                    <button type="button" onClick={() => handleSummarize(close)}>
+                      Summarize
+                    </button>
+                    {!flashcardStep ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFlashcardStep(true);
+                        }}
+                      >
+                        Generate flashcards
+                      </button>
+                    ) : (
+                      <div className="folio-flashcard-count">
+                        <span>How many?</span>
+                        {[5, 8, 12].map((n) => (
+                          <button key={n} type="button" onClick={() => handleFlashcards(n, close)}>
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <button type="button" onClick={() => handleTitleSuggest(close)}>
+                      Suggest title
+                    </button>
+                  </>
+                )}
+              </DropdownButton>
+            )}
+
+            {aiOn && (
+              <button type="button" className="folio-btn" onClick={() => setAssistantOpen(true)} data-testid="assistant-open">
+                Assistant
+              </button>
+            )}
 
             <DropdownButton label="Import into note">
               {(close) => (
@@ -486,6 +568,19 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
                 </>
               )}
             </DropdownButton>
+
+            <div className="folio-comments-toggle-wrap">
+              <button
+                type="button"
+                className={`folio-btn-icon${commentsOpen ? ' active' : ''}`}
+                aria-label="Comments"
+                title="Comments"
+                onClick={() => setCommentsOpen((v) => !v)}
+              >
+                <CommentIcon size={15} />
+                {unresolvedComments > 0 && <span className="folio-comments-badge">{unresolvedComments}</span>}
+              </button>
+            </div>
 
             <button type="button" className="folio-btn" onClick={() => setHistoryOpen(true)}>
               History
@@ -574,18 +669,50 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
 
       <HistoryPanel noteId={note.id} open={historyOpen} onClose={() => setHistoryOpen(false)} onRestored={resyncFromServer} />
 
+      <CommentsPanel
+        noteId={note.id}
+        open={commentsOpen}
+        onClose={() => setCommentsOpen(false)}
+        editor={editorRef.current}
+        onUnresolvedCountChange={setUnresolvedComments}
+      />
+
+      {findMode && editorRef.current && (
+        <FindReplaceBar
+          key={note.id}
+          editor={editorRef.current}
+          mode={findMode}
+          onModeChange={setFindMode}
+          onClose={() => setFindMode(null)}
+        />
+      )}
+
+      <AssistantPanel
+        noteId={note.id}
+        attachments={note.attachments}
+        open={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+        onInsert={insertAssistantNotes}
+      />
+
       {aiWholeResult && (
         <AiPreviewModal
           open
           onClose={() => setAiWholeResult(null)}
-          heading={aiWholeResult.kind === 'improve' ? 'AI: Improve writing' : 'AI: Summarize'}
+          heading={
+            aiWholeResult.kind === 'improve'
+              ? 'AI: Improve writing'
+              : aiWholeResult.kind === 'clean'
+                ? 'AI: Clean up formatting'
+                : 'AI: Summarize'
+          }
           model={aiWholeResult.model}
-          before={aiWholeResult.kind === 'improve' ? note.contentText.slice(0, 600) : null}
+          before={aiWholeResult.kind !== 'summarize' ? note.contentText.slice(0, 600) : null}
           afterMarkdown={aiWholeResult.markdown}
           actions={[
-            aiWholeResult.kind === 'improve'
-              ? { label: 'Apply', primary: true, onClick: applyImprove }
-              : { label: 'Insert summary', primary: true, onClick: applySummary },
+            aiWholeResult.kind === 'summarize'
+              ? { label: 'Insert summary', primary: true, onClick: applySummary }
+              : { label: 'Apply', primary: true, onClick: applyImprove },
           ]}
         />
       )}

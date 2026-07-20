@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { NotebooksProvider, useNotebooks } from './components/NotebooksContext';
 import Sidebar from './components/Sidebar';
 import QuickSwitcher from './components/QuickSwitcher';
+import CommandPalette from './components/CommandPalette';
 import { Toaster, toast } from './components/Toast';
 import Icon from './components/Icon';
 import Tooltip from './components/Tooltip';
@@ -55,6 +56,10 @@ function AppShell() {
   const [collapsed, setCollapsed] = useState(getPersistedCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  // Lifted out of Sidebar so the command palette's "Open phone capture QR"
+  // command can trigger the same modal Sidebar's footer button opens.
+  const [qrOpen, setQrOpen] = useState(false);
   const sidebarWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -135,6 +140,7 @@ function AppShell() {
     onNewNote: handleNewNote,
     onFocusSearch: () => setQuickSwitcherOpen(true),
     onToggleSidebar: () => setCollapsed((c) => !c),
+    onCommandPalette: () => setCommandPaletteOpen((o) => !o),
   });
 
   return (
@@ -175,6 +181,10 @@ function AppShell() {
             onOpenSearch={() => setQuickSwitcherOpen(true)}
             onNewNote={handleNewNote}
             currentNotebookId={params.notebookId}
+            qrOpen={qrOpen}
+            onOpenQr={() => setQrOpen(true)}
+            onCloseQr={() => setQrOpen(false)}
+            onOpenCommandPalette={() => setCommandPaletteOpen(true)}
           />
         </div>
 
@@ -201,6 +211,12 @@ function AppShell() {
         open={quickSwitcherOpen}
         onClose={() => setQuickSwitcherOpen(false)}
         currentNotebookId={params.notebookId}
+      />
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onToggleSidebar={() => setCollapsed((c) => !c)}
+        onOpenPhoneCapture={() => setQrOpen(true)}
       />
       <ImportModalHost />
     </>

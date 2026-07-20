@@ -197,27 +197,261 @@
   line-height: 1.5;
 }
 
-.heatmap {
+/* --- "This week" Mon-Sun grid (iteration 2, replaces the 14-day heatmap) --- */
+.week-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.week-grid__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 4px;
+  padding: 5px 2px 6px;
+  border-radius: 6px;
+  transition: background-color var(--dur) var(--ease-out);
 }
-.heatmap__cell {
-  aspect-ratio: 1;
-  border-radius: 4px;
-  background: var(--bg-hover);
-  transition: transform var(--dur-fast);
+.week-grid__day.is-today {
+  background: var(--accent-soft);
 }
-.heatmap__cell:hover {
-  transform: scale(1.15);
+.week-grid__label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
-.heatmap__legend {
+.week-grid__dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: 2px;
+  min-height: 12px;
+  width: 100%;
+}
+.week-grid__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.week-grid__dot--empty {
+  width: 4px;
+  height: 4px;
+  background: var(--line);
+}
+.week-grid__count {
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--ink-2);
+  min-height: 12px;
+  line-height: 1;
+}
+
+/* --- Weekly review checklist card (iteration 2) --- */
+.review-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.review-checklist__item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.3;
+}
+.review-checklist__box {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1.5px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ok);
+  transition: border-color var(--dur-fast), background-color var(--dur-fast);
+}
+.review-checklist__box.is-done {
+  border-color: var(--ok);
+  background: var(--accent-soft);
+}
+.review-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+.review-suggestions__item {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.review-suggestions__item::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--accent);
+}
+
+/* --- "Pick up where you left off" recall row (iteration 2) --- */
+.recall-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin: 0 -2px;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+.recall-card {
+  position: relative;
+  min-width: 240px;
+  flex: 0 0 240px;
+  height: 172px;
+  perspective: 1200px;
+}
+.recall-card__inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  /* A touch slower than the app's standard 120-160ms micro-interactions (matches the
+     precedent set by the study review card's own 3D flip) so the flip itself reads. */
+  transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.recall-card.is-flipped .recall-card__inner {
+  transform: rotateY(180deg);
+}
+.recall-card__face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  padding: 14px 16px;
+  backface-visibility: hidden;
+  font-family: inherit;
+  color: inherit;
+}
+.recall-card__face--front {
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+}
+.recall-card__face--front:hover,
+.recall-card__face--front:focus-visible {
+  border-color: var(--ink-3);
+  box-shadow: var(--shadow-1);
+}
+.recall-card__face--back {
+  transform: rotateY(180deg);
+  overflow: hidden;
+}
+.recall-card__emoji {
+  font-size: 18px;
+  line-height: 1;
+}
+.recall-card__label {
   font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--ink-3);
+}
+.recall-card__title {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.recall-card__meta {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.recall-card__hint {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--accent);
+}
+.recall-card__quiz-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.recall-card__question {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-y: auto;
+}
+.recall-card__question--small {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.recall-card__answer {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  overflow-y: auto;
+}
+.recall-card__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+}
+.recall-card__actions .btn {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12px;
+  justify-content: center;
+}
+.recall-card__back-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background-color var(--dur-fast), color var(--dur-fast);
+}
+.recall-card__back-btn:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
 }
 
 .rail-stats {
@@ -431,5 +665,14 @@
   .note-strip .note-card {
     min-width: 200px;
     flex: 0 0 min(230px, 78vw);
+  }
+  .recall-card {
+    min-width: 200px;
+    flex: 0 0 min(240px, 78vw);
+  }
+  /* This week's 7-column grid gets tight below ~360px of usable width; drop the numeric
+     count (the colored dots + today-highlight still carry the signal) rather than wrap. */
+  .week-grid__count {
+    display: none;
   }
 }

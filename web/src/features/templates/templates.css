@@ -1,0 +1,213 @@
+/* templates-nb — TemplatePicker grid/manage view, SaveAsTemplateModal form, and the
+   NotebookPage "New note" split button. Tokens-only colors, 120-160ms transitions,
+   matches the rest of the design system (see docs/FRONTEND.md). */
+
+/* --- New note split button (NotebookPage) --- */
+.btn-split {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 1px;
+}
+.btn-split__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.btn-split__chevron {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding-left: 9px;
+  padding-right: 9px;
+}
+
+/* --- template picker grid --- */
+.tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+@media (max-width: 480px) {
+  .tpl-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tpl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.tpl-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.tpl-card:active {
+  transform: translateY(1px);
+}
+.tpl-card--skeleton {
+  cursor: default;
+}
+.tpl-card--skeleton:hover {
+  border-color: var(--line);
+  background: var(--bg);
+}
+
+.tpl-card__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.tpl-card__emoji {
+  font-size: 18px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+.tpl-card__name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpl-card__desc {
+  font-size: 12px;
+  color: var(--ink-2);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tpl-card__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 9px;
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  min-height: 52px;
+}
+.tpl-card__preview-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-size: 11px;
+}
+.tpl-card__preview-line.lvl-1 {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.tpl-card__preview-line.lvl-2 {
+  font-weight: 600;
+  color: var(--ink);
+  padding-left: 4px;
+}
+.tpl-card__preview-line.lvl-3 {
+  padding-left: 10px;
+}
+.tpl-card__preview-empty {
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--ink-3);
+}
+
+.tpl-manage-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  padding: 4px 2px;
+  border-radius: 6px;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.tpl-manage-link:hover {
+  color: var(--accent);
+}
+
+/* --- manage view --- */
+.tpl-manage-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.tpl-manage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.tpl-manage-row:last-child {
+  border-bottom: none;
+}
+.tpl-manage-row__emoji {
+  font-size: 17px;
+  flex: 0 0 auto;
+}
+.tpl-manage-row__main {
+  flex: 1;
+  min-width: 0;
+}
+.tpl-manage-row__name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.tpl-manage-row__badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--bg-hover);
+  border-radius: 999px;
+  padding: 1px 7px;
+  letter-spacing: 0.02em;
+}
+.tpl-manage-row__desc {
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpl-manage-row__confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* --- save-as-template form --- */
+.tpl-save-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tpl-save-form__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.tpl-save-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}

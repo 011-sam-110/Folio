@@ -1,0 +1,146 @@
+/* search-tags agent — /tags page. Tokens-only; dark parity comes for free
+   since every value below is a var() already themed in tokens.css. */
+
+.tg-page {
+  padding: 26px clamp(20px, 4vw, 44px) 72px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.tg-page__crumb {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+
+.tg-page__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.tg-page__title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+.tg-page__count {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* --- tag cloud (split pill: toggle + search-away link) --- */
+.tg-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tg-row {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  overflow: hidden;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.tg-row:hover {
+  border-color: var(--ink-3);
+}
+.tg-row.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tg-row__toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 6px 6px 13px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.tg-row.is-active .tg-row__toggle {
+  color: var(--accent);
+}
+.tg-row__name {
+  font-weight: 600;
+  line-height: 1;
+}
+.tg-row__count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-3);
+  background: var(--bg-hover);
+  border-radius: 999px;
+  padding: 2px 7px;
+  line-height: 1.4;
+}
+.tg-row.is-active .tg-row__count {
+  color: var(--accent);
+  background: var(--bg);
+}
+
+.tg-row__search-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 11px;
+  color: var(--ink-3);
+  border-left: 1px solid var(--line);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.tg-row__search-link:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+.tg-row.is-active .tg-row__search-link {
+  border-left-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+}
+
+.tg-row--skeleton {
+  height: 30px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+
+/* --- active filter summary --- */
+.tg-active-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 18px 0 4px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.tg-active-filters .chip {
+  gap: 6px;
+}
+.tg-clear {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 4px 6px;
+}
+.tg-clear:hover {
+  color: var(--danger);
+}
+
+.tg-results {
+  margin-top: 22px;
+}
+
+@media (max-width: 640px) {
+  .tg-page {
+    padding: 20px 16px 56px;
+  }
+}

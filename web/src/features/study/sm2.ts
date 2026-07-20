@@ -33,3 +33,20 @@ export function nextIntervalHints(reps: number): Record<Rating, string> {
     easy: formatDays(good * 1.9),
   };
 }
+
+/** Formats a FUTURE ISO timestamp as "in Xm/Xh/Xd/Xmo" (or 'now' if already due).
+ *  `lib/format.ts`'s `relativeTime` only handles the past (it clamps negative deltas
+ *  to 0 → always "just now"), so due-status chips and "next due" hints need this
+ *  forward-looking counterpart instead. */
+export function formatDueIn(iso: string): string {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return 'soon';
+  if (ms <= 0) return 'now';
+  const minutes = ms / 60_000;
+  if (minutes < 60) return `in ${Math.max(1, Math.round(minutes))}m`;
+  const hours = ms / 3_600_000;
+  if (hours < 24) return `in ${Math.round(hours)}h`;
+  const days = ms / 86_400_000;
+  if (days < 30) return `in ${Math.round(days)}d`;
+  return `in ${Math.round(days / 30)}mo`;
+}

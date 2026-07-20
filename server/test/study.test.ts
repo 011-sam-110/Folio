@@ -104,6 +104,61 @@ describe('GET /api/study/queue', () => {
   });
 });
 
+describe('POST /api/study/cards — manual creation', () => {
+  it('creates a card linked to a note with fresh SM-2 defaults, due now', async () => {
+    const notebookId = insertNotebook();
+    const noteId = insertNote(notebookId, 'Manual card note');
+
+    const res = await request(app).post('/api/study/cards').send({ noteId, question: 'What is Big-O?', answer: 'Growth rate bound.' });
+    expect(res.status).toBe(201);
+    expect(res.body.card.question).toBe('What is Big-O?');
+    expect(res.body.card.answer).toBe('Growth rate bound.');
+    expect(res.body.card.noteId).toBe(noteId);
+    expect(res.body.card.noteTitle).toBe('Manual card note');
+    expect(res.body.card.reps).toBe(0);
+    expect(res.body.card.suspended).toBe(false);
+
+    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(res.body.card.id) as any;
+    expect(row.ease).toBe(2.5);
+    expect(row.interval_days).toBe(0);
+    expect(new Date(row.due_at).getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('creates a card with no note (noteId omitted)', async () => {
+    const res = await request(app).post('/api/study/cards').send({ question: 'Standalone Q?', answer: 'Standalone A.' });
+    expect(res.status).toBe(201);
+    expect(res.body.card.noteId).toBeNull();
+    expect(res.body.card.noteTitle).toBeUndefined();
+  });
+
+  it('rejects an empty question with 400', async () => {
+    const res = await request(app).post('/api/study/cards').send({ question: '   ', answer: 'A.' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an empty answer with 400', async () => {
+    const res = await request(app).post('/api/study/cards').send({ question: 'Q?', answer: '' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an unknown noteId with 400', async () => {
+    const res = await request(app).post('/api/study/cards').send({ noteId: 'does-not-exist', question: 'Q?', answer: 'A.' });
+    expect(res.status).toBe(400);
+  });
+
+  it('a newly created card appears in the review queue immediately', async () => {
+    const notebookId = insertNotebook();
+    const noteId = insertNote(notebookId);
+
+    const create = await request(app).post('/api/study/cards').send({ noteId, question: 'Queue me?', answer: 'Yes.' });
+    expect(create.status).toBe(201);
+
+    const queue = await request(app).get('/api/study/queue');
+    expect(queue.status).toBe(200);
+    expect(queue.body.cards.some((c: any) => c.id === create.body.card.id)).toBe(true);
+  });
+});
+
 describe('POST /api/study/review — SM-2 rating transitions', () => {
   it('again: resets reps and interval to 0, drops ease by 0.2 (floor 1.3), logs a lapse, due in ~1 minute', async () => {
     const notebookId = insertNotebook();

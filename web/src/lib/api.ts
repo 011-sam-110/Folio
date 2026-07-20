@@ -80,6 +80,9 @@ export const api = {
   aiFlashcards: (noteId: string, count?: number) => http<{ cards: Flashcard[] }>('/api/ai/flashcards', json('POST', { noteId, count })),
   aiAsk: (question: string, notebookId?: string) => http<{ answer: string; sources: Array<{ id: string; title: string }>; model: string }>('/api/ai/ask', json('POST', { question, notebookId })),
   aiTitle: (noteId: string) => http<{ title: string }>('/api/ai/title', json('POST', { noteId })),
+  aiClean: (noteId: string) => http<{ markdown: string; model: string }>('/api/ai/clean', json('POST', { noteId })),
+  aiGaps: (noteId: string) =>
+    http<{ markdown: string; model: string; sources: Array<{ name: string; kind: string }> }>('/api/ai/gaps', json('POST', { noteId })),
   aiHealth: () => http<{ ok: boolean; model?: string; error?: string }>('/api/meta/ai-health'),
 
   // import

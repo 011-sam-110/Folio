@@ -1,12 +1,13 @@
 // The '/' command palette's item catalog: what each entry inserts, and how it's filtered.
 import type { Editor } from '@tiptap/core';
 import { pickAndInsertImage } from './imageUpload';
+import { buildColumnsContent } from './Columns';
 
 export interface SlashCommandContext {
   onTableOfContents?: () => void;
 }
 
-export type SlashSection = 'Basic' | 'Lists' | 'Media' | 'Advanced';
+export type SlashSection = 'Basic' | 'Lists' | 'Media' | 'Layout' | 'Advanced';
 
 export interface SlashItem {
   id: string;
@@ -128,6 +129,24 @@ export const SLASH_ITEMS: SlashItem[] = [
     icon: '▦',
     section: 'Media',
     run: (e, r) => del(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+  },
+  {
+    id: 'columns-2',
+    title: '2 columns',
+    description: 'Side-by-side layout',
+    icon: '❘❘',
+    section: 'Layout',
+    keywords: ['column', 'columns', 'layout', 'side by side'],
+    run: (e, r) => del(e, r).insertContent(buildColumnsContent(2)).run(),
+  },
+  {
+    id: 'columns-3',
+    title: '3 columns',
+    description: 'Three-way side-by-side layout',
+    icon: '❘❘❘',
+    section: 'Layout',
+    keywords: ['column', 'columns', 'layout', 'side by side'],
+    run: (e, r) => del(e, r).insertContent(buildColumnsContent(3)).run(),
   },
   {
     id: 'callout',

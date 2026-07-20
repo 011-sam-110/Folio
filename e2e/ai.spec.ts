@@ -144,4 +144,40 @@ test.describe('AI features (real gateway)', () => {
     await expect(sources.first()).toBeVisible({ timeout: 5_000 });
     expect(await sources.count()).toBeGreaterThanOrEqual(1);
   });
+
+  test('Assistant panel finds gaps without rewriting the note', async ({ page, request }) => {
+    test.setTimeout(180_000);
+    await ensureAiHealthy(request);
+
+    const notebook = await apiCreateNotebook(request, uniqueName('E2E Assistant Notebook'));
+    // Deliberately thin note (only 2 of the 4 deadlock conditions) so there ARE gaps.
+    const note = await apiCreateNote(request, notebook.id, uniqueName('Assistant Gap Source'), {
+      contentText:
+        'Deadlock needs mutual exclusion (a resource is held by one process at a time) and circular wait (a closed chain of processes each waiting on the next).',
+    });
+
+    await page.goto(`/note/${note.id}`);
+    await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
+    const editorTextBefore = (await page.getByTestId(TESTIDS.noteEditor).textContent()) ?? '';
+
+    await page.getByTestId('assistant-open').click();
+    const panel = page.getByTestId('assistant-panel');
+    await expect(panel).toBeVisible({ timeout: 5_000 });
+    await panel.getByTestId('assistant-find-gaps').click();
+
+    const result = panel.getByTestId('assistant-result');
+    await expect
+      .poll(
+        async () => {
+          const text = await result.textContent({ timeout: 2_000 }).catch(() => '');
+          return (text ?? '').trim().length;
+        },
+        { timeout: 95_000, message: 'assistant never produced a gap analysis' },
+      )
+      .toBeGreaterThan(40);
+
+    // The assistant NEVER writes the note by itself.
+    const editorTextAfter = (await page.getByTestId(TESTIDS.noteEditor).textContent()) ?? '';
+    expect(editorTextAfter).toBe(editorTextBefore);
+  });
 });
