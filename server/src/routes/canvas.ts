@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db, newId, nowIso, tx } from '../db.js';
 import { userId } from '../auth/middleware.js';
+import { recordNoteEvent } from '../lib/events.js';
 
 const router = Router();
 
@@ -316,6 +317,10 @@ router.post('/:noteId/ink', async (req, res) => {
       created.push(id);
     }
   });
+  // Mirror of the /share ink route: publish so a guest on the link sees the
+  // owner's strokes. No-ops when the note isn't shared.
+  if (created.length) await recordNoteEvent(noteId, 'ink', { ids: created }, uid);
+
   res.status(201).json({ ids: created });
 });
 

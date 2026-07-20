@@ -4,6 +4,7 @@ import { userId } from '../auth/middleware.js';
 import { noteLite, noteFull, wordCountOf, type NoteRow } from '../lib/serialize.js';
 import { syncLinksForNote, renameWikilinksToTitle, resyncNotesReferencingTitle } from '../lib/links.js';
 import { tiptapToMarkdown, type TTNode } from '../lib/export.js';
+import { recordNoteEvent } from '../lib/events.js';
 
 const router = Router();
 
@@ -353,6 +354,16 @@ router.patch('/:id', async (req, res) => {
   }
 
   const updated = (await getNoteRow(uid, row.id))!;
+
+  // Publish to the note's change feed so anyone on a share link sees the owner's
+  // edit. No-ops for unshared notes — see lib/events.ts.
+  await recordNoteEvent(
+    row.id,
+    'doc',
+    { title: b.title !== undefined ? newTitle : null },
+    uid,
+  );
+
   res.json({ note: await noteFull(updated) });
 });
 

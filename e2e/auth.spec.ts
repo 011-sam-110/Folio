@@ -10,7 +10,14 @@
 import { expect, test, uniqueEmail, TEST_PASSWORD } from './auth.fixture';
 import { apiCreateNote, apiCreateNotebook, exact, sidebarNav, uniqueName } from './utils';
 
-/** No cookies: every test below starts as a stranger. */
+/**
+ * No cookies: every test below starts as a stranger.
+ *
+ * IMPORTANT: create accounts with the standalone `request` fixture, never with
+ * `page.context().request` — the latter SHARES the browser's cookie jar, so a
+ * setup signup through it silently signs the browser in and the login wall these
+ * specs exist to test never appears.
+ */
 test.use({ storageState: { cookies: [], origins: [] } });
 
 /** Fills and submits the signup form, returning the recovery key it reveals. */
@@ -46,15 +53,14 @@ async function leaveRecoveryPanel(page: import('@playwright/test').Page) {
 }
 
 test.describe('The login wall', () => {
-  test('a signed-out visitor is redirected to /login and returned to where they were headed', async ({ page }) => {
+  test('a signed-out visitor is redirected to /login and returned to where they were headed', async ({ page, request }) => {
     await page.goto('/study');
     await page.waitForURL(/\/login/, { timeout: 10_000 });
     await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 
     // Sign in from here; the guard remembered the destination.
     const email = uniqueEmail('wall');
-    const context = await page.context().request;
-    const created = await context.post('/api/auth/signup', {
+    const created = await request.post('/api/auth/signup', {
       data: { email, password: TEST_PASSWORD },
     });
     expect(created.status()).toBe(201);
@@ -104,11 +110,11 @@ test.describe('Signup', () => {
     await expect(page.getByLabel('Your recovery key')).toHaveCount(0);
   });
 
-  test('rejects a duplicate email and a too-short password without creating anything', async ({ page }) => {
+  test('rejects a duplicate email and a too-short password without creating anything', async ({ page, request }) => {
     const email = uniqueEmail('dupe');
 
     // Establish the account through the API so this test is about the FORM's handling.
-    const res = await page.context().request.post('/api/auth/signup', {
+    const res = await request.post('/api/auth/signup', {
       data: { email, password: TEST_PASSWORD },
     });
     expect(res.status()).toBe(201);
@@ -130,9 +136,9 @@ test.describe('Signup', () => {
 });
 
 test.describe('Login and logout', () => {
-  test('signs in, and signing out puts the wall back up', async ({ page }) => {
+  test('signs in, and signing out puts the wall back up', async ({ page, request }) => {
     const email = uniqueEmail('login');
-    const res = await page.context().request.post('/api/auth/signup', {
+    const res = await request.post('/api/auth/signup', {
       data: { email, password: TEST_PASSWORD, displayName: 'Round Tripper' },
     });
     expect(res.status()).toBe(201);
@@ -156,9 +162,10 @@ test.describe('Login and logout', () => {
 
   test('a wrong password is refused with one message that does not reveal whether the email exists', async ({
     page,
+    request,
   }) => {
     const email = uniqueEmail('badpass');
-    await page.context().request.post('/api/auth/signup', { data: { email, password: TEST_PASSWORD } });
+    await request.post('/api/auth/signup', { data: { email, password: TEST_PASSWORD } });
 
     await page.goto('/login');
     await page.getByLabel('Email').fill(email);
@@ -261,7 +268,7 @@ test.describe('Recovery key redemption', () => {
 });
 
 test.describe('Tenancy', () => {
-  test("one account cannot see or open another account's notes", async ({ page, browser }) => {
+  test("one account cannot see or open another account's notes", async ({ page, browser, request }) => {
     // Account A, with a note only it should know about.
     const ownerEmail = uniqueEmail('owner');
     const ownerCtx = await browser.newContext();
@@ -279,7 +286,7 @@ test.describe('Tenancy', () => {
 
       // Account B, in this test's own browser context.
       const intruderEmail = uniqueEmail('intruder');
-      const signedUp = await page.context().request.post('/api/auth/signup', {
+      const signedUp = await request.post('/api/auth/signup', {
         data: { email: intruderEmail, password: TEST_PASSWORD },
       });
       expect(signedUp.status()).toBe(201);

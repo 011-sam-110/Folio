@@ -227,6 +227,23 @@ test.describe('AI kill-switch', () => {
     const notebook = await apiCreateNotebook(request, uniqueName('E2E AI Toggle Notebook'));
     const note = await apiCreateNote(request, notebook.id, uniqueName('AI Toggle Note'));
 
+    // AI affordances are now gated on BOTH the user's preference and live gateway
+    // health (web/src/lib/aiStatus.ts — useAiAvailable). GET /api/meta/ai-health
+    // performs a real completion against the free gateway, so under load it can
+    // answer 'bad' and hide every AI control before this spec has touched anything.
+    //
+    // The subject here is the PREFERENCE switch, not gateway reachability, so health
+    // is pinned to healthy. That keeps the test deterministic without weakening it —
+    // the assertions about what the toggle does are unchanged, and the real gateway
+    // is still exercised for real in ai.spec.ts.
+    await page.route('**/api/meta/ai-health', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, model: 'e2e-stub' }),
+      }),
+    );
+
     await page.goto(`/note/${note.id}`);
     await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
 

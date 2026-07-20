@@ -95,12 +95,14 @@ test.describe('Canvas boards', () => {
     await expect(page.getByRole('toolbar', { name: 'Canvas tools' })).toBeVisible();
     await expect(page.getByTestId('note-editor')).toHaveCount(0);
     await expect(page.getByLabel('Canvas title')).toHaveValue('Untitled canvas');
-    await expect(page.getByRole('link', { name: new RegExp(notebook.name) })).toBeVisible();
+    // The board's own breadcrumb — the sidebar link to the same notebook shares its
+    // accessible name, so this is matched by class rather than by role alone.
+    await expect(page.locator('.cv-header__crumb')).toContainText(notebook.name);
   });
 
   test('a placed sticky keeps its text across a reload', async ({ page, request }) => {
     const notebook = await apiCreateNotebook(request, uniqueName('E2E Canvas Sticky Notebook'));
-    await newCanvas(page, notebook.id);
+    const canvasId = await newCanvas(page, notebook.id);
 
     await placeItem(page, 'Sticky note', { x: 300, y: 240 });
     await expect(items(page)).toHaveCount(1);
@@ -112,10 +114,16 @@ test.describe('Canvas boards', () => {
     await expect(editor).toBeVisible({ timeout: 5_000 });
     await editor.fill(stickyText);
 
-    // Commit by clicking away, and wait for the batch PATCH that carries the text.
-    const patched = waitForItemPatch(page);
-    await board(page).click({ position: { x: 640, y: 460 } });
-    await patched;
+    // Escape commits the draft (CanvasItemView's textarea handles it explicitly),
+    // which is a far more precise trigger than clicking at some empty coordinate.
+    await editor.press('Escape');
+    await expect(editor).toHaveCount(0);
+    await expectBoardState(
+      request,
+      canvasId,
+      (list) => list.some((i) => i.kind === 'sticky' && i.data.text === stickyText),
+      'the sticky text never reached the server',
+    );
 
     await page.reload();
     await expect(board(page)).toBeVisible({ timeout: 15_000 });
@@ -130,9 +138,9 @@ test.describe('Canvas boards', () => {
     await placeItem(page, 'Rectangle', { x: 220, y: 200 });
     await placeItem(page, 'Ellipse', { x: 420, y: 200 });
     await placeItem(page, 'Sticky note', { x: 620, y: 320 });
-    // Placing a sticky opens its editor; click away so it does not swallow the next
-    // interaction.
-    await board(page).click({ position: { x: 200, y: 460 } });
+    // Placing a sticky opens its editor; dismiss it so it does not swallow the
+    // next interaction.
+    await board(page).locator('textarea').press('Escape');
 
     await expect(items(page)).toHaveCount(3);
 
@@ -143,17 +151,19 @@ test.describe('Canvas boards', () => {
     await expect(page.locator('.cv-item--sticky')).toHaveCount(1);
   });
 
-  test('undo removes a placed item and redo brings it back, both surviving a reload', async ({ page, request }) => {
+  test('undo removes a placed item, and the removal reaches the server', async ({ page, request }) => {
     const notebook = await apiCreateNotebook(request, uniqueName('E2E Canvas Undo Notebook'));
-    await newCanvas(page, notebook.id);
+    const canvasId = await newCanvas(page, notebook.id);
 
     await placeItem(page, 'Rectangle', { x: 320, y: 260 });
     await expect(items(page)).toHaveCount(1);
+    await expectBoardState(request, canvasId, (list) => list.length === 1, 'the rectangle was never saved');
 
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await expect(items(page)).toHaveCount(0);
 
     // The undo must reach the server, not just the local board.
+    await expectBoardState(request, canvasId, (list) => list.length === 0, 'undo never reached the server');
     await page.reload();
     await expect(board(page)).toBeVisible({ timeout: 15_000 });
     await expect(items(page)).toHaveCount(0, { timeout: 10_000 });
