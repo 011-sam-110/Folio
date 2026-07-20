@@ -15,7 +15,9 @@ export function AuthShell({
   title: string;
   subtitle: string;
   children: ReactNode;
-  footer: ReactNode;
+  // Optional: the recovery-key screens deliberately offer no way to navigate
+  // away, since leaving loses the key permanently.
+  footer?: ReactNode;
 }) {
   const [theme, , toggleTheme] = useTheme();
 
@@ -44,7 +46,7 @@ export function AuthShell({
         {children}
       </main>
 
-      <p className="auth-alt">{footer}</p>
+      {footer ? <p className="auth-alt">{footer}</p> : null}
     </div>
   );
 }
