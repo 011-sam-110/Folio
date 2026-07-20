@@ -14,6 +14,7 @@ import Skeleton from '../../components/Skeleton';
 import Icon from '../../components/Icon';
 import NoteCard from '../../components/NoteCard';
 import FolioEditor from './FolioEditor';
+import TagEditor from './TagEditor';
 import OutlinePane from './OutlinePane';
 import HistoryPanel from './HistoryPanel';
 import AssistantPanel from './AssistantPanel';
@@ -29,6 +30,8 @@ import CommentsPanel from '../comments/CommentsPanel';
 import CommentIcon from '../comments/CommentIcon';
 import FindReplaceBar, { type FindReplaceMode } from './FindReplaceBar';
 import { createFindReplacePlugin, FindReplacePluginKey } from './FindReplace';
+import { createHashtagPlugin, HashtagPluginKey } from './HashtagExtension';
+import { extractHashtags, normalizeTags, unionTags, invalidateTagVocabulary } from '../../lib/tags';
 import './notePage.css';
 
 export default function NotePage() {
@@ -133,12 +136,29 @@ interface NoteWorkspaceProps {
   initialBacklinks: NoteLite[];
 }
 
+/**
+ * Split a note's persisted tags into the two authoring routes that produced them.
+ * Anything currently written as a #hashtag in the body belongs to the body (its
+ * chip is read-only); everything else was added explicitly in the chip editor.
+ * Doing this on load is what stops a hashtag from "graduating" into an explicit
+ * chip that the user could remove but the next save would resurrect.
+ */
+function splitTags(tags: readonly string[], contentText: string) {
+  const fromBody = extractHashtags(contentText);
+  const explicit = normalizeTags(tags).filter((t) => !fromBody.includes(t));
+  return { explicit, fromBody };
+}
+
 function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const navigate = useNavigate();
   const [note, setNote] = useState(initialNote);
   const [backlinks, setBacklinks] = useState(initialBacklinks);
   const [unlinked, setUnlinked] = useState<NoteLite[] | null>(null);
   const [title, setTitle] = useState(initialNote.title);
+  // Lazy initialisers — splitTags re-scans the whole body, so it must run once per
+  // mounted note, not on every render.
+  const [tags, setTags] = useState<string[]>(() => splitTags(initialNote.tags, initialNote.contentText).explicit);
+  const [bodyTags, setBodyTags] = useState<string[]>(() => extractHashtags(initialNote.contentText));
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -159,6 +179,12 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const editorRef = useRef<Editor | null>(null);
   const titleRef = useRef(title);
   titleRef.current = title;
+  // Mirrors of the tag state, for the same reason titleRef exists: capturePending is a
+  // stable callback (empty deps) and must read the LATEST tags without being rebuilt.
+  const tagsRef = useRef(tags);
+  tagsRef.current = tags;
+  const bodyTagsRef = useRef(bodyTags);
+  bodyTagsRef.current = bodyTags;
   // Read from the keydown handler below, which is bound once (empty dep array) — a ref keeps
   // it seeing the latest findMode without re-subscribing the window listener every toggle.
   const findModeRef = useRef<FindReplaceMode | null>(findMode);
@@ -168,15 +194,29 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   // The autosave flush reads THIS (not the live editor) so a pending save still
   // completes on blur/unmount even after the editor instance has been torn down
   // (e.g. the user inserts a wikilink and immediately clicks it to navigate away).
-  const pendingRef = useRef<{ title: string; contentJson: unknown; contentText: string } | null>(null);
+  const pendingRef = useRef<{ title: string; contentJson: unknown; contentText: string; tags: string[] } | null>(null);
 
   const capturePending = useCallback(() => {
     const ed = editorRef.current;
     if (!ed) return;
+    const contentText = ed.getText({ blockSeparator: '\n' });
+    // Inline #hashtags are real tags, so they are re-parsed from the body on every
+    // capture and unioned with the explicit chips here — at the single point where
+    // the autosave payload is built. That is what makes the two authoring routes
+    // ("type #revision" / "add a chip") converge on one tags array, saved by the
+    // debounce, retry and beforeunload machinery that already exists.
+    const fromBody = extractHashtags(contentText);
+    // Only touch React state when the set actually changed: this runs on every
+    // keystroke, and a fresh array each time would re-render the chip row constantly.
+    if (fromBody.join(' ') !== bodyTagsRef.current.join(' ')) {
+      bodyTagsRef.current = fromBody;
+      setBodyTags(fromBody);
+    }
     pendingRef.current = {
       title: titleRef.current,
       contentJson: ed.getJSON(),
-      contentText: ed.getText({ blockSeparator: '\n' }),
+      contentText,
+      tags: unionTags(tagsRef.current, fromBody),
     };
   }, []);
 
@@ -184,7 +224,13 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     note.id,
     () => pendingRef.current,
     (savedNote) => {
-      setNote((prev) => ({ ...prev, updatedAt: savedNote.updatedAt, tags: savedNote.tags }));
+      setNote((prev) => {
+        // A save that changed the tag set changed the app-wide vocabulary too, so
+        // drop the autocomplete cache — otherwise a tag you just invented stays
+        // missing from the suggestions for up to its TTL.
+        if (prev.tags.join(' ') !== savedNote.tags.join(' ')) invalidateTagVocabulary();
+        return { ...prev, updatedAt: savedNote.updatedAt, tags: savedNote.tags };
+      });
     },
   );
 
@@ -220,8 +266,19 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
         ed.commands.setContent(fresh.contentJson as Record<string, unknown>, { emitUpdate: false });
       }
       // Re-seed the autosave snapshot from the fresh content so a later flush sends this,
-      // not the stale pre-restore doc.
-      pendingRef.current = { title: fresh.title, contentJson: fresh.contentJson, contentText: fresh.contentText };
+      // not the stale pre-restore doc. Tags are re-split from the restored body for the
+      // same reason: a restore can add or remove #hashtags, and the chip row must follow.
+      const split = splitTags(fresh.tags, fresh.contentText);
+      tagsRef.current = split.explicit;
+      setTags(split.explicit);
+      bodyTagsRef.current = split.fromBody;
+      setBodyTags(split.fromBody);
+      pendingRef.current = {
+        title: fresh.title,
+        contentJson: fresh.contentJson,
+        contentText: fresh.contentText,
+        tags: unionTags(split.explicit, split.fromBody),
+      };
       api.unlinkedMentions(note.id).then((r) => setUnlinked(r.notes)).catch(() => {});
     } catch {
       toast('Could not refresh the note — reload to see the latest', 'error');
@@ -297,6 +354,12 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     if (!FindReplacePluginKey.get(editor.state)) {
       editor.registerPlugin(createFindReplacePlugin());
     }
+    // Same registerPlugin route (and the same StrictMode double-mount guard) for the
+    // inline #hashtag decorations — see HashtagExtension.ts for why it lives here
+    // rather than in buildExtensions.ts's shared array.
+    if (!HashtagPluginKey.get(editor.state)) {
+      editor.registerPlugin(createHashtagPlugin(openTag));
+    }
     capturePending();
     setWordCount(editor.storage.characterCount?.words() ?? 0);
     setCharCount(editor.storage.characterCount?.characters() ?? 0);
@@ -325,6 +388,21 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
       e.preventDefault();
       editorRef.current?.commands.focus('start');
     }
+  }
+
+  /** A chip was added or removed — same dirty/debounce path a keystroke takes, so
+   *  tag edits inherit the retry, the flush-on-blur and the beforeunload keepalive
+   *  instead of racing them with a PATCH of their own. */
+  function handleTagsChange(next: string[]) {
+    tagsRef.current = next; // set before capturePending, which reads the ref
+    setTags(next);
+    capturePending();
+    autosave.schedule();
+  }
+
+  /** Chip / Ctrl+clicked #hashtag → that tag's filtered view on the tags page. */
+  function openTag(tag: string) {
+    navigate(`/tags?tag=${encodeURIComponent(tag)}`);
   }
 
   async function togglePin() {
@@ -626,6 +704,8 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
             onChange={handleTitleChange}
             onKeyDown={handleTitleKeyDown}
           />
+
+          <TagEditor tags={tags} autoTags={bodyTags} onChange={handleTagsChange} onOpenTag={openTag} />
 
           <AttachmentStrip attachments={note.attachments} />
 

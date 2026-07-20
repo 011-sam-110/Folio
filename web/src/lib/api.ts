@@ -1,7 +1,7 @@
 import type {
   DashboardData, Flashcard, ImportJob, MetaInfo, Note, NoteLite, NotebookLite, Notebook,
   NoteComment, NoteVersion, NoteVersionMeta, SearchParsed, SearchResult, StudyStats,
-  Template, TitleResult,
+  Template, TitleResult, User,
 } from './types';
 
 export class ApiError extends Error {
@@ -12,10 +12,27 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Session-expiry hook. A 401 from any non-auth endpoint means the session cookie
+ * expired or was revoked (e.g. a password change elsewhere), and every caller
+ * would otherwise render its own half-broken error state. AuthContext registers a
+ * handler here and turns the event into a single redirect to /login.
+ */
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(fn: UnauthorizedHandler | null): void {
+  unauthorizedHandler = fn;
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
   const isJson = res.headers.get('content-type')?.includes('application/json');
   if (!res.ok) {
+    // The auth endpoints own their 401s — a wrong password and the signed-out /me
+    // probe are both expected answers, not expired sessions — so they must not
+    // trip the global handler and bounce the user mid-login.
+    if (res.status === 401 && !path.startsWith('/api/auth/')) unauthorizedHandler?.();
     let msg = `${res.status} ${res.statusText}`;
     if (isJson) {
       const body = await res.json().catch(() => null);
@@ -33,6 +50,16 @@ const json = (method: string, body: unknown): RequestInit => ({
 });
 
 export const api = {
+  // auth — no tokens are passed or returned: the session is an httpOnly cookie the
+  // browser attaches automatically on these same-origin requests.
+  signup: (b: { email: string; password: string; displayName?: string }) =>
+    http<{ user: User }>('/api/auth/signup', json('POST', b)),
+  login: (b: { email: string; password: string }) => http<{ user: User }>('/api/auth/login', json('POST', b)),
+  logout: () => http<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  me: () => http<{ user: User }>('/api/auth/me'),
+  changePassword: (b: { currentPassword: string; newPassword: string }) =>
+    http<{ ok: true }>('/api/auth/password', json('POST', b)),
+
   // notebooks
   notebooks: () => http<{ notebooks: Notebook[] }>('/api/notebooks'),
   createNotebook: (b: { name: string; emoji?: string; color?: string }) => http<{ notebook: Notebook }>('/api/notebooks', json('POST', b)),
@@ -72,6 +99,14 @@ export const api = {
 
   // tags + dashboard
   tags: () => http<{ tags: Array<{ tag: string; count: number }> }>('/api/tags'),
+  /** Rename across every note. Renaming onto an existing tag merges into it. */
+  renameTag: (tag: string, next: string) =>
+    http<{ ok: true; tag: string; updated: number }>(`/api/tags/${encodeURIComponent(tag)}`, json('PATCH', { tag: next })),
+  /** Strip a tag from every note (the notes themselves are untouched). */
+  deleteTag: (tag: string) =>
+    http<{ ok: true; tag: string; updated: number }>(`/api/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' }),
+  mergeTags: (from: string[], into: string) =>
+    http<{ ok: true; tag: string; merged: string[]; updated: number }>('/api/tags/merge', json('POST', { from, into })),
   dashboard: () => http<DashboardData>('/api/dashboard'),
 
   // AI

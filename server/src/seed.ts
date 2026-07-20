@@ -1,12 +1,23 @@
-// Seed script — creates a realistic 2nd-year CompSci vault so the app has something
-// worth looking at on first run. Safe to rerun: skips (with a message) if the DB
-// already has notebooks, unless --force is passed (which wipes and recreates).
+// Seeding — two separate jobs that happen to share this file's content helpers.
 //
-// Run: npm run seed -w server        (or: npm run seed -w server -- --force)
+//  1. `seedNewUser(userId)` — called by POST /api/auth/signup. Gives a brand-new
+//     account a starter notebook and makes sure the shared built-in templates exist,
+//     so the app is never a dead-end empty screen on first login.
+//  2. The demo vault (`seedDemoVault`) — a realistic 2nd-year CompSci vault, run from
+//     the CLI so a dev install has something worth looking at.
+//
+// The vault used to run at import time. It cannot any more: routes/auth.ts imports
+// `seedNewUser` from this module, so a top-level `main()` would seed 15 demo notes on
+// every server boot. It is now behind an "am I the entry point?" guard.
+//
+// Run the demo vault: npm run seed -w server     (or: ... -- --force)
 
-import { db, newId } from './db.js';
+import { pathToFileURL } from 'node:url';
+import { db, migrate, newId, nowIso, tx } from './db.js';
 import { markdownToTipTap, markdownToPlainText, stripLeadingTitleHeading } from './lib/markdown.js';
 import { syncLinksForNote } from './lib/links.js';
+import { seedBuiltinTemplates } from './routes/templates.js';
+import { hashPassword } from './auth/password.js';
 
 const FORCE = process.argv.includes('--force');
 
@@ -798,16 +809,77 @@ const bigODraftV2 = L(
 // Seed run
 // ---------------------------------------------------------------------------------
 
-function main() {
-  const existing = (db.prepare('SELECT COUNT(*) as c FROM notebooks').get() as { c: number }).c;
-  if (existing > 0 && !FORCE) {
-    console.log('[seed] Database already has notebooks — skipping (pass --force to wipe and reseed).');
-    return;
-  }
+/**
+ * Everything a brand-new account needs to land somewhere usable: one starter notebook,
+ * plus the shared built-in templates.
+ *
+ * Idempotent. The built-ins are install-wide (user_id NULL, fixed ids, ON CONFLICT DO
+ * NOTHING inside `seedBuiltinTemplates`) rather than copied per account — schema.sql
+ * defines a NULL user_id as "visible to everyone", and per-user copies would show up
+ * twice in the templates list next to the shared rows. The starter notebook is skipped
+ * if the account already has one, so a retried signup cannot produce duplicates.
+ */
+export async function seedNewUser(userId: string): Promise<void> {
+  // Signup is the first thing that touches the DB on a cold serverless instance, so do
+  // not assume a boot path already migrated. Both calls are memoised no-ops afterwards.
+  await migrate();
+  await seedBuiltinTemplates();
 
-  const run = db.transaction(() => {
+  const existing = await db
+    .prepare('SELECT 1 AS present FROM notebooks WHERE user_id = ? LIMIT 1')
+    .get<{ present: number }>(userId);
+  if (existing) return;
+
+  await db
+    .prepare(
+      `INSERT INTO notebooks (id, user_id, name, emoji, color, position, archived, created_at)
+       VALUES (?, ?, ?, ?, ?, 0, 0, ?)`,
+    )
+    .run(newId(), userId, 'My notes', '📓', '#6366f1', nowIso());
+}
+
+// ---------------------------------------------------------------------------------
+// Demo vault (CLI only)
+// ---------------------------------------------------------------------------------
+
+const DEMO_EMAIL = 'demo@folio.local';
+
+/** Find or create the demo account the CLI vault is seeded into. */
+async function ensureDemoUser(): Promise<string> {
+  const existing = await db
+    .prepare('SELECT id FROM users WHERE lower(email) = ?')
+    .get<{ id: string }>(DEMO_EMAIL);
+  if (existing) return existing.id;
+
+  const id = newId();
+  const { hash, salt } = await hashPassword('folio-demo-password');
+  await db
+    .prepare(
+      `INSERT INTO users (id, email, display_name, password_hash, password_salt, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(id, DEMO_EMAIL, 'Demo student', hash, salt, isoAgo(45 * DAY));
+  console.log(`[seed] Created demo account ${DEMO_EMAIL} (password: folio-demo-password)`);
+  return id;
+}
+
+/**
+ * Insert the demo vault for `uid`. Every row is stamped with that owner — the vault is
+ * one user's notebook set now, not a global singleton, so nothing here may fall back to
+ * a "the only user" assumption.
+ */
+export async function seedDemoVault(uid: string): Promise<void> {
+  const notebookIds = new Map<string, string>();
+  const noteIds = new Map<string, string>();
+  const noteTexts = new Map<string, string>();
+
+  await tx(async (t) => {
+    // `t`, never the module-level `db`: `db` draws a different pooled connection and
+    // would run outside this transaction.
     if (FORCE) {
-      db.exec('DELETE FROM notebooks'); // cascades notes -> versions/tags/links/flashcards/review_log
+      // Scoped to this user — a --force reseed must not wipe other accounts' notebooks.
+      // Cascades to notes -> versions/tags/links/flashcards/review_log.
+      await t.prepare('DELETE FROM notebooks WHERE user_id = ?').run(uid);
     }
 
     // --- Notebooks ---------------------------------------------------------------
@@ -818,19 +890,13 @@ function main() {
       { key: 'se', name: 'Software Engineering', emoji: '🧩', color: '#7c3aed' },
       { key: 'personal', name: 'Personal', emoji: '✨', color: '#db2777' },
     ];
-    const notebookIds = new Map<string, string>();
-    notebookDefs.forEach((nb, i) => {
+    for (const [i, nb] of notebookDefs.entries()) {
       const id = newId();
-      db.prepare('INSERT INTO notebooks (id, name, emoji, color, position, archived, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)').run(
-        id,
-        nb.name,
-        nb.emoji,
-        nb.color,
-        i,
-        isoAgo(45 * DAY),
-      );
+      await t.prepare(
+        'INSERT INTO notebooks (id, user_id, name, emoji, color, position, archived, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
+      ).run(id, uid, nb.name, nb.emoji, nb.color, i, isoAgo(45 * DAY));
       notebookIds.set(nb.key, id);
-    });
+    }
 
     // --- Notes ---------------------------------------------------------------------
     interface NoteSeed {
@@ -862,11 +928,10 @@ function main() {
       { key: 'flatHunting', notebook: 'personal', title: 'Flat Hunting Notes', markdown: flatHuntingMarkdown, tags: [], createdAt: isoAgo(1 * DAY), updatedAt: isoAgo(3 * HOUR) },
     ];
 
-    const noteIds = new Map<string, string>();
-    const noteTexts = new Map<string, string>();
-
     // Pre-assign ids and build a title→id map so wikilinks in each note's markdown resolve
-    // to real note ids at conversion time (forward references included).
+    // to real note ids at conversion time (forward references included). This local map is
+    // also why the vault does not need links.ts's async resolver — every title it can
+    // resolve belongs to this same user by construction.
     const idByTitle = new Map<string, string>();
     for (const def of noteDefs) {
       const id = newId();
@@ -881,28 +946,27 @@ function main() {
       const body = stripLeadingTitleHeading(def.markdown, def.title);
       const contentJson = JSON.stringify(markdownToTipTap(body, resolveTitle));
       const contentText = markdownToPlainText(body);
-      db.prepare(
-        `INSERT INTO notes (id, notebook_id, title, content_json, content_text, pinned, archived, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-      ).run(id, notebookIds.get(def.notebook), def.title, contentJson, contentText, def.pinned ? 1 : 0, def.createdAt, def.updatedAt);
+      await t.prepare(
+        `INSERT INTO notes (id, user_id, notebook_id, title, content_json, content_text, pinned, archived, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      ).run(id, uid, notebookIds.get(def.notebook), def.title, contentJson, contentText, def.pinned ? 1 : 0, def.createdAt, def.updatedAt);
 
-      if (def.tags.length) {
-        const tagStmt = db.prepare('INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)');
-        for (const t of def.tags) tagStmt.run(id, t);
+      // Postgres has no `INSERT OR IGNORE`; ON CONFLICT DO NOTHING on the (note_id, tag) PK.
+      for (const tag of def.tags) {
+        await t
+          .prepare('INSERT INTO note_tags (note_id, tag) VALUES (?, ?) ON CONFLICT DO NOTHING')
+          .run(id, tag);
       }
 
       noteTexts.set(def.key, contentText);
     }
 
-    // Resolve wikilinks now that every note (and title) exists.
-    for (const [key, id] of noteIds) {
-      syncLinksForNote(id, noteTexts.get(key) ?? '');
-    }
-
     // --- Version history (3 versions on the Big-O note) -----------------------------
     const bigOId = noteIds.get('bigO')!;
-    const insertVersion = (markdown: string, cause: string, label: string | null, createdAt: string) => {
-      db.prepare('INSERT INTO note_versions (note_id, title, content_json, cause, label, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+    const insertVersion = async (markdown: string, cause: string, label: string | null, createdAt: string) => {
+      await t.prepare(
+        'INSERT INTO note_versions (note_id, title, content_json, cause, label, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      ).run(
         bigOId,
         'Big-O Notation & Complexity Analysis',
         JSON.stringify(markdownToTipTap(markdown)),
@@ -911,43 +975,84 @@ function main() {
         createdAt,
       );
     };
-    insertVersion(bigODraftV1, 'autosave', null, isoAgo(41 * DAY - 1 * HOUR));
-    insertVersion(bigODraftV2, 'autosave', null, isoAgo(40 * DAY + 12 * HOUR));
-    insertVersion(bigOMarkdown, 'manual', 'Before exam prep pass', isoAgo(40 * DAY + 2 * HOUR));
+    await insertVersion(bigODraftV1, 'autosave', null, isoAgo(41 * DAY - 1 * HOUR));
+    await insertVersion(bigODraftV2, 'autosave', null, isoAgo(40 * DAY + 12 * HOUR));
+    await insertVersion(bigOMarkdown, 'manual', 'Before exam prep pass', isoAgo(40 * DAY + 2 * HOUR));
 
     // --- Flashcards (12 total, 6 due now) --------------------------------------------
-    const insertCard = (noteKey: string, question: string, answer: string, dueAt: string, reps: number, intervalDays: number) => {
+    const insertCard = async (noteKey: string, question: string, answer: string, dueAt: string, reps: number, intervalDays: number) => {
       const id = newId();
-      db.prepare(
-        `INSERT INTO flashcards (id, note_id, question, answer, ease, interval_days, reps, lapses, due_at, suspended, created_at)
-         VALUES (?, ?, ?, ?, 2.5, ?, ?, 0, ?, 0, ?)`,
-      ).run(id, noteIds.get(noteKey), question, answer, intervalDays, reps, dueAt, isoAgo(5 * DAY));
+      await t.prepare(
+        `INSERT INTO flashcards (id, user_id, note_id, question, answer, ease, interval_days, reps, lapses, due_at, suspended, created_at)
+         VALUES (?, ?, ?, ?, ?, 2.5, ?, ?, 0, ?, 0, ?)`,
+      ).run(id, uid, noteIds.get(noteKey), question, answer, intervalDays, reps, dueAt, isoAgo(5 * DAY));
     };
 
     // Due now (past due_at)
-    insertCard('bigO', 'What is the time complexity of binary search?', 'O(log n) — each comparison halves the remaining search space.', isoAgo(2 * HOUR), 0, 0);
-    insertCard('bigO', "What does O(n²) typically indicate about an algorithm's structure?", 'Nested iteration over the same input, e.g. two nested loops each running n times.', isoAgo(6 * HOUR), 0, 0);
-    insertCard('sorting', 'What is the average-case time complexity of quicksort?', 'O(n log n), degrading to O(n²) worst case with a poor pivot choice.', isoAgo(1 * HOUR), 0, 0);
-    insertCard('btrees', 'What is the minimum degree property of a B-tree of order t?', 'Every node except the root must have at least t-1 keys, and every node can have at most 2t-1 keys.', isoAgo(30 * 60 * 1000), 0, 0);
-    insertCard('normalisation', 'What defines Second Normal Form (2NF)?', 'The table is in 1NF and every non-key attribute is fully functionally dependent on the whole primary key (no partial dependency).', isoAgo(4 * HOUR), 0, 0);
-    insertCard('cpuScheduling', 'What is the main drawback of First-Come-First-Served (FCFS) scheduling?', 'The convoy effect — short jobs can be stuck waiting behind one long job, increasing average waiting time.', isoAgo(10 * HOUR), 0, 0);
+    await insertCard('bigO', 'What is the time complexity of binary search?', 'O(log n) — each comparison halves the remaining search space.', isoAgo(2 * HOUR), 0, 0);
+    await insertCard('bigO', "What does O(n²) typically indicate about an algorithm's structure?", 'Nested iteration over the same input, e.g. two nested loops each running n times.', isoAgo(6 * HOUR), 0, 0);
+    await insertCard('sorting', 'What is the average-case time complexity of quicksort?', 'O(n log n), degrading to O(n²) worst case with a poor pivot choice.', isoAgo(1 * HOUR), 0, 0);
+    await insertCard('btrees', 'What is the minimum degree property of a B-tree of order t?', 'Every node except the root must have at least t-1 keys, and every node can have at most 2t-1 keys.', isoAgo(30 * 60 * 1000), 0, 0);
+    await insertCard('normalisation', 'What defines Second Normal Form (2NF)?', 'The table is in 1NF and every non-key attribute is fully functionally dependent on the whole primary key (no partial dependency).', isoAgo(4 * HOUR), 0, 0);
+    await insertCard('cpuScheduling', 'What is the main drawback of First-Come-First-Served (FCFS) scheduling?', 'The convoy effect — short jobs can be stuck waiting behind one long job, increasing average waiting time.', isoAgo(10 * HOUR), 0, 0);
 
     // Due in the future (already reviewed at least once)
-    insertCard('sorting', 'Why is merge sort considered stable?', 'Equal elements retain their relative order because the merge step always takes from the left sub-array first when values are equal.', isoIn(3 * DAY), 1, 1);
-    insertCard('sqlJoins', 'What does an INNER JOIN return?', 'Only the rows that have matching values in both joined tables.', isoIn(1 * DAY), 1, 1);
-    insertCard('acid', "What does the 'I' in ACID stand for and what does it guarantee?", 'Isolation — concurrent transactions produce the same result as if they ran serially.', isoIn(5 * DAY), 2, 4);
-    insertCard('deadlock', 'Name the four necessary conditions for deadlock.', 'Mutual exclusion, hold and wait, no preemption, circular wait.', isoIn(2 * DAY), 1, 1);
-    insertCard('solid', "What does the 'O' in SOLID stand for?", 'Open/Closed Principle — software entities should be open for extension but closed for modification.', isoIn(7 * DAY), 2, 6);
-    insertCard('designPatterns', 'What problem does the Observer pattern solve?', 'It lets an object (subject) notify a list of dependents (observers) automatically when its state changes, without tightly coupling them.', isoIn(4 * DAY), 1, 1);
+    await insertCard('sorting', 'Why is merge sort considered stable?', 'Equal elements retain their relative order because the merge step always takes from the left sub-array first when values are equal.', isoIn(3 * DAY), 1, 1);
+    await insertCard('sqlJoins', 'What does an INNER JOIN return?', 'Only the rows that have matching values in both joined tables.', isoIn(1 * DAY), 1, 1);
+    await insertCard('acid', "What does the 'I' in ACID stand for and what does it guarantee?", 'Isolation — concurrent transactions produce the same result as if they ran serially.', isoIn(5 * DAY), 2, 4);
+    await insertCard('deadlock', 'Name the four necessary conditions for deadlock.', 'Mutual exclusion, hold and wait, no preemption, circular wait.', isoIn(2 * DAY), 1, 1);
+    await insertCard('solid', "What does the 'O' in SOLID stand for?", 'Open/Closed Principle — software entities should be open for extension but closed for modification.', isoIn(7 * DAY), 2, 6);
+    await insertCard('designPatterns', 'What problem does the Observer pattern solve?', 'It lets an object (subject) notify a list of dependents (observers) automatically when its state changes, without tightly coupling them.', isoIn(4 * DAY), 1, 1);
   });
 
-  run();
-
-  const notebooks = (db.prepare('SELECT COUNT(*) as c FROM notebooks').get() as { c: number }).c;
-  const notes = (db.prepare('SELECT COUNT(*) as c FROM notes').get() as { c: number }).c;
-  const flashcards = (db.prepare('SELECT COUNT(*) as c FROM flashcards').get() as { c: number }).c;
-  const links = (db.prepare('SELECT COUNT(*) as c FROM links').get() as { c: number }).c;
-  console.log(`[seed] Done — ${notebooks} notebooks, ${notes} notes, ${links} links, ${flashcards} flashcards.`);
+  // Wikilink resolution runs AFTER the commit: syncLinksForNote opens its own transaction
+  // on the pool, so calling it inside the block above would have executed outside that
+  // transaction anyway — and its title lookups need every note to be visible.
+  for (const [key, id] of noteIds) {
+    await syncLinksForNote(uid, id, noteTexts.get(key) ?? '');
+  }
 }
 
-main();
+async function main(): Promise<void> {
+  await migrate();
+  const uid = await ensureDemoUser();
+
+  const existing = await db
+    .prepare('SELECT COUNT(*) as c FROM notebooks WHERE user_id = ?')
+    .get<{ c: number }>(uid);
+  if ((existing?.c ?? 0) > 0 && !FORCE) {
+    console.log('[seed] Demo account already has notebooks — skipping (pass --force to wipe and reseed).');
+    return;
+  }
+
+  await seedDemoVault(uid);
+  await seedBuiltinTemplates();
+
+  const count = async (table: string) =>
+    (await db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE user_id = ?`).get<{ c: number }>(uid))?.c ?? 0;
+  // `links` carries no user_id, so it is counted through its from-note instead.
+  const links =
+    (
+      await db
+        .prepare('SELECT COUNT(*) as c FROM links l JOIN notes n ON n.id = l.from_note_id WHERE n.user_id = ?')
+        .get<{ c: number }>(uid)
+    )?.c ?? 0;
+  console.log(
+    `[seed] Done — ${await count('notebooks')} notebooks, ${await count('notes')} notes, ${links} links, ${await count('flashcards')} flashcards.`,
+  );
+}
+
+// Only run the demo vault when this file IS the process entry point. routes/auth.ts
+// imports `seedNewUser` from here on every boot, and an unguarded call would reseed
+// 15 demo notes each time the server started.
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (invokedDirectly) {
+  main().then(
+    () => process.exit(0),
+    (err) => {
+      console.error('[seed] failed:', err);
+      process.exit(1);
+    },
+  );
+}

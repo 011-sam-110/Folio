@@ -17,6 +17,10 @@ export interface AutosavePayload {
   title: string;
   contentJson: unknown;
   contentText: string;
+  /** Explicit chips ∪ body #hashtags. Riding in the same payload (rather than a
+   *  separate PATCH) is what makes tag edits share the debounce, the retry/backoff
+   *  and the beforeunload keepalive already proven for title and content. */
+  tags?: string[];
 }
 
 const RETRY_BASE_MS = 2_000;

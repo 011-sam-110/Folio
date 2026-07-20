@@ -429,6 +429,24 @@ a.folio-wikilink:hover {
   text-decoration: underline;
 }
 
+/* Inline #hashtags (HashtagExtension.ts). Deliberately quieter than a wikilink: a
+   tag is metadata sitting inside a sentence, so it gets accent ink and a soft wash
+   but none of the wikilink's chip-like weight, and the text keeps its normal
+   selection/caret behaviour because this is a decoration over ordinary text. */
+.folio-hashtag {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 0.02em 0.18em;
+  font-weight: 500;
+}
+
+.folio-hashtag:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
 /* Unresolved wikilink (target note doesn't exist yet): visually distinct from valid links —
    muted color + dashed underline — and clicking offers to create the note. */
 a.folio-wikilink--missing {

@@ -19,6 +19,7 @@ import ConfirmDialog from './ConfirmDialog';
 import Modal from './Modal';
 import Spinner from './Spinner';
 import Skeleton from './Skeleton';
+import AccountMenu from '../features/auth/AccountMenu';
 
 const NOTEBOOK_PALETTE = [
   { name: 'Gray', hex: '#78716c' },
@@ -363,6 +364,8 @@ export default function Sidebar({
           </form>
         )}
       </div>
+
+      <AccountMenu />
 
       <div className="sidebar__footer">
         <Tooltip content={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>

@@ -40,6 +40,8 @@ export type IconName =
   | 'rotate-ccw'
   | 'link'
   | 'sparkles-off'
+  | 'lock'
+  | 'log-out'
   | 'smile';
 
 const paths: Record<IconName, ReactNode> = {
@@ -250,6 +252,19 @@ const paths: Record<IconName, ReactNode> = {
       <circle cx="7.3" cy="10.5" r="1.1" fill="currentColor" stroke="none" />
       <circle cx="9.5" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
       <circle cx="14.5" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="4" y="10.5" width="16" height="10.5" rx="2" />
+      <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+    </>
+  ),
+  'log-out': (
+    <>
+      <path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3" />
+      <polyline points="15.5 16.5 20 12 15.5 7.5" />
+      <line x1="20" y1="12" x2="9.5" y2="12" />
     </>
   ),
   smile: (

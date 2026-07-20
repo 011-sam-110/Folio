@@ -3,16 +3,22 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import { UPLOADS_DIR } from '../config.js';
-import { db, newId, nowIso } from '../db.js';
+import { db, tx, newId, nowIso } from '../db.js';
+import { userId } from '../auth/middleware.js';
 import { chat, AiError, capForAi } from '../ai/client.js';
 import { ocrPhotoPrompt, slidesRestructurePrompt, transcriptNotesPrompt, improvePrompt, titlePrompt, cleanTitle } from '../ai/prompts.js';
 import { extractFromUpload } from '../lib/extract.js';
 import { markdownToTipTap, markdownToPlainText, stripLeadingTitleHeading } from '../lib/markdown.js';
-import { syncLinksForNote, resolveNoteIdByTitle } from '../lib/links.js';
+import { syncLinksForNote, createTitleResolver } from '../lib/links.js';
 import { createJob, updateJob, getJob } from '../lib/jobs.js';
 import type { NoteRow } from '../lib/serialize.js';
 
 const router = Router();
+
+// Auth is mounted once, in app.ts (`app.use('/api/import', requireAuth, ...)`), so this
+// router does not add its own guard — one layer means one place to audit and one session
+// lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
+// failure mode is a loud 500, never an unscoped query.
 
 const MAX_SIZE = 25 * 1024 * 1024;
 
@@ -43,6 +49,9 @@ function fileFilter(_req: Request, file: Express.Multer.File, cb: multer.FileFil
   cb(new Error(`Unsupported file type: ${file.mimetype || ext || 'unknown'}`));
 }
 
+// Uploads still land on local disk and are served from /uploads. attachments.bytes exists in
+// the Postgres schema for the serverless case (no durable disk) but is deliberately left unset
+// here — moving the payload into the row is a separate change.
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
   filename: (_req, file, cb) => cb(null, `${newId()}${safeExt(file.originalname, file.mimetype)}`),
@@ -89,8 +98,8 @@ export function kindAccepts(kind: ImportKind, mime: string, name: string): boole
   );
 }
 
-function markAttachment(id: string, status: string): void {
-  db.prepare('UPDATE attachments SET status = ? WHERE id = ?').run(status, id);
+async function markAttachment(id: string, status: string, uid: string): Promise<void> {
+  await db.prepare('UPDATE attachments SET status = ? WHERE id = ? AND user_id = ?').run(status, id, uid);
 }
 
 function firstHeading(markdown: string): string {
@@ -101,11 +110,14 @@ function firstHeading(markdown: string): string {
 // Re-exported for the unit tests; lives in lib/markdown.ts so seed.ts shares it.
 export { stripLeadingTitleHeading };
 
+
 // --- Per-note write serialization (fix: concurrent import writes to the same note) -------
-// better-sqlite3 is synchronous, but import jobs run async (extraction + AI awaits before
-// the write). Two jobs (or an import racing a live PATCH) targeting one note could otherwise
+// Import jobs run async (extraction + AI awaits before the write), and every DB call is now
+// async too. Two jobs (or an import racing a live PATCH) targeting one note could otherwise
 // interleave read → await → write and clobber each other. A per-note promise chain forces
-// them through one at a time; each write itself re-reads fresh content inside a transaction.
+// them through one at a time. It only covers this process, so it is a fast path rather than
+// the guarantee: each write also re-reads fresh content under SELECT ... FOR UPDATE, which
+// holds across connections (and across serverless instances).
 const noteLocks = new Map<string, Promise<unknown>>();
 export function withNoteLock<T>(noteId: string, fn: () => Promise<T> | T): Promise<T> {
   const prev = noteLocks.get(noteId) ?? Promise.resolve();
@@ -135,51 +147,65 @@ async function resolveTitle(markdown: string, contentText: string, originalName:
   return firstHeading(markdown) || titleFromFilename(originalName);
 }
 
-async function createNoteFromMarkdown(markdown: string, notebookId: string, originalName: string): Promise<string> {
+async function createNoteFromMarkdown(markdown: string, notebookId: string, originalName: string, uid: string): Promise<string> {
   const title = await resolveTitle(markdown, markdownToPlainText(markdown), originalName);
   // Don't duplicate the title as the first body heading (fix: imported notes showed it twice).
   const body = stripLeadingTitleHeading(markdown, title);
-  const contentJson = markdownToTipTap(body, resolveNoteIdByTitle);
+  const contentJson = markdownToTipTap(body, await createTitleResolver(uid, body));
   const contentText = markdownToPlainText(body);
 
   const id = newId();
   const now = nowIso();
-  db.prepare(
-    `INSERT INTO notes (id, notebook_id, title, content_json, content_text, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, notebookId, title, JSON.stringify(contentJson), contentText, now, now);
-  syncLinksForNote(id, contentText);
+  // The owner is the session user, never anything from the request body; `notebookId` was
+  // checked against that same user before the job was queued.
+  await db.prepare(
+    `INSERT INTO notes (id, user_id, notebook_id, title, content_json, content_text, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, uid, notebookId, title, JSON.stringify(contentJson), contentText, now, now);
+  await syncLinksForNote(uid, id, contentText);
   return id;
 }
 
 /** Append extracted markdown to a note, re-reading its FRESH content inside a transaction so
  *  a concurrent write can't be clobbered. Serialized per note via withNoteLock. */
-export function appendMarkdownToNote(noteId: string, markdown: string): string {
-  const newJson = markdownToTipTap(markdown, resolveNoteIdByTitle) as { type: 'doc'; content?: unknown[] };
+export async function appendMarkdownToNote(noteId: string, markdown: string, uid: string): Promise<string> {
+  const newJson = markdownToTipTap(markdown, await createTitleResolver(uid, markdown)) as { type: 'doc'; content?: unknown[] };
   const appendText = markdownToPlainText(markdown);
-  const tx = db.transaction(() => {
-    const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) as NoteRow | undefined;
+  const mergedText = await tx(async (t) => {
+    // FOR UPDATE is what makes the re-read meaningful under Postgres: at READ COMMITTED a plain
+    // SELECT takes no lock, so another writer could commit between this read and the UPDATE —
+    // exactly the clobber this transaction exists to prevent.
+    // `user_id = ?` is the ownership check: noteId arrives from the request, so without it any
+    // signed-in user could append into someone else's note.
+    const row = await t
+      .prepare('SELECT * FROM notes WHERE id = ? AND user_id = ? FOR UPDATE')
+      .get<NoteRow>(noteId, uid);
     if (!row) throw new Error('target note no longer exists');
     const existingJson = JSON.parse(row.content_json) as { type: 'doc'; content?: unknown[] };
     const mergedContent = [...(existingJson.content ?? []), ...(newJson.content ?? [])];
     const mergedJson = { type: 'doc', content: mergedContent.length ? mergedContent : [{ type: 'paragraph' }] };
-    const mergedText = [row.content_text, appendText].filter(Boolean).join('\n\n');
-    db.prepare('UPDATE notes SET content_json = ?, content_text = ?, updated_at = ? WHERE id = ?').run(
+    const merged = [row.content_text, appendText].filter(Boolean).join('\n\n');
+    await t.prepare('UPDATE notes SET content_json = ?, content_text = ?, updated_at = ? WHERE id = ? AND user_id = ?').run(
       JSON.stringify(mergedJson),
-      mergedText,
+      merged,
       nowIso(),
       noteId,
+      uid,
     );
-    syncLinksForNote(noteId, mergedText);
+    return merged;
   });
-  tx();
+  // Runs after the commit: syncLinksForNote opens its own transaction on the pool, so calling
+  // it inside the block above would execute outside this transaction anyway.
+  await syncLinksForNote(uid, noteId, mergedText);
   return noteId;
 }
 
-async function mergeMarkdownIntoNote(noteId: string, markdown: string): Promise<string> {
+async function mergeMarkdownIntoNote(noteId: string, markdown: string, uid: string): Promise<string> {
   // Read a snapshot for the AI prompt (this is the only async step — it happens BEFORE the
   // write transaction re-reads, so the transaction can detect a concurrent change).
-  const snapshot = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) as NoteRow | undefined;
+  const snapshot = await db
+    .prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?')
+    .get<NoteRow>(noteId, uid);
   if (!snapshot) throw new Error('target note no longer exists');
 
   const combined = capForAi(
@@ -191,42 +217,53 @@ async function mergeMarkdownIntoNote(noteId: string, markdown: string): Promise<
   const { text } = await chat(improvePrompt(combined, instruction));
   const mergedMarkdown = text.trim();
 
-  const tx = db.transaction(() => {
-    const fresh = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) as NoteRow | undefined;
+  // Both branches below convert markdown to TipTap, and the resolver has to be built before the
+  // transaction opens (its lookups are async and belong on the pool, not the transaction's
+  // connection) — so resolve the titles of both candidate bodies in one pass.
+  const resolve = await createTitleResolver(uid, `${mergedMarkdown}\n${markdown}`);
+
+  const mergedText = await tx(async (t) => {
+    // Owner-scoped and FOR UPDATE for the same reasons as appendMarkdownToNote.
+    const fresh = await t
+      .prepare('SELECT * FROM notes WHERE id = ? AND user_id = ? FOR UPDATE')
+      .get<NoteRow>(noteId, uid);
     if (!fresh) throw new Error('target note no longer exists');
     // Snapshot the note as it was BEFORE this merge, per contract (cause 'import').
-    db.prepare("INSERT INTO note_versions (note_id, title, content_json, cause) VALUES (?, ?, ?, 'import')").run(
+    // note_versions has no user_id; ownership comes from `fresh` having been read under the
+    // user_id predicate above, so this can only ever version a note the caller owns.
+    await t.prepare("INSERT INTO note_versions (note_id, title, content_json, cause) VALUES (?, ?, ?, 'import')").run(
       noteId,
       fresh.title,
       fresh.content_json,
     );
 
-    let mergedText: string;
+    let merged: string;
     let mergedJsonStr: string;
     if (fresh.content_text === snapshot.content_text) {
       // No concurrent change: the AI's blended result is authoritative.
-      mergedText = markdownToPlainText(mergedMarkdown);
-      mergedJsonStr = JSON.stringify(markdownToTipTap(mergedMarkdown, resolveNoteIdByTitle));
+      merged = markdownToPlainText(mergedMarkdown);
+      mergedJsonStr = JSON.stringify(markdownToTipTap(mergedMarkdown, resolve));
     } else {
       // The note changed during the AI call — the blended result is stale. Degrade to a
       // non-destructive append of the extracted material so nothing the other writer added
       // is lost (better a slightly-less-tidy merge than silent data loss).
       const existingJson = JSON.parse(fresh.content_json) as { type: 'doc'; content?: unknown[] };
-      const addJson = markdownToTipTap(markdown, resolveNoteIdByTitle) as { type: 'doc'; content?: unknown[] };
+      const addJson = markdownToTipTap(markdown, resolve) as { type: 'doc'; content?: unknown[] };
       const content = [...(existingJson.content ?? []), ...(addJson.content ?? [])];
       mergedJsonStr = JSON.stringify({ type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] });
-      mergedText = [fresh.content_text, markdownToPlainText(markdown)].filter(Boolean).join('\n\n');
+      merged = [fresh.content_text, markdownToPlainText(markdown)].filter(Boolean).join('\n\n');
     }
 
-    db.prepare('UPDATE notes SET content_json = ?, content_text = ?, updated_at = ? WHERE id = ?').run(
+    await t.prepare('UPDATE notes SET content_json = ?, content_text = ?, updated_at = ? WHERE id = ? AND user_id = ?').run(
       mergedJsonStr,
-      mergedText,
+      merged,
       nowIso(),
       noteId,
+      uid,
     );
-    syncLinksForNote(noteId, mergedText);
+    return merged;
   });
-  tx();
+  await syncLinksForNote(uid, noteId, mergedText);
   return noteId;
 }
 
@@ -238,14 +275,16 @@ interface ProcessArgs {
   originalName: string;
   kind: ImportKind;
   mode: ImportMode;
+  /** Owner of the import — taken from the session, never from the request body. */
+  uid: string;
   notebookId?: string;
   noteId?: string;
 }
 
 async function processImport(args: ProcessArgs): Promise<void> {
-  const { jobId, attachmentId, filePath, mime, originalName, kind, mode, notebookId, noteId } = args;
+  const { jobId, attachmentId, filePath, mime, originalName, kind, mode, uid, notebookId, noteId } = args;
   updateJob(jobId, { status: 'running', step: 'Extracting text…' });
-  markAttachment(attachmentId, 'extracting');
+  await markAttachment(attachmentId, 'extracting', uid);
 
   try {
     let extractedMarkdown: string;
@@ -278,33 +317,35 @@ async function processImport(args: ProcessArgs): Promise<void> {
 
     let resultNoteId: string;
     if (mode === 'new') {
-      resultNoteId = await createNoteFromMarkdown(extractedMarkdown, notebookId!, originalName);
+      resultNoteId = await createNoteFromMarkdown(extractedMarkdown, notebookId!, originalName, uid);
     } else if (mode === 'append') {
       // Serialize per note so concurrent imports (or an import racing another append) can't
       // read-modify-write over each other.
-      resultNoteId = await withNoteLock(noteId!, () => appendMarkdownToNote(noteId!, extractedMarkdown));
+      resultNoteId = await withNoteLock(noteId!, () => appendMarkdownToNote(noteId!, extractedMarkdown, uid));
     } else {
-      resultNoteId = await withNoteLock(noteId!, () => mergeMarkdownIntoNote(noteId!, extractedMarkdown));
+      resultNoteId = await withNoteLock(noteId!, () => mergeMarkdownIntoNote(noteId!, extractedMarkdown, uid));
     }
 
-    db.prepare('UPDATE attachments SET extracted_text = ?, status = ?, note_id = ? WHERE id = ?').run(
+    await db.prepare('UPDATE attachments SET extracted_text = ?, status = ?, note_id = ? WHERE id = ? AND user_id = ?').run(
       extractedMarkdown,
       'ready',
       resultNoteId,
       attachmentId,
+      uid,
     );
     updateJob(jobId, { status: 'done', step: 'Done', noteId: resultNoteId });
   } catch (err) {
     // AiError's own message already lists which models were tried; other errors just
     // get their plain message (falling back to a generic one for non-Error throws).
     const message = err instanceof Error ? err.message : 'Import failed';
-    markAttachment(attachmentId, 'failed');
+    await markAttachment(attachmentId, 'failed', uid);
     updateJob(jobId, { status: 'failed', error: message });
   }
 }
 
 // POST /api/import — multipart: file, kind, notebookId?, noteId?, mode?
-router.post('/', handleUpload(upload.single('file')), (req, res) => {
+router.post('/', handleUpload(upload.single('file')), async (req, res) => {
+  const uid = userId(req);
   const file = req.file;
   const body = (req.body ?? {}) as { kind?: string; notebookId?: string; noteId?: string; mode?: string };
   const kind = body.kind as ImportKind | undefined;
@@ -325,21 +366,27 @@ router.post('/', handleUpload(upload.single('file')), (req, res) => {
   if ((mode === 'append' || mode === 'improve') && !noteId) return fail(400, `noteId is required for mode "${mode}"`);
 
   if (notebookId) {
-    const nb = db.prepare('SELECT id FROM notebooks WHERE id = ?').get(notebookId);
+    // Ownership: without `user_id = ?` an import could file a note into another user's notebook
+    // (and the 400-vs-success difference would leak which notebook ids exist).
+    const nb = await db.prepare('SELECT id FROM notebooks WHERE id = ? AND user_id = ?').get(notebookId, uid);
     if (!nb) return fail(400, 'unknown notebookId');
   }
   let targetNote: NoteRow | undefined;
   if (noteId) {
-    targetNote = db.prepare('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL').get(noteId) as NoteRow | undefined;
+    // Same for the append/improve target: this is the check that stops a signed-in user from
+    // pushing AI-generated text into a stranger's note by guessing its id.
+    targetNote = await db
+      .prepare('SELECT * FROM notes WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
+      .get<NoteRow>(noteId, uid);
     if (!targetNote) return fail(400, 'unknown noteId');
   }
 
   const attachmentId = newId();
   const now = nowIso();
-  db.prepare(
-    `INSERT INTO attachments (id, note_id, kind, original_name, stored_name, mime, size, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'uploaded', ?)`,
-  ).run(attachmentId, targetNote?.id ?? null, kind, file.originalname, path.basename(file.path), file.mimetype, file.size, now);
+  await db.prepare(
+    `INSERT INTO attachments (id, user_id, note_id, kind, original_name, stored_name, mime, size, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'uploaded', ?)`,
+  ).run(attachmentId, uid, targetNote?.id ?? null, kind, file.originalname, path.basename(file.path), file.mimetype, file.size, now);
 
   const jobId = newId();
   createJob(jobId, { status: 'queued', attachmentId });
@@ -354,6 +401,7 @@ router.post('/', handleUpload(upload.single('file')), (req, res) => {
       originalName: file.originalname,
       kind,
       mode,
+      uid,
       notebookId,
       noteId,
     }).catch(err => {
@@ -364,13 +412,30 @@ router.post('/', handleUpload(upload.single('file')), (req, res) => {
 });
 
 // GET /api/import/jobs/:id
-router.get('/jobs/:id', (req, res) => {
+router.get('/jobs/:id', async (req, res) => {
+  const uid = userId(req);
   const job = getJob(req.params.id);
-  if (!job) return res.status(404).json({ error: 'job not found' });
+  // Jobs live in memory and carry no user_id, so ownership is checked through the attachment
+  // the job was created for — otherwise any signed-in user could poll a stranger's import and
+  // read its resulting noteId and error text. Every job this router creates has an
+  // attachmentId; one without is not answerable and is treated as not found.
+  if (!job || !job.attachmentId) {
+    res.status(404).json({ error: 'job not found' });
+    return;
+  }
+  const owned = await db
+    .prepare('SELECT id FROM attachments WHERE id = ? AND user_id = ?')
+    .get<{ id: string }>(job.attachmentId, uid);
+  if (!owned) {
+    res.status(404).json({ error: 'job not found' });
+    return;
+  }
   res.json(job);
 });
 
 // POST /api/import/image — plain image upload for embedding in the editor.
+// No attachments row is written (the editor references the file by URL), so there is nothing
+// to scope beyond requireAuth above.
 router.post('/image', handleUpload(uploadImage.single('file')), (req, res) => {
   const file = req.file;
   if (!file) return res.status(400).json({ error: 'file is required' });

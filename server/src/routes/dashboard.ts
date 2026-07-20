@@ -1,5 +1,10 @@
 import { Router } from 'express';
 import { db, nowIso } from '../db.js';
+// Auth is mounted once, in app.ts (`app.use('/api/dashboard', requireAuth, ...)`), so this
+// router does not add its own guard — one layer means one place to audit and one session
+// lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
+// failure mode is a loud 500, never an unscoped query.
+import { userId } from '../auth/middleware.js';
 import { noteLite, wordCountOf, type NoteRow } from '../lib/serialize.js';
 
 const router = Router();
@@ -52,21 +57,32 @@ function hasSummaryMarker(node: TinyNode | null | undefined): boolean {
   return false;
 }
 
-router.get('/', (_req, res) => {
+router.get('/', async (req, res) => {
+  const uid = userId(req);
   const now = nowIso();
 
-  const recentRows = db.prepare('SELECT * FROM notes WHERE archived = 0 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 8').all() as NoteRow[];
-  const pinnedRows = db.prepare('SELECT * FROM notes WHERE archived = 0 AND deleted_at IS NULL AND pinned = 1 ORDER BY updated_at DESC').all() as NoteRow[];
+  const recentRows = (await db
+    .prepare('SELECT * FROM notes WHERE user_id = ? AND archived = 0 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 8')
+    .all(uid)) as NoteRow[];
+  const pinnedRows = (await db
+    .prepare('SELECT * FROM notes WHERE user_id = ? AND archived = 0 AND deleted_at IS NULL AND pinned = 1 ORDER BY updated_at DESC')
+    .all(uid)) as NoteRow[];
   const continueRow = recentRows[0] ?? null;
 
-  const notes = (db.prepare('SELECT COUNT(*) as c FROM notes WHERE archived = 0 AND deleted_at IS NULL').get() as { c: number }).c;
-  const notebooks = (db.prepare('SELECT COUNT(*) as c FROM notebooks').get() as { c: number }).c;
-  const activeBodies = db.prepare('SELECT content_text, content_json FROM notes WHERE archived = 0 AND deleted_at IS NULL').all() as Array<{
+  const notes = ((await db
+    .prepare('SELECT COUNT(*) as c FROM notes WHERE user_id = ? AND archived = 0 AND deleted_at IS NULL')
+    .get(uid)) as { c: number }).c;
+  const notebooks = ((await db.prepare('SELECT COUNT(*) as c FROM notebooks WHERE user_id = ?').get(uid)) as { c: number }).c;
+  const activeBodies = (await db
+    .prepare('SELECT content_text, content_json FROM notes WHERE user_id = ? AND archived = 0 AND deleted_at IS NULL')
+    .all(uid)) as Array<{
     content_text: string;
     content_json: string;
   }>;
   const words = activeBodies.reduce((sum, r) => sum + wordCountOf(r.content_text), 0);
-  const flashcardsDue = (db.prepare('SELECT COUNT(*) as c FROM flashcards WHERE suspended = 0 AND due_at <= ?').get(now) as {
+  const flashcardsDue = ((await db
+    .prepare('SELECT COUNT(*) as c FROM flashcards WHERE user_id = ? AND suspended = 0 AND due_at <= ?')
+    .get(uid, now)) as {
     c: number;
   }).c;
 
@@ -82,31 +98,45 @@ router.get('/', (_req, res) => {
   const counts = new Map<string, number>(days.map(d => [d, 0]));
   const since = earliestLocalStart.toISOString(); // UTC lower bound covering the earliest local day
 
-  const versionDates = db.prepare('SELECT created_at FROM note_versions WHERE created_at >= ?').all(since) as Array<{ created_at: string }>;
+  // note_versions has no user_id, so ownership comes from the parent note. Without this
+  // join the heatmap would count every user's edits, not the signed-in student's.
+  const versionDates = (await db
+    .prepare('SELECT nv.created_at as created_at FROM note_versions nv JOIN notes n ON n.id = nv.note_id WHERE n.user_id = ? AND nv.created_at >= ?')
+    .all(uid, since)) as Array<{ created_at: string }>;
   for (const v of versionDates) {
     const day = localDayStr(new Date(v.created_at));
     if (counts.has(day)) counts.set(day, (counts.get(day) ?? 0) + 1);
   }
-  const noteUpdateDates = db.prepare('SELECT updated_at FROM notes WHERE updated_at >= ? AND deleted_at IS NULL').all(since) as Array<{ updated_at: string }>;
+  const noteUpdateDates = (await db
+    .prepare('SELECT updated_at FROM notes WHERE user_id = ? AND updated_at >= ? AND deleted_at IS NULL')
+    .all(uid, since)) as Array<{ updated_at: string }>;
   for (const n of noteUpdateDates) {
     const day = localDayStr(new Date(n.updated_at));
     if (counts.has(day)) counts.set(day, (counts.get(day) ?? 0) + 1);
   }
   const weekActivity = days.map(date => ({ date, count: counts.get(date) ?? 0 }));
 
-  const notebookRows = db.prepare('SELECT id, name, emoji, color FROM notebooks WHERE archived = 0 ORDER BY position ASC').all() as Array<{
+  const notebookRows = (await db
+    .prepare('SELECT id, name, emoji, color FROM notebooks WHERE user_id = ? AND archived = 0 ORDER BY position ASC')
+    .all(uid)) as Array<{
     id: string;
     name: string;
     emoji: string;
     color: string;
   }>;
-  const notebooksOut = notebookRows.map(nb => {
-    const stats = db.prepare('SELECT COUNT(*) as c, MAX(updated_at) as last FROM notes WHERE notebook_id = ? AND archived = 0 AND deleted_at IS NULL').get(nb.id) as {
-      c: number;
-      last: string | null;
-    };
-    return { id: nb.id, name: nb.name, emoji: nb.emoji, color: nb.color, noteCount: stats.c, lastNoteAt: stats.last };
-  });
+  const notebooksOut = await Promise.all(
+    notebookRows.map(async nb => {
+      // nb.id already came from a user-scoped query, but the extra user_id predicate keeps
+      // this statement safe on its own and lets it use idx_notes_user_updated.
+      const stats = (await db
+        .prepare('SELECT COUNT(*) as c, MAX(updated_at) as last FROM notes WHERE user_id = ? AND notebook_id = ? AND archived = 0 AND deleted_at IS NULL')
+        .get(uid, nb.id)) as {
+        c: number;
+        last: string | null;
+      };
+      return { id: nb.id, name: nb.name, emoji: nb.emoji, color: nb.color, noteCount: stats.c, lastNoteAt: stats.last };
+    }),
+  );
 
   // --- iteration 2: this-week Mon-Sun grid, per non-archived notebook ------------------
   const weekStart = mondayOfWeek(nowDate);
@@ -128,19 +158,24 @@ router.get('/', (_req, res) => {
     perNb.set(notebookId, (perNb.get(notebookId) ?? 0) + 1);
   }
 
-  const weekVersionRows = db
-    .prepare('SELECT nv.created_at as ts, n.notebook_id as nid FROM note_versions nv JOIN notes n ON n.id = nv.note_id WHERE nv.created_at >= ? AND nv.created_at < ?')
-    .all(weekStartIso, weekEndIso) as Array<{ ts: string; nid: string }>;
+  // Again: versions inherit ownership from their note, so filter on n.user_id.
+  const weekVersionRows = (await db
+    .prepare(
+      `SELECT nv.created_at as ts, n.notebook_id as nid
+       FROM note_versions nv JOIN notes n ON n.id = nv.note_id
+       WHERE n.user_id = ? AND nv.created_at >= ? AND nv.created_at < ?`,
+    )
+    .all(uid, weekStartIso, weekEndIso)) as Array<{ ts: string; nid: string }>;
   for (const r of weekVersionRows) tallyActivity(r.ts, r.nid);
 
-  const weekUpdatedRows = db
-    .prepare('SELECT updated_at as ts, notebook_id as nid FROM notes WHERE deleted_at IS NULL AND updated_at >= ? AND updated_at < ?')
-    .all(weekStartIso, weekEndIso) as Array<{ ts: string; nid: string }>;
+  const weekUpdatedRows = (await db
+    .prepare('SELECT updated_at as ts, notebook_id as nid FROM notes WHERE user_id = ? AND deleted_at IS NULL AND updated_at >= ? AND updated_at < ?')
+    .all(uid, weekStartIso, weekEndIso)) as Array<{ ts: string; nid: string }>;
   for (const r of weekUpdatedRows) tallyActivity(r.ts, r.nid);
 
-  const weekCreatedRows = db
-    .prepare('SELECT created_at as ts, notebook_id as nid FROM notes WHERE deleted_at IS NULL AND created_at >= ? AND created_at < ?')
-    .all(weekStartIso, weekEndIso) as Array<{ ts: string; nid: string }>;
+  const weekCreatedRows = (await db
+    .prepare('SELECT created_at as ts, notebook_id as nid FROM notes WHERE user_id = ? AND deleted_at IS NULL AND created_at >= ? AND created_at < ?')
+    .all(uid, weekStartIso, weekEndIso)) as Array<{ ts: string; nid: string }>;
   for (const r of weekCreatedRows) tallyActivity(r.ts, r.nid);
 
   const weekGrid = weekDayKeys.map((date, i) => {
@@ -155,7 +190,9 @@ router.get('/', (_req, res) => {
 
   // --- iteration 2: weekly review checklist -------------------------------------------
   const notesEditedThisWeek = (
-    db.prepare('SELECT COUNT(*) as c FROM notes WHERE archived = 0 AND deleted_at IS NULL AND updated_at >= ?').get(weekStartIso) as { c: number }
+    (await db
+      .prepare('SELECT COUNT(*) as c FROM notes WHERE user_id = ? AND archived = 0 AND deleted_at IS NULL AND updated_at >= ?')
+      .get(uid, weekStartIso)) as { c: number }
   ).c;
 
   let notesWithoutSummary = 0;
@@ -170,23 +207,33 @@ router.get('/', (_req, res) => {
     if (!hasSummaryMarker(doc)) notesWithoutSummary++;
   }
 
+  // note_comments has no user_id either; the existing join to notes now also carries the
+  // ownership predicate.
   const unresolvedComments = (
-    db
-      .prepare('SELECT COUNT(*) as c FROM note_comments c JOIN notes n ON n.id = c.note_id WHERE c.resolved = 0 AND n.archived = 0 AND n.deleted_at IS NULL')
-      .get() as { c: number }
+    (await db
+      .prepare(
+        `SELECT COUNT(*) as c FROM note_comments c JOIN notes n ON n.id = c.note_id
+         WHERE n.user_id = ? AND c.resolved = 0 AND n.archived = 0 AND n.deleted_at IS NULL`,
+      )
+      .get(uid)) as { c: number }
   ).c;
 
-  const dueByNotebook = db
+  // Postgres only allows selecting non-aggregated columns that are grouped (or functionally
+  // dependent on a grouped primary key), so nb.name is listed in GROUP BY alongside nb.id.
+  // Both f.user_id and n.user_id are checked: the card and the note it hangs off must both
+  // belong to the caller, so a mis-filed card can never surface another user's notebook name.
+  const dueByNotebook = (await db
     .prepare(
       `SELECT nb.name as name, COUNT(*) as due
        FROM flashcards f
        JOIN notes n ON n.id = f.note_id
        JOIN notebooks nb ON nb.id = n.notebook_id
-       WHERE f.suspended = 0 AND f.due_at <= ? AND n.archived = 0 AND n.deleted_at IS NULL AND nb.archived = 0
-       GROUP BY nb.id
+       WHERE f.user_id = ? AND n.user_id = ? AND f.suspended = 0 AND f.due_at <= ?
+         AND n.archived = 0 AND n.deleted_at IS NULL AND nb.archived = 0
+       GROUP BY nb.id, nb.name
        ORDER BY due DESC`,
     )
-    .all(now) as Array<{ name: string; due: number }>;
+    .all(uid, uid, now)) as Array<{ name: string; due: number }>;
 
   const suggestions: string[] = [];
   for (const row of dueByNotebook.slice(0, 2)) {
@@ -211,34 +258,36 @@ router.get('/', (_req, res) => {
   };
 
   // --- iteration 2: per-notebook recall + mini self-test ------------------------------
-  const recall = notebookRows
-    .map(nb => {
-      const lastNoteRow = db
-        .prepare('SELECT * FROM notes WHERE notebook_id = ? AND archived = 0 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 1')
-        .get(nb.id) as NoteRow | undefined;
-      const lastNote = lastNoteRow ? noteLite(lastNoteRow) : null;
+  const recallRows = await Promise.all(
+    notebookRows.map(async nb => {
+      const lastNoteRow = (await db
+        .prepare('SELECT * FROM notes WHERE user_id = ? AND notebook_id = ? AND archived = 0 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 1')
+        .get(uid, nb.id)) as NoteRow | undefined;
+      const lastNote = lastNoteRow ? await noteLite(lastNoteRow) : null;
       const daysSince = lastNoteRow ? Math.floor((Date.now() - new Date(lastNoteRow.updated_at).getTime()) / 86_400_000) : null;
 
       // Quiz pick: the oldest-due card for this notebook if one exists, else a random
       // (non-suspended) card from the notebook so there's still something to self-test on.
-      const dueCard = db
+      const dueCard = (await db
         .prepare(
           `SELECT f.id as id, f.question as question, f.answer as answer
            FROM flashcards f JOIN notes n ON n.id = f.note_id
-           WHERE n.notebook_id = ? AND n.archived = 0 AND n.deleted_at IS NULL AND f.suspended = 0 AND f.due_at <= ?
+           WHERE f.user_id = ? AND n.user_id = ? AND n.notebook_id = ? AND n.archived = 0 AND n.deleted_at IS NULL
+             AND f.suspended = 0 AND f.due_at <= ?
            ORDER BY f.due_at ASC LIMIT 1`,
         )
-        .get(nb.id, now) as { id: string; question: string; answer: string } | undefined;
+        .get(uid, uid, nb.id, now)) as { id: string; question: string; answer: string } | undefined;
       const randomCard = dueCard
         ? undefined
-        : (db
+        : ((await db
             .prepare(
               `SELECT f.id as id, f.question as question, f.answer as answer
                FROM flashcards f JOIN notes n ON n.id = f.note_id
-               WHERE n.notebook_id = ? AND n.archived = 0 AND n.deleted_at IS NULL AND f.suspended = 0
+               WHERE f.user_id = ? AND n.user_id = ? AND n.notebook_id = ? AND n.archived = 0 AND n.deleted_at IS NULL
+                 AND f.suspended = 0
                ORDER BY RANDOM() LIMIT 1`,
             )
-            .get(nb.id) as { id: string; question: string; answer: string } | undefined);
+            .get(uid, uid, nb.id)) as { id: string; question: string; answer: string } | undefined);
       const quizRow = dueCard ?? randomCard;
       const quiz = quizRow ? { cardId: quizRow.id, question: quizRow.question, answer: quizRow.answer } : null;
 
@@ -248,14 +297,14 @@ router.get('/', (_req, res) => {
         daysSince,
         quiz,
       };
-    })
-    .sort((a, b) => (b.daysSince ?? -1) - (a.daysSince ?? -1))
-    .slice(0, 6);
+    }),
+  );
+  const recall = recallRows.sort((a, b) => (b.daysSince ?? -1) - (a.daysSince ?? -1)).slice(0, 6);
 
   res.json({
-    recent: recentRows.map(noteLite),
-    pinned: pinnedRows.map(noteLite),
-    continueNote: continueRow ? noteLite(continueRow) : null,
+    recent: await Promise.all(recentRows.map(r => noteLite(r))),
+    pinned: await Promise.all(pinnedRows.map(r => noteLite(r))),
+    continueNote: continueRow ? await noteLite(continueRow) : null,
     stats: { notes, notebooks, words, flashcardsDue },
     weekActivity,
     notebooks: notebooksOut,

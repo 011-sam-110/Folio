@@ -88,20 +88,23 @@
   background: var(--bg);
 }
 
-.tg-row__search-link {
+/* Trailing segments of the split pill: "search notes →" and "manage →". */
+.tg-row__icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 11px;
+  padding: 0 10px;
   color: var(--ink-3);
   border-left: 1px solid var(--line);
+  background: none;
+  cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.tg-row__search-link:hover {
+.tg-row__icon-btn:hover {
   background: var(--bg-hover);
   color: var(--accent);
 }
-.tg-row.is-active .tg-row__search-link {
+.tg-row.is-active .tg-row__icon-btn {
   border-left-color: color-mix(in srgb, var(--accent) 30%, var(--line));
 }
 
@@ -137,6 +140,82 @@
 
 .tg-results {
   margin-top: 22px;
+}
+
+/* --- manage dialog (rename / merge / delete) --- */
+.tg-manage {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tg-manage__lead {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.tg-manage__section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.tg-manage__section--danger {
+  align-items: flex-start;
+}
+
+.tg-manage__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tg-manage__input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tg-manage__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.tg-manage__hint--warn {
+  color: var(--warn);
+}
+
+.tg-manage__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.tg-manage__footnote {
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+.tg-manage__footnote code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: var(--bg-hover);
+  border-radius: 4px;
+  padding: 1px 5px;
 }
 
 @media (max-width: 640px) {

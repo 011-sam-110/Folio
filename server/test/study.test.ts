@@ -1,87 +1,68 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import request from 'supertest';
-
-// The DB connection is opened at import time (server/src/db.ts reads FOLIO_DB_PATH via
-// config.ts), so the env var must be set BEFORE anything that transitively imports it.
-// Static `import` statements are hoisted above this, so we set the env var here and
-// pull in the app modules with dynamic imports afterwards.
-const dbPath = path.join(os.tmpdir(), `folio-study-test-${process.pid}-${Date.now()}.db`);
-process.env.FOLIO_DB_PATH = dbPath;
-
-const { db, newId } = await import('../src/db.js');
-const { buildApp } = await import('../src/app.js');
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { buildApp } from '../src/app.js';
+import { db } from '../src/db.js';
+import {
+  resetDatabase,
+  resetData,
+  makeUser,
+  closeDatabase,
+  insertNotebook as mkNotebook,
+  insertNote as mkNote,
+  insertCard as mkCard,
+  type TestUser,
+} from './helpers.js';
 
 const app = buildApp();
+
+// Flashcards, review_log and the notes they hang off are all owner-scoped now, so every
+// fixture belongs to `user` and every request is made as `user`.
+let user: TestUser;
+let api: TestUser['agent'];
 
 function isoMinutesFromNow(mins: number): string {
   return new Date(Date.now() + mins * 60_000).toISOString();
 }
 
-function insertNotebook(): string {
-  const id = newId();
-  db.prepare('INSERT INTO notebooks (id, name) VALUES (?, ?)').run(id, 'Test notebook');
-  return id;
+async function insertNotebook(): Promise<string> {
+  return mkNotebook(user.id, { name: 'Test notebook' });
 }
 
-function insertNote(notebookId: string, title = 'Test note'): string {
-  const id = newId();
-  db.prepare('INSERT INTO notes (id, notebook_id, title, content_text) VALUES (?, ?, ?, ?)').run(id, notebookId, title, 'some content');
-  return id;
+async function insertNote(notebookId: string, title = 'Test note'): Promise<string> {
+  return mkNote(user.id, notebookId, { title, content_text: 'some content' });
 }
 
-function insertCard(
+async function insertCard(
   noteId: string | null,
   opts: Partial<{ question: string; answer: string; ease: number; interval_days: number; reps: number; lapses: number; due_at: string; suspended: number }> = {},
-): string {
-  const id = newId();
-  db.prepare(
-    `INSERT INTO flashcards (id, note_id, question, answer, ease, interval_days, reps, lapses, due_at, suspended)
-     VALUES (@id, @note_id, @question, @answer, @ease, @interval_days, @reps, @lapses, @due_at, @suspended)`,
-  ).run({
-    id,
-    note_id: noteId,
-    question: opts.question ?? 'Q?',
-    answer: opts.answer ?? 'A.',
-    ease: opts.ease ?? 2.5,
-    interval_days: opts.interval_days ?? 0,
-    reps: opts.reps ?? 0,
-    lapses: opts.lapses ?? 0,
-    due_at: opts.due_at ?? isoMinutesFromNow(-5), // due 5 minutes ago by default
-    suspended: opts.suspended ?? 0,
-  });
-  return id;
+): Promise<string> {
+  return mkCard(user.id, noteId, { due_at: isoMinutesFromNow(-5), ...opts });
 }
 
-beforeEach(() => {
-  // Isolate every test: wipe all study-relevant tables (and their FK-dependent notes).
-  db.exec('DELETE FROM review_log; DELETE FROM flashcards; DELETE FROM note_versions; DELETE FROM links; DELETE FROM note_tags; DELETE FROM notes; DELETE FROM notebooks;');
+beforeAll(async () => {
+  await resetDatabase();
 });
 
-afterAll(() => {
-  db.close();
-  for (const suffix of ['', '-wal', '-shm']) {
-    try {
-      fs.unlinkSync(dbPath + suffix);
-    } catch {
-      /* best-effort cleanup */
-    }
-  }
+beforeEach(async () => {
+  await resetData();
+  user = await makeUser(app);
+  api = user.agent;
+});
+
+afterAll(async () => {
+  await closeDatabase();
 });
 
 describe('GET /api/study/queue', () => {
   it('only returns due, non-suspended cards, and reports due/total counts', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
 
-    insertCard(noteId, { due_at: isoMinutesFromNow(-10) }); // due
-    insertCard(noteId, { due_at: isoMinutesFromNow(-1) }); // due
-    insertCard(noteId, { due_at: isoMinutesFromNow(60) }); // not due yet
-    insertCard(noteId, { due_at: isoMinutesFromNow(-10), suspended: 1 }); // suspended, excluded
+    await insertCard(noteId, { due_at: isoMinutesFromNow(-10) }); // due
+    await insertCard(noteId, { due_at: isoMinutesFromNow(-1) }); // due
+    await insertCard(noteId, { due_at: isoMinutesFromNow(60) }); // not due yet
+    await insertCard(noteId, { due_at: isoMinutesFromNow(-10), suspended: 1 }); // suspended, excluded
 
-    const res = await request(app).get('/api/study/queue');
+    const res = await api.get('/api/study/queue');
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(4);
     expect(res.body.due).toBe(2);
@@ -93,11 +74,11 @@ describe('GET /api/study/queue', () => {
   });
 
   it('respects the limit query param', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    for (let i = 0; i < 5; i++) insertCard(noteId, { due_at: isoMinutesFromNow(-1) });
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    for (let i = 0; i < 5; i++) await insertCard(noteId, { due_at: isoMinutesFromNow(-1) });
 
-    const res = await request(app).get('/api/study/queue?limit=2');
+    const res = await api.get('/api/study/queue?limit=2');
     expect(res.status).toBe(200);
     expect(res.body.cards).toHaveLength(2);
     expect(res.body.due).toBe(5);
@@ -106,10 +87,10 @@ describe('GET /api/study/queue', () => {
 
 describe('POST /api/study/cards — manual creation', () => {
   it('creates a card linked to a note with fresh SM-2 defaults, due now', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId, 'Manual card note');
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId, 'Manual card note');
 
-    const res = await request(app).post('/api/study/cards').send({ noteId, question: 'What is Big-O?', answer: 'Growth rate bound.' });
+    const res = await api.post('/api/study/cards').send({ noteId, question: 'What is Big-O?', answer: 'Growth rate bound.' });
     expect(res.status).toBe(201);
     expect(res.body.card.question).toBe('What is Big-O?');
     expect(res.body.card.answer).toBe('Growth rate bound.');
@@ -118,42 +99,42 @@ describe('POST /api/study/cards — manual creation', () => {
     expect(res.body.card.reps).toBe(0);
     expect(res.body.card.suspended).toBe(false);
 
-    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(res.body.card.id) as any;
+    const row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(res.body.card.id) as any;
     expect(row.ease).toBe(2.5);
     expect(row.interval_days).toBe(0);
     expect(new Date(row.due_at).getTime()).toBeLessThanOrEqual(Date.now());
   });
 
   it('creates a card with no note (noteId omitted)', async () => {
-    const res = await request(app).post('/api/study/cards').send({ question: 'Standalone Q?', answer: 'Standalone A.' });
+    const res = await api.post('/api/study/cards').send({ question: 'Standalone Q?', answer: 'Standalone A.' });
     expect(res.status).toBe(201);
     expect(res.body.card.noteId).toBeNull();
     expect(res.body.card.noteTitle).toBeUndefined();
   });
 
   it('rejects an empty question with 400', async () => {
-    const res = await request(app).post('/api/study/cards').send({ question: '   ', answer: 'A.' });
+    const res = await api.post('/api/study/cards').send({ question: '   ', answer: 'A.' });
     expect(res.status).toBe(400);
   });
 
   it('rejects an empty answer with 400', async () => {
-    const res = await request(app).post('/api/study/cards').send({ question: 'Q?', answer: '' });
+    const res = await api.post('/api/study/cards').send({ question: 'Q?', answer: '' });
     expect(res.status).toBe(400);
   });
 
   it('rejects an unknown noteId with 400', async () => {
-    const res = await request(app).post('/api/study/cards').send({ noteId: 'does-not-exist', question: 'Q?', answer: 'A.' });
+    const res = await api.post('/api/study/cards').send({ noteId: 'does-not-exist', question: 'Q?', answer: 'A.' });
     expect(res.status).toBe(400);
   });
 
   it('a newly created card appears in the review queue immediately', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
 
-    const create = await request(app).post('/api/study/cards').send({ noteId, question: 'Queue me?', answer: 'Yes.' });
+    const create = await api.post('/api/study/cards').send({ noteId, question: 'Queue me?', answer: 'Yes.' });
     expect(create.status).toBe(201);
 
-    const queue = await request(app).get('/api/study/queue');
+    const queue = await api.get('/api/study/queue');
     expect(queue.status).toBe(200);
     expect(queue.body.cards.some((c: any) => c.id === create.body.card.id)).toBe(true);
   });
@@ -161,15 +142,15 @@ describe('POST /api/study/cards — manual creation', () => {
 
 describe('POST /api/study/review — SM-2 rating transitions', () => {
   it('again: resets reps and interval to 0, drops ease by 0.2 (floor 1.3), logs a lapse, due in ~1 minute', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId, { ease: 2.5, interval_days: 10, reps: 3 });
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId, { ease: 2.5, interval_days: 10, reps: 3 });
 
-    const res = await request(app).post('/api/study/review').send({ cardId, rating: 'again' });
+    const res = await api.post('/api/study/review').send({ cardId, rating: 'again' });
     expect(res.status).toBe(200);
     expect(res.body.card.reps).toBe(0);
 
-    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    const row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.interval_days).toBe(0);
     expect(row.reps).toBe(0);
     expect(row.ease).toBeCloseTo(2.3, 5);
@@ -181,39 +162,39 @@ describe('POST /api/study/review — SM-2 rating transitions', () => {
   });
 
   it('again floors ease at 1.3 rather than going lower', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId, { ease: 1.35 });
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId, { ease: 1.35 });
 
-    await request(app).post('/api/study/review').send({ cardId, rating: 'again' });
+    await api.post('/api/study/review').send({ cardId, rating: 'again' });
 
-    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    const row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.ease).toBe(1.3);
   });
 
   it('hard on an established card: interval *= 1.2, ease -= 0.15, reps increments', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId, { ease: 2.5, interval_days: 4, reps: 3 });
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId, { ease: 2.5, interval_days: 4, reps: 3 });
 
-    const res = await request(app).post('/api/study/review').send({ cardId, rating: 'hard' });
+    const res = await api.post('/api/study/review').send({ cardId, rating: 'hard' });
     expect(res.status).toBe(200);
 
-    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    const row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.reps).toBe(4);
     expect(row.interval_days).toBeCloseTo(4.8, 5);
     expect(row.ease).toBeCloseTo(2.35, 5);
   });
 
   it('hard on a fresh card (reps 0, interval 0): due in ~10 minutes, reps and interval stay 0', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId, { ease: 2.5, interval_days: 0, reps: 0 });
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId, { ease: 2.5, interval_days: 0, reps: 0 });
 
-    const res = await request(app).post('/api/study/review').send({ cardId, rating: 'hard' });
+    const res = await api.post('/api/study/review').send({ cardId, rating: 'hard' });
     expect(res.status).toBe(200);
 
-    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    const row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.reps).toBe(0);
     expect(row.interval_days).toBe(0);
     expect(row.ease).toBeCloseTo(2.35, 5);
@@ -224,14 +205,14 @@ describe('POST /api/study/review — SM-2 rating transitions', () => {
   });
 
   it('good on a fresh card (reps 0 -> 1): interval becomes 1 day flat, ease unchanged', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId, { ease: 2.5, interval_days: 0, reps: 0 });
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId, { ease: 2.5, interval_days: 0, reps: 0 });
 
-    const res = await request(app).post('/api/study/review').send({ cardId, rating: 'good' });
+    const res = await api.post('/api/study/review').send({ cardId, rating: 'good' });
     expect(res.status).toBe(200);
 
-    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    const row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.reps).toBe(1);
     expect(row.interval_days).toBe(1);
     expect(row.ease).toBe(2.5);
@@ -242,42 +223,42 @@ describe('POST /api/study/review — SM-2 rating transitions', () => {
   });
 
   it('good on an established card (reps > 1): interval = interval * ease', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId, { ease: 2.5, interval_days: 3, reps: 1 });
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId, { ease: 2.5, interval_days: 3, reps: 1 });
 
-    const res = await request(app).post('/api/study/review').send({ cardId, rating: 'good' });
+    const res = await api.post('/api/study/review').send({ cardId, rating: 'good' });
     expect(res.status).toBe(200);
 
-    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    const row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.reps).toBe(2);
     expect(row.interval_days).toBeCloseTo(7.5, 5); // 3 * 2.5
     expect(row.ease).toBe(2.5);
   });
 
   it('easy on an established card: interval = interval * (ease + 0.15) * 1.3, ease += 0.15, reps increments', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId, { ease: 2.0, interval_days: 5, reps: 2 });
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId, { ease: 2.0, interval_days: 5, reps: 2 });
 
-    const res = await request(app).post('/api/study/review').send({ cardId, rating: 'easy' });
+    const res = await api.post('/api/study/review').send({ cardId, rating: 'easy' });
     expect(res.status).toBe(200);
 
-    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    const row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.reps).toBe(3);
     expect(row.ease).toBeCloseTo(2.15, 5);
     expect(row.interval_days).toBeCloseTo(5 * 2.15 * 1.3, 5);
   });
 
   it('easy on a fresh card (reps 0, interval 0): interval jumps to 4 days, reps -> 1', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId, { ease: 2.5, interval_days: 0, reps: 0 });
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId, { ease: 2.5, interval_days: 0, reps: 0 });
 
-    const res = await request(app).post('/api/study/review').send({ cardId, rating: 'easy' });
+    const res = await api.post('/api/study/review').send({ cardId, rating: 'easy' });
     expect(res.status).toBe(200);
 
-    const row = db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
+    const row = await db.prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId) as any;
     expect(row.reps).toBe(1);
     expect(row.interval_days).toBe(4);
     expect(row.ease).toBeCloseTo(2.65, 5);
@@ -288,42 +269,42 @@ describe('POST /api/study/review — SM-2 rating transitions', () => {
   });
 
   it('logs every review to review_log', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId);
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId);
 
-    await request(app).post('/api/study/review').send({ cardId, rating: 'good' });
+    await api.post('/api/study/review').send({ cardId, rating: 'good' });
 
-    const rows = db.prepare('SELECT * FROM review_log WHERE card_id = ?').all(cardId) as any[];
+    const rows = await db.prepare('SELECT * FROM review_log WHERE card_id = ?').all(cardId) as any[];
     expect(rows).toHaveLength(1);
     expect(rows[0].rating).toBe('good');
   });
 
   it('rejects an unknown cardId with 404 and an invalid rating with 400', async () => {
-    const missing = await request(app).post('/api/study/review').send({ cardId: 'does-not-exist', rating: 'good' });
+    const missing = await api.post('/api/study/review').send({ cardId: 'does-not-exist', rating: 'good' });
     expect(missing.status).toBe(404);
 
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId);
-    const bad = await request(app).post('/api/study/review').send({ cardId, rating: 'sort-of' });
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId);
+    const bad = await api.post('/api/study/review').send({ cardId, rating: 'sort-of' });
     expect(bad.status).toBe(400);
   });
 });
 
 describe('GET /api/study/stats', () => {
   it('reports due, total, reviewedToday, and per-note breakdown', async () => {
-    const notebookId = insertNotebook();
-    const noteA = insertNote(notebookId, 'Note A');
-    const noteB = insertNote(notebookId, 'Note B');
+    const notebookId = await insertNotebook();
+    const noteA = await insertNote(notebookId, 'Note A');
+    const noteB = await insertNote(notebookId, 'Note B');
 
-    insertCard(noteA, { due_at: isoMinutesFromNow(-5) });
-    insertCard(noteA, { due_at: isoMinutesFromNow(60) });
-    const reviewedCard = insertCard(noteB, { due_at: isoMinutesFromNow(-5) });
+    await insertCard(noteA, { due_at: isoMinutesFromNow(-5) });
+    await insertCard(noteA, { due_at: isoMinutesFromNow(60) });
+    const reviewedCard = await insertCard(noteB, { due_at: isoMinutesFromNow(-5) });
 
-    await request(app).post('/api/study/review').send({ cardId: reviewedCard, rating: 'good' });
+    await api.post('/api/study/review').send({ cardId: reviewedCard, rating: 'good' });
 
-    const res = await request(app).get('/api/study/stats');
+    const res = await api.get('/api/study/stats');
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(3);
     expect(res.body.reviewedToday).toBeGreaterThanOrEqual(1);
@@ -339,34 +320,34 @@ describe('GET /api/study/stats', () => {
 
 describe('PATCH/DELETE /api/study/cards/:id', () => {
   it('updates question/answer/suspended', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId);
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId);
 
-    const res = await request(app).patch(`/api/study/cards/${cardId}`).send({ question: 'New Q?', suspended: true });
+    const res = await api.patch(`/api/study/cards/${cardId}`).send({ question: 'New Q?', suspended: true });
     expect(res.status).toBe(200);
     expect(res.body.card.question).toBe('New Q?');
     expect(res.body.card.suspended).toBe(true);
 
-    const queue = await request(app).get('/api/study/queue');
+    const queue = await api.get('/api/study/queue');
     expect(queue.body.cards.find((c: any) => c.id === cardId)).toBeUndefined();
   });
 
   it('404s when updating an unknown card', async () => {
-    const res = await request(app).patch('/api/study/cards/nope').send({ question: 'x' });
+    const res = await api.patch('/api/study/cards/nope').send({ question: 'x' });
     expect(res.status).toBe(404);
   });
 
   it('deletes a card', async () => {
-    const notebookId = insertNotebook();
-    const noteId = insertNote(notebookId);
-    const cardId = insertCard(noteId);
+    const notebookId = await insertNotebook();
+    const noteId = await insertNote(notebookId);
+    const cardId = await insertCard(noteId);
 
-    const res = await request(app).delete(`/api/study/cards/${cardId}`);
+    const res = await api.delete(`/api/study/cards/${cardId}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
 
-    const missing = await request(app).delete(`/api/study/cards/${cardId}`);
+    const missing = await api.delete(`/api/study/cards/${cardId}`);
     expect(missing.status).toBe(404);
   });
 });

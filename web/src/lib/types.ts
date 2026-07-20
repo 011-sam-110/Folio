@@ -1,5 +1,14 @@
 // Shared API types — mirror of docs/API.md. Do not drift from the contract.
 
+/** The signed-in account, as returned by every /api/auth endpoint that yields a user.
+ *  Deliberately has no token field: the session lives in an httpOnly cookie the
+ *  browser attaches itself, so JS never sees or stores credentials. */
+export interface User {
+  id: string;
+  email: string;
+  displayName: string;
+}
+
 export interface NotebookLite {
   id: string;
   name: string;

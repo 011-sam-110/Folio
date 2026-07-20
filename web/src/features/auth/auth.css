@@ -1,0 +1,433 @@
+/* Auth screens (login/signup), the change-password form, and the sidebar account row.
+   Everything here is built from the shared tokens in styles/tokens.css, so both themes
+   come along for free — there is no hard-coded colour below. */
+
+/* --- boot splash ---------------------------------------------------------- */
+
+.auth-splash {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+
+/* Held invisible for 250ms: a fast /me is the common case, and a spinner that appears
+   and vanishes within two frames reads as a glitch rather than as loading. */
+.auth-splash__mark {
+  font-size: 32px;
+  opacity: 0;
+  animation: folio-fade-in var(--dur-slow) var(--ease-out) 250ms forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-splash__mark {
+    animation-duration: 1ms;
+  }
+}
+
+/* --- page ----------------------------------------------------------------- */
+
+.auth-page {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 32px 20px calc(env(safe-area-inset-bottom, 0px) + 32px);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* A soft accent wash behind the card so the screen isn't a flat void. Sits under the
+   content and never intercepts clicks. */
+.auth-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% -10%, var(--accent-soft), transparent 70%),
+    radial-gradient(ellipse 60% 45% at 50% 110%, var(--bg-sidebar), transparent 70%);
+}
+
+.auth-page > * {
+  position: relative;
+}
+
+.auth-page__theme {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+/* --- card ----------------------------------------------------------------- */
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 30px 30px 32px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  animation: folio-pop-in var(--dur-slow) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-card {
+    animation: none;
+  }
+}
+
+.auth-card__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.auth-card__mark {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.auth-card__wordmark {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.auth-card__title {
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.auth-card__subtitle {
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+/* --- form ----------------------------------------------------------------- */
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 24px;
+}
+
+.auth-form--modal {
+  margin-top: 0;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.auth-field__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.auth-field__optional {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.auth-field__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Scales the shared .text-input up to a comfortable size for a dedicated form, without
+   forking its colours, radius or focus behaviour. Deliberately over-specified: this file
+   is injected by a module import, so it can land BEFORE components.css in the bundle and
+   an equal-specificity rule would silently lose to .text-input. */
+.auth-field .auth-field__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.auth-field.has-error .auth-field__input {
+  border-color: var(--danger);
+}
+
+.auth-field.has-error .auth-field__input:focus-visible {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft), 0 0 0 1px var(--danger);
+}
+
+/* Reveal toggle: outside the tab order (tabIndex -1) so Tab still runs
+   email → password → submit; reachable by pointer and by screen-reader navigation. */
+.auth-field__reveal {
+  position: absolute;
+  right: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast);
+}
+
+.auth-field__reveal:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+/* Keeps typed text from sliding under the Show/Hide button. */
+.auth-field__control:has(.auth-field__reveal) .auth-field__input {
+  padding-right: 62px;
+}
+
+.auth-field__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--danger);
+}
+
+.auth-field__hint {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.auth-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.auth-alert svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+/* .btn.* for the same injection-order reason as .auth-field__input above. */
+.btn.auth-submit {
+  margin-top: 5px;
+  width: 100%;
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.auth-form__note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.auth-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 3px;
+}
+
+/* --- password strength meter ---------------------------------------------- */
+
+.auth-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.auth-meter__rule {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.auth-meter__bars {
+  display: flex;
+  gap: 4px;
+}
+
+.auth-meter__bars span {
+  flex: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background var(--dur) var(--ease-out);
+}
+
+/* Filled left-to-right by level; colour doubles as a signal, but the adjacent text
+   label carries the same meaning for anyone who can't use the hue. */
+.auth-meter[data-level='0'] .auth-meter__bars span:nth-child(1),
+.auth-meter[data-level='1'] .auth-meter__bars span:nth-child(1) {
+  background: var(--danger);
+}
+
+.auth-meter[data-level='2'] .auth-meter__bars span:nth-child(-n + 2) {
+  background: var(--warn);
+}
+
+.auth-meter[data-level='3'] .auth-meter__bars span {
+  background: var(--ok);
+}
+
+.auth-meter__text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.auth-meter__label {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.auth-meter[data-level='0'] .auth-meter__label,
+.auth-meter[data-level='1'] .auth-meter__label {
+  color: var(--danger);
+}
+
+.auth-meter[data-level='2'] .auth-meter__label {
+  color: var(--warn);
+}
+
+.auth-meter[data-level='3'] .auth-meter__label {
+  color: var(--ok);
+}
+
+.auth-meter__hint {
+  color: var(--ink-3);
+}
+
+/* --- alternate action ----------------------------------------------------- */
+
+.auth-alt {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.auth-alt__link {
+  font-weight: 600;
+  color: var(--accent);
+  border-radius: 4px;
+}
+
+.auth-alt__link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 26px 20px 28px;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
+/* --- sidebar account row -------------------------------------------------- */
+
+.sidebar-account {
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding: 6px 8px;
+  border-top: 1px solid var(--line);
+}
+
+/* Pushed to the top only when the account row is absent (signed out) — otherwise the
+   two would fight over margin-top:auto. */
+.sidebar-account + .sidebar__footer {
+  margin-top: 0;
+  border-top: none;
+  padding-top: 2px;
+}
+
+.sidebar-account__trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px;
+  border-radius: var(--radius);
+  text-align: left;
+  color: var(--ink);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sidebar-account__trigger:hover {
+  background: var(--bg-hover);
+}
+
+.sidebar-account__avatar {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sidebar-account__identity {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sidebar-account__name,
+.sidebar-account__email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-account__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sidebar-account__email {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.sidebar-account__chevron {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}

@@ -6,12 +6,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(__dirname, '..', '..'); // repo root
 export const DATA_DIR = path.join(ROOT, 'data');
 export const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
-// Resolve a relative FOLIO_DB_PATH against the repo root (not process.cwd()), so it
-// is deterministic no matter which workspace directory npm launches the process from
-// (e.g. `npm run start -w server` runs with cwd=server/). Absolute paths pass through.
-export const DB_PATH = process.env.FOLIO_DB_PATH
-  ? path.resolve(ROOT, process.env.FOLIO_DB_PATH)
-  : path.join(DATA_DIR, 'folio.db');
+
+/** True when running as a Vercel serverless function (read-only FS except /tmp). */
+export const IS_SERVERLESS = Boolean(process.env.VERCEL);
 
 // Tiny zero-dep .env loader (repo-root .env). Does not override real env vars.
 const envPath = path.join(ROOT, '.env');
@@ -21,6 +18,29 @@ if (fs.existsSync(envPath)) {
     if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
   }
 }
+
+/**
+ * Postgres connection string. Neon in production (injected by the Vercel
+ * integration), local Docker Postgres for development and tests.
+ */
+export const DATABASE_URL =
+  process.env.DATABASE_URL ??
+  process.env.POSTGRES_URL ??
+  'postgresql://folio:folio@localhost:5433/folio';
+
+/**
+ * Key used to sign session cookies. A generated fallback keeps local dev
+ * frictionless, but it changes per boot (logging everyone out on restart) and
+ * would differ across serverless instances — so production must set it.
+ */
+export const SESSION_SECRET = (() => {
+  const fromEnv = process.env.SESSION_SECRET;
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_SECRET must be set in production');
+  }
+  return 'dev-only-insecure-session-secret';
+})();
 
 export const config = {
   port: Number(process.env.FOLIO_PORT ?? 4780),
@@ -43,4 +63,8 @@ export const config = {
   },
 };
 
-for (const dir of [DATA_DIR, UPLOADS_DIR, path.dirname(DB_PATH)]) fs.mkdirSync(dir, { recursive: true });
+// Serverless filesystems are read-only outside /tmp, and attachments live in
+// Postgres there rather than on disk — so only prepare local directories.
+if (!IS_SERVERLESS) {
+  for (const dir of [DATA_DIR, UPLOADS_DIR]) fs.mkdirSync(dir, { recursive: true });
+}

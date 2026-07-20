@@ -1,5 +1,10 @@
 import { Router, type Response } from 'express';
-import { db, newId, nowIso } from '../db.js';
+import { db, tx, newId, nowIso } from '../db.js';
+// Auth is mounted once, in app.ts (`app.use('/api/ai', requireAuth, ...)`), so this
+// router does not add its own guard — one layer means one place to audit and one session
+// lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
+// failure mode is a loud 500, never an unscoped query.
+import { userId } from '../auth/middleware.js';
 import { chat, extractJson, AiError, capForAi } from '../ai/client.js';
 import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt } from '../ai/prompts.js';
 import type { NoteRow } from '../lib/serialize.js';
@@ -14,13 +19,35 @@ function sendAiError(res: Response, e: unknown): void {
   throw e;
 }
 
-function getNote(noteId: string): NoteRow | undefined {
-  // Trash-aware: no AI endpoint should read (or spend gateway quota on) a soft-deleted note.
-  return db.prepare('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL').get(noteId) as NoteRow | undefined;
+/**
+ * Fetch a note the caller is allowed to feed to the model.
+ *
+ * Ownership is enforced here rather than at each call site: every AI endpoint reaches a
+ * note through this helper, so a single missing `user_id` predicate would hand another
+ * user's content (and its attachments, via /gaps) straight to the gateway. `uid` must
+ * come from `userId(req)` — never from the request body.
+ *
+ * Someone else's note is reported as "not found" rather than "forbidden", so the
+ * endpoints never confirm that a guessed id exists.
+ *
+ * Trash-aware: no AI endpoint should read (or spend gateway quota on) a soft-deleted note.
+ */
+async function getNote(noteId: string, uid: string): Promise<NoteRow | undefined> {
+  return await db
+    .prepare('SELECT * FROM notes WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
+    .get<NoteRow>(noteId, uid);
 }
 
-/** Local FTS5 query sanitizer for retrieval-style matching (duplicated deliberately —
- * routes/search.ts owns the search-as-you-type sanitizer and may not exist yet). */
+/**
+ * Turn free text into `websearch_to_tsquery` input for retrieval-style (any-term) matching.
+ *
+ * Postgres replaces FTS5's MATCH grammar. `websearch_to_tsquery` parses leniently and
+ * cannot raise a syntax error, so the sanitizer is about relevance, not safety: it drops
+ * operator-ish punctuation, caps the term count, and quotes each token so a term that
+ * happens to be `or` or `-foo` is treated as a literal word rather than as an operator.
+ *
+ * (Duplicated deliberately — routes/search.ts owns the search-as-you-type sanitizer.)
+ */
 function sanitizeAskQuery(raw: string): string {
   const tokens = raw
     .normalize('NFKC')
@@ -29,17 +56,18 @@ function sanitizeAskQuery(raw: string): string {
     .map(t => t.trim())
     .filter(t => t.length > 1)
     .slice(0, 10)
-    .map(t => `"${t.replace(/"/g, '""')}"`);
+    .map(t => `"${t}"`);
   return tokens.join(' OR ');
 }
 
 // POST /api/ai/improve { noteId?, text?, instruction? }
 router.post('/improve', async (req, res) => {
+  const uid = userId(req);
   const { noteId, text, instruction } = (req.body ?? {}) as { noteId?: unknown; text?: unknown; instruction?: unknown };
 
   let content: string;
   if (typeof noteId === 'string' && noteId) {
-    const note = getNote(noteId);
+    const note = await getNote(noteId, uid);
     if (!note) return res.status(404).json({ error: 'note not found' });
     content = note.content_text;
   } else if (typeof text === 'string' && text.trim()) {
@@ -58,9 +86,10 @@ router.post('/improve', async (req, res) => {
 
 // POST /api/ai/summarize { noteId }
 router.post('/summarize', async (req, res) => {
+  const uid = userId(req);
   const { noteId } = (req.body ?? {}) as { noteId?: unknown };
   if (typeof noteId !== 'string' || !noteId) return res.status(400).json({ error: 'noteId is required' });
-  const note = getNote(noteId);
+  const note = await getNote(noteId, uid);
   if (!note) return res.status(404).json({ error: 'note not found' });
 
   try {
@@ -73,9 +102,10 @@ router.post('/summarize', async (req, res) => {
 
 // POST /api/ai/flashcards { noteId, count? }
 router.post('/flashcards', async (req, res) => {
+  const uid = userId(req);
   const { noteId, count } = (req.body ?? {}) as { noteId?: unknown; count?: unknown };
   if (typeof noteId !== 'string' || !noteId) return res.status(400).json({ error: 'noteId is required' });
-  const note = getNote(noteId);
+  const note = await getNote(noteId, uid);
   if (!note) return res.status(404).json({ error: 'note not found' });
 
   const requested = Number(count);
@@ -124,12 +154,34 @@ router.post('/flashcards', async (req, res) => {
     }
 
     const now = nowIso();
-    const insert = db.prepare('INSERT INTO flashcards (id, note_id, question, answer, due_at) VALUES (?, ?, ?, ?, ?)');
-    const inserted = cards.map(c => {
-      const id = newId();
-      insert.run(id, noteId, c.question, c.answer, now);
-      return { id, noteId, noteTitle: note.title, question: c.question, answer: c.answer, dueAt: now, reps: 0, suspended: false };
+    const cardSet = cards.map(c => ({ id: newId(), question: c.question, answer: c.answer }));
+
+    // The generated set is written in one transaction: each card is now a separate
+    // round trip (the driver is async), so without it a failure part-way through would
+    // leave the user with a truncated deck and no error trail. Note the callback uses
+    // the scoped `t` — the module-level `db` draws a different pooled connection and
+    // would run outside the transaction.
+    await tx(async t => {
+      const insert = t.prepare(
+        'INSERT INTO flashcards (id, user_id, note_id, question, answer, due_at) VALUES (?, ?, ?, ?, ?, ?)',
+      );
+      for (const c of cardSet) {
+        // The owner comes from the session, not the request — and `noteId` was proven to
+        // belong to `uid` by getNote() above, so card and note can never diverge.
+        await insert.run(c.id, uid, noteId, c.question, c.answer, now);
+      }
     });
+
+    const inserted = cardSet.map(c => ({
+      id: c.id,
+      noteId,
+      noteTitle: note.title,
+      question: c.question,
+      answer: c.answer,
+      dueAt: now,
+      reps: 0,
+      suspended: false,
+    }));
 
     res.json({ cards: inserted });
   } catch (e) {
@@ -139,13 +191,26 @@ router.post('/flashcards', async (req, res) => {
 
 // POST /api/ai/ask { question, notebookId? }
 router.post('/ask', async (req, res) => {
+  const uid = userId(req);
   const { question, notebookId } = (req.body ?? {}) as { question?: unknown; notebookId?: unknown };
   if (typeof question !== 'string' || !question.trim()) return res.status(400).json({ error: 'question is required' });
   const nbId = typeof notebookId === 'string' && notebookId ? notebookId : undefined;
 
+  // notebook_id is never trusted on its own: notes.user_id is denormalised, so filtering
+  // on both means another user's notebook id simply matches zero notes and falls through
+  // to the empty-scope reply below — it cannot widen the RAG context, and it does not
+  // reveal whether that notebook exists.
   const scopeCount = nbId
-    ? (db.prepare('SELECT COUNT(*) as c FROM notes WHERE notebook_id = ? AND archived = 0 AND deleted_at IS NULL').get(nbId) as { c: number }).c
-    : (db.prepare('SELECT COUNT(*) as c FROM notes WHERE archived = 0 AND deleted_at IS NULL').get() as { c: number }).c;
+    ? (
+        await db
+          .prepare('SELECT COUNT(*) as c FROM notes WHERE user_id = ? AND notebook_id = ? AND archived = 0 AND deleted_at IS NULL')
+          .get<{ c: number }>(uid, nbId)
+      )?.c ?? 0
+    : (
+        await db
+          .prepare('SELECT COUNT(*) as c FROM notes WHERE user_id = ? AND archived = 0 AND deleted_at IS NULL')
+          .get<{ c: number }>(uid)
+      )?.c ?? 0;
 
   if (scopeCount === 0) {
     res.json({
@@ -163,28 +228,35 @@ router.post('/ask', async (req, res) => {
   let rows: Row[] = [];
 
   if (matchQuery) {
+    // FTS5's virtual table is gone: notes.fts is a generated tsvector column (schema.sql),
+    // so the match is a plain predicate on notes — no rowid join, which Postgres has no
+    // equivalent for — and ts_rank replaces bm25(). websearch_to_tsquery cannot throw on
+    // malformed input, so the old catch-and-fall-back guard around this query is gone; a
+    // real database error should now surface rather than be silently downgraded to a
+    // recency listing. Zero matches still fall through to the fallback below.
     const sql = `
-      SELECT n.id as id, n.title as title, n.content_text as content_text
-      FROM notes_fts f
-      JOIN notes n ON n.rowid = f.rowid
-      WHERE notes_fts MATCH ? AND n.archived = 0 AND n.deleted_at IS NULL ${nbId ? 'AND n.notebook_id = ?' : ''}
-      ORDER BY bm25(notes_fts)
+      SELECT id, title, content_text
+      FROM notes
+      WHERE user_id = ?
+        AND fts @@ websearch_to_tsquery('english', ?)
+        AND archived = 0 AND deleted_at IS NULL ${nbId ? 'AND notebook_id = ?' : ''}
+      ORDER BY ts_rank(fts, websearch_to_tsquery('english', ?)) DESC
       LIMIT 6
     `;
-    try {
-      rows = (nbId ? db.prepare(sql).all(matchQuery, nbId) : db.prepare(sql).all(matchQuery)) as Row[];
-    } catch {
-      rows = []; // malformed MATCH syntax slipping through the sanitizer — fall back below
-    }
+    // The query text is bound twice (match + rank); placeholders are numbered in textual
+    // order, so the notebook filter sits between the two copies.
+    rows = nbId
+      ? await db.prepare(sql).all<Row>(uid, matchQuery, nbId, matchQuery)
+      : await db.prepare(sql).all<Row>(uid, matchQuery, matchQuery);
   }
 
   if (rows.length === 0) {
     const sql = `
       SELECT id, title, content_text FROM notes
-      WHERE archived = 0 AND deleted_at IS NULL ${nbId ? 'AND notebook_id = ?' : ''}
+      WHERE user_id = ? AND archived = 0 AND deleted_at IS NULL ${nbId ? 'AND notebook_id = ?' : ''}
       ORDER BY updated_at DESC LIMIT 6
     `;
-    rows = (nbId ? db.prepare(sql).all(nbId) : db.prepare(sql).all()) as Row[];
+    rows = nbId ? await db.prepare(sql).all<Row>(uid, nbId) : await db.prepare(sql).all<Row>(uid);
   }
 
   const contextNotes = rows.map(r => ({ title: r.title || 'Untitled', text: r.content_text.slice(0, 2500) }));
@@ -200,9 +272,10 @@ router.post('/ask', async (req, res) => {
 // POST /api/ai/clean { noteId } — formatting-only beautification: structure improves,
 // wording stays. The client previews + applies; the server never writes the note.
 router.post('/clean', async (req, res) => {
+  const uid = userId(req);
   const { noteId } = (req.body ?? {}) as { noteId?: unknown };
   if (typeof noteId !== 'string' || !noteId) return res.status(400).json({ error: 'noteId is required' });
-  const note = getNote(noteId);
+  const note = await getNote(noteId, uid);
   if (!note) return res.status(404).json({ error: 'note not found' });
 
   try {
@@ -219,18 +292,22 @@ router.post('/clean', async (req, res) => {
 // markdown the client renders in the Assistant panel.
 const GAP_SOURCE_CHARS = 8_000; // per source
 router.post('/gaps', async (req, res) => {
+  const uid = userId(req);
   const { noteId } = (req.body ?? {}) as { noteId?: unknown };
   if (typeof noteId !== 'string' || !noteId) return res.status(400).json({ error: 'noteId is required' });
-  const note = getNote(noteId);
+  const note = await getNote(noteId, uid);
   if (!note) return res.status(404).json({ error: 'note not found' });
 
-  const attRows = db
+  // getNote() already proved the note belongs to `uid`, but attachments carry their own
+  // user_id — filtering on it too keeps the ownership check local to the query that
+  // actually reads the text, so this stays correct if the note lookup ever moves.
+  const attRows = await db
     .prepare(
       `SELECT original_name, kind, extracted_text FROM attachments
-       WHERE note_id = ? AND status = 'ready' AND extracted_text IS NOT NULL AND extracted_text != ''
+       WHERE note_id = ? AND user_id = ? AND status = 'ready' AND extracted_text IS NOT NULL AND extracted_text != ''
        ORDER BY created_at ASC`,
     )
-    .all(noteId) as Array<{ original_name: string; kind: string; extracted_text: string }>;
+    .all<{ original_name: string; kind: string; extracted_text: string }>(noteId, uid);
   const sources = attRows.map(a => ({
     name: a.original_name,
     kind: a.kind,
@@ -251,9 +328,10 @@ router.post('/gaps', async (req, res) => {
 
 // POST /api/ai/title { noteId }
 router.post('/title', async (req, res) => {
+  const uid = userId(req);
   const { noteId } = (req.body ?? {}) as { noteId?: unknown };
   if (typeof noteId !== 'string' || !noteId) return res.status(400).json({ error: 'noteId is required' });
-  const note = getNote(noteId);
+  const note = await getNote(noteId, uid);
   if (!note) return res.status(404).json({ error: 'note not found' });
 
   try {

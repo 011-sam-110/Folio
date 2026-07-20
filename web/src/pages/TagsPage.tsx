@@ -1,14 +1,24 @@
 // search-tags agent — tag browser: a sized pill grid of every tag in use,
 // multi-select filtering (intersection) of an inline note list, and a
 // "search notes →" escape hatch into the full search page's tag: operator.
+//
+// The selection lives in the URL (?tag=a&tag=b) so a tag view is shareable, works
+// with the back button, and — the reason it was moved out of local state — can be
+// linked to from a note's tag chips (NotePage → /tags?tag=x).
+//
+// Each pill also carries a manage affordance: rename across all notes, merge into
+// another tag, or remove from all notes.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { NoteLite } from '../lib/types';
 import { errorMessage, plural } from '../lib/format';
+import { invalidateTagVocabulary, normalizeTag, normalizeTags, MAX_TAG_LENGTH } from '../lib/tags';
+import { toast } from '../components/Toast';
 import NoteCard from '../components/NoteCard';
 import EmptyState from '../components/EmptyState';
 import Skeleton from '../components/Skeleton';
+import Modal from '../components/Modal';
 import Icon from '../components/Icon';
 import './TagsPage.css';
 
@@ -19,15 +29,33 @@ interface TagCount {
 
 export default function TagsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [tags, setTags] = useState<TagCount[] | null>(null);
   const [tagsLoading, setTagsLoading] = useState(true);
   const [tagsError, setTagsError] = useState<string | null>(null);
 
-  const [selected, setSelected] = useState<string[]>([]);
   const [notes, setNotes] = useState<NoteLite[] | null>(null);
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesError, setNotesError] = useState<string | null>(null);
+
+  const [managing, setManaging] = useState<string | null>(null);
+
+  // Normalised on the way in so a hand-typed or stale ?tag=Week1 still matches the
+  // lowercase vocabulary the server stores.
+  const selected = useMemo(() => normalizeTags(searchParams.getAll('tag')), [searchParams]);
+  const selectedKey = selected.join(',');
+
+  const setSelected = useCallback(
+    (next: string[]) => {
+      const p = new URLSearchParams();
+      for (const t of next) p.append('tag', t);
+      // replace: browsing pill after pill shouldn't bury the previous page under a
+      // dozen history entries.
+      setSearchParams(p, { replace: true });
+    },
+    [setSearchParams],
+  );
 
   const loadTags = useCallback(() => {
     setTagsLoading(true);
@@ -47,12 +75,13 @@ export default function TagsPage() {
   // filter, cheap), then narrow further client-side for any additional tags —
   // a note must carry ALL selected tags to stay in the list.
   useEffect(() => {
-    if (selected.length === 0) {
+    const list = selectedKey ? selectedKey.split(',') : [];
+    if (list.length === 0) {
       setNotes(null);
       setNotesError(null);
       return;
     }
-    const [first, ...rest] = selected;
+    const [first, ...rest] = list;
     setNotesLoading(true);
     setNotesError(null);
     api
@@ -63,10 +92,22 @@ export default function TagsPage() {
       })
       .catch((e) => setNotesError(errorMessage(e, 'Could not load notes')))
       .finally(() => setNotesLoading(false));
-  }, [selected]);
+  }, [selectedKey]);
 
   function toggleTag(tag: string) {
-    setSelected((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+    setSelected(selected.includes(tag) ? selected.filter((t) => t !== tag) : [...selected, tag]);
+  }
+
+  /** After a rename/merge/delete: refresh the cloud, drop the editor's autocomplete
+   *  cache, and carry the current filter across to whatever the tag became. */
+  function afterManage(previous: string, replacement: string | null) {
+    invalidateTagVocabulary();
+    loadTags();
+    setManaging(null);
+    if (!selected.includes(previous)) return;
+    const next = selected.filter((t) => t !== previous);
+    if (replacement && !next.includes(replacement)) next.push(replacement);
+    setSelected(next);
   }
 
   const { minCount, maxCount } = useMemo(() => {
@@ -80,6 +121,8 @@ export default function TagsPage() {
     const t = (count - minCount) / (maxCount - minCount);
     return 13 + t * 6; // 13px .. 19px — a gentle "cloud" without a handful of tags towering over the rest
   }
+
+  const managingTag = tags?.find((t) => t.tag === managing) ?? null;
 
   return (
     <div className="tg-page">
@@ -112,7 +155,7 @@ export default function TagsPage() {
         <EmptyState
           icon="🏷️"
           title="No tags yet"
-          hint='Add a #tag to a note (or use the tags field on a note) and it will show up here as a filterable pill.'
+          hint="Open a note and add a tag under its title — or just type #revision anywhere in the body. Either way it shows up here as a filterable pill."
           action={
             <button type="button" className="btn btn-primary" onClick={() => navigate('/')}>
               Go to your notes
@@ -138,13 +181,22 @@ export default function TagsPage() {
                     <span className="tg-row__count">{count}</span>
                   </button>
                   <Link
-                    className="tg-row__search-link"
+                    className="tg-row__icon-btn"
                     to={`/search?q=${encodeURIComponent(`tag:${tag}`)}`}
                     aria-label={`Search notes tagged ${tag}`}
                     title="Search notes →"
                   >
                     <Icon name="search" size={12} />
                   </Link>
+                  <button
+                    type="button"
+                    className="tg-row__icon-btn"
+                    onClick={() => setManaging(tag)}
+                    aria-label={`Manage tag ${tag}`}
+                    title="Rename, merge or delete →"
+                  >
+                    <Icon name="pencil" size={12} />
+                  </button>
                 </div>
               );
             })}
@@ -185,7 +237,7 @@ export default function TagsPage() {
                 title="Couldn't load notes"
                 hint={notesError}
                 action={
-                  <button type="button" className="btn btn-primary" onClick={() => setSelected((s) => [...s])}>
+                  <button type="button" className="btn btn-primary" onClick={() => setSelected([...selected])}>
                     Retry
                   </button>
                 }
@@ -217,6 +269,206 @@ export default function TagsPage() {
           </div>
         </>
       )}
+
+      {managingTag && (
+        <ManageTagDialog
+          tag={managingTag}
+          allTags={tags ?? []}
+          onClose={() => setManaging(null)}
+          onDone={afterManage}
+        />
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Manage dialog
+// ---------------------------------------------------------------------------
+
+interface ManageTagDialogProps {
+  tag: TagCount;
+  allTags: TagCount[];
+  onClose: () => void;
+  /** (previousTag, replacementTag | null) — null means it was deleted outright. */
+  onDone: (previous: string, replacement: string | null) => void;
+}
+
+function ManageTagDialog({ tag, allTags, onClose, onDone }: ManageTagDialogProps) {
+  const [renameTo, setRenameTo] = useState(tag.tag);
+  const [mergeInto, setMergeInto] = useState('');
+  const [busy, setBusy] = useState<'rename' | 'merge' | 'delete' | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const others = useMemo(() => allTags.filter((t) => t.tag !== tag.tag), [allTags, tag.tag]);
+  const renameNormalized = normalizeTag(renameTo);
+  const renameChanged = !!renameNormalized && renameNormalized !== tag.tag;
+  // Renaming onto a tag that already exists is a merge — say so rather than letting
+  // the note count quietly change under the user.
+  const renameCollides = !!renameNormalized && others.some((t) => t.tag === renameNormalized);
+
+  async function run(kind: 'rename' | 'merge' | 'delete', fn: () => Promise<unknown>, done: () => void) {
+    setBusy(kind);
+    try {
+      await fn();
+      done();
+    } catch (e) {
+      toast(errorMessage(e, 'That didn’t work — nothing was changed'), 'error');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Manage #${tag.tag}`} width={460}>
+      <div className="tg-manage">
+        <p className="tg-manage__lead">
+          On {plural(tag.count, 'note')}. Changes here apply to every note carrying this tag, including archived ones.
+        </p>
+
+        {/* --- rename --- */}
+        <section className="tg-manage__section">
+          <label className="field-label" htmlFor="tg-rename">
+            Rename
+          </label>
+          <div className="tg-manage__row">
+            <input
+              id="tg-rename"
+              className="text-input tg-manage__input"
+              value={renameTo}
+              maxLength={MAX_TAG_LENGTH + 8}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setRenameTo(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && renameChanged && !busy) {
+                  e.preventDefault();
+                  void run(
+                    'rename',
+                    () => api.renameTag(tag.tag, renameNormalized),
+                    () => {
+                      toast(`Renamed to #${renameNormalized}`, 'ok');
+                      onDone(tag.tag, renameNormalized);
+                    },
+                  );
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!renameChanged || busy !== null}
+              onClick={() =>
+                void run(
+                  'rename',
+                  () => api.renameTag(tag.tag, renameNormalized as string),
+                  () => {
+                    toast(`Renamed to #${renameNormalized}`, 'ok');
+                    onDone(tag.tag, renameNormalized as string);
+                  },
+                )
+              }
+            >
+              {busy === 'rename' ? 'Renaming…' : 'Rename'}
+            </button>
+          </div>
+          {renameNormalized && renameNormalized !== renameTo.trim().replace(/^#/, '') && (
+            <p className="tg-manage__hint">Will be saved as #{renameNormalized}</p>
+          )}
+          {renameCollides && (
+            <p className="tg-manage__hint tg-manage__hint--warn">
+              #{renameNormalized} already exists — the two will be merged.
+            </p>
+          )}
+        </section>
+
+        {/* --- merge --- */}
+        {others.length > 0 && (
+          <section className="tg-manage__section">
+            <label className="field-label" htmlFor="tg-merge">
+              Merge into another tag
+            </label>
+            <div className="tg-manage__row">
+              <select
+                id="tg-merge"
+                className="select-input tg-manage__input"
+                value={mergeInto}
+                onChange={(e) => setMergeInto(e.target.value)}
+              >
+                <option value="">Choose a tag…</option>
+                {others.map((t) => (
+                  <option key={t.tag} value={t.tag}>
+                    #{t.tag} ({t.count})
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={!mergeInto || busy !== null}
+                onClick={() =>
+                  void run(
+                    'merge',
+                    () => api.mergeTags([tag.tag], mergeInto),
+                    () => {
+                      toast(`#${tag.tag} merged into #${mergeInto}`, 'ok');
+                      onDone(tag.tag, mergeInto);
+                    },
+                  )
+                }
+              >
+                {busy === 'merge' ? 'Merging…' : 'Merge'}
+              </button>
+            </div>
+            <p className="tg-manage__hint">
+              Every note tagged #{tag.tag} gets #{mergeInto || '…'} instead. #{tag.tag} disappears.
+            </p>
+          </section>
+        )}
+
+        {/* --- delete --- */}
+        <section className="tg-manage__section tg-manage__section--danger">
+          <label className="field-label">Remove from all notes</label>
+          {!confirmDelete ? (
+            <button type="button" className="btn btn-danger" disabled={busy !== null} onClick={() => setConfirmDelete(true)}>
+              <Icon name="trash" size={13} /> Delete #{tag.tag}
+            </button>
+          ) : (
+            // Inline two-step rather than a nested ConfirmDialog — stacking a second
+            // modal over this one would double the scrim and steal the focus trap.
+            <div className="tg-manage__confirm">
+              <span>Remove #{tag.tag} from {plural(tag.count, 'note')}? The notes themselves are kept.</span>
+              <div className="tg-manage__row">
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    void run(
+                      'delete',
+                      () => api.deleteTag(tag.tag),
+                      () => {
+                        toast(`#${tag.tag} removed from every note`, 'ok');
+                        onDone(tag.tag, null);
+                      },
+                    )
+                  }
+                >
+                  {busy === 'delete' ? 'Deleting…' : 'Yes, delete'}
+                </button>
+                <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => setConfirmDelete(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <p className="tg-manage__footnote">
+          Tags typed straight into a note as <code>#{tag.tag}</code> live in that note&rsquo;s text. Renaming or deleting
+          here updates the tag list, but the words in the body stay as they were — edit those notes to change them for good.
+        </p>
+      </div>
+    </Modal>
   );
 }

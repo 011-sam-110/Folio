@@ -1,23 +1,54 @@
 import { Router } from 'express';
-import { db, newId, nowIso } from '../db.js';
+import { db, tx, newId, nowIso } from '../db.js';
+import { userId } from '../auth/middleware.js';
 import { noteLite, noteFull, wordCountOf, type NoteRow } from '../lib/serialize.js';
 import { syncLinksForNote, renameWikilinksToTitle, resyncNotesReferencingTitle } from '../lib/links.js';
 import { tiptapToMarkdown, type TTNode } from '../lib/export.js';
 
 const router = Router();
 
-/** Live (not soft-deleted) note. */
-function getNoteRow(id: string): NoteRow | undefined {
-  return db.prepare('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL').get(id) as NoteRow | undefined;
+// Auth is mounted once, in app.ts (`app.use('/api/notes', requireAuth, ...)`), so this
+// router does not add its own guard — one layer means one place to audit and one session
+// lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
+// failure mode is a loud 500, never an unscoped query.
+
+/**
+ * Ownership convention in this file:
+ *  - The owner id ALWAYS comes from `userId(req)`, never from the body or params.
+ *  - `notes` carries user_id, so note lookups filter on it directly.
+ *  - Child tables (note_versions, note_tags, links) have no user_id, so their
+ *    statements reach through to `notes` — either by joining on the read side or
+ *    by an INSERT…SELECT over an owner-filtered `notes` row on the write side.
+ *    A bare `WHERE note_id = ?` would let any signed-in user name any note id.
+ *  - Where a bare note id IS used below, it is `row.id` from an already
+ *    owner-scoped lookup, not the raw path parameter; those spots say so.
+ */
+
+/** Live (not soft-deleted) note belonging to `uid`. */
+async function getNoteRow(uid: string, id: string): Promise<NoteRow | undefined> {
+  return db
+    .prepare('SELECT * FROM notes WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
+    .get<NoteRow>(id, uid);
 }
 
-/** Any note including one in the trash (for undelete). */
-function getNoteRowAny(id: string): (NoteRow & { deleted_at: string | null }) | undefined {
-  return db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as (NoteRow & { deleted_at: string | null }) | undefined;
+/** Any note belonging to `uid`, including one in the trash (for undelete). */
+async function getNoteRowAny(
+  uid: string,
+  id: string,
+): Promise<(NoteRow & { deleted_at: string | null }) | undefined> {
+  return db
+    .prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?')
+    .get<NoteRow & { deleted_at: string | null }>(id, uid);
 }
 
 function escapeLike(s: string): string {
   return s.replace(/[\\%_]/g, c => `\\${c}`);
+}
+
+/** Version ids are BIGINT. Postgres errors on a non-numeric literal where SQLite simply
+ *  failed to match, so parse the path segment and let the caller answer 404 for garbage. */
+function parseVersionId(raw: string): number | null {
+  return /^\d+$/.test(raw) ? Number(raw) : null;
 }
 
 /** Reject anything that isn't a minimally-valid TipTap doc so a bricked note is impossible.
@@ -61,31 +92,55 @@ function plainTextFallback(doc: unknown): string {
   return out.join('').replace(/\n{2,}/g, '\n').trim();
 }
 
-function setTags(noteId: string, tags: unknown): void {
+async function setTags(uid: string, noteId: string, tags: unknown): Promise<void> {
   const list = Array.isArray(tags) ? [...new Set(tags.map(t => String(t).trim()).filter(Boolean))] : [];
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM note_tags WHERE note_id = ?').run(noteId);
-    const stmt = db.prepare('INSERT OR IGNORE INTO note_tags (note_id, tag) VALUES (?, ?)');
-    for (const t of list) stmt.run(noteId, t);
+  // Both statements must run on the transaction's connection (`t`), not the module
+  // `db`, which would draw a different pooled connection and land outside the tx.
+  await tx(async t => {
+    await t
+      .prepare('DELETE FROM note_tags WHERE note_id IN (SELECT id FROM notes WHERE id = ? AND user_id = ?)')
+      .run(noteId, uid);
+    const stmt = t.prepare(
+      `INSERT INTO note_tags (note_id, tag)
+       SELECT id, ? FROM notes WHERE id = ? AND user_id = ?
+       ON CONFLICT DO NOTHING`,
+    );
+    for (const tag of list) await stmt.run(tag, noteId, uid);
   });
-  tx();
 }
 
-function insertVersion(noteId: string, title: string, contentJson: string, cause: string, label: string | null = null): void {
-  db.prepare('INSERT INTO note_versions (note_id, title, content_json, cause, label, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
-    noteId,
-    title,
-    contentJson,
-    cause,
-    label,
-    nowIso(),
-  );
+/**
+ * Append a history entry, returning the row it wrote (Postgres has no lastInsertRowid,
+ * and RETURNING is race-free where re-reading `ORDER BY id DESC LIMIT 1` would not be).
+ * INSERT…SELECT over an owner-filtered `notes` row re-checks ownership at write time,
+ * so this cannot graft history onto another user's note; it writes nothing instead.
+ */
+async function insertVersion(
+  uid: string,
+  noteId: string,
+  title: string,
+  contentJson: string,
+  cause: string,
+  label: string | null = null,
+): Promise<VersionRow | undefined> {
+  return db
+    .prepare(
+      `INSERT INTO note_versions (note_id, title, content_json, cause, label, created_at)
+       SELECT id, ?, ?, ?, ?, ? FROM notes WHERE id = ? AND user_id = ?
+       RETURNING id, title, content_json, cause, label, created_at`,
+    )
+    .get<VersionRow>(title, contentJson, cause, label, nowIso(), noteId, uid);
 }
 
-function shouldAutosaveSnapshot(noteId: string): boolean {
-  const latest = db
-    .prepare('SELECT cause, created_at FROM note_versions WHERE note_id = ? ORDER BY created_at DESC, id DESC LIMIT 1')
-    .get(noteId) as { cause: string; created_at: string } | undefined;
+async function shouldAutosaveSnapshot(uid: string, noteId: string): Promise<boolean> {
+  const latest = await db
+    .prepare(
+      `SELECT v.cause, v.created_at FROM note_versions v
+       JOIN notes n ON n.id = v.note_id
+       WHERE v.note_id = ? AND n.user_id = ?
+       ORDER BY v.created_at DESC, v.id DESC LIMIT 1`,
+    )
+    .get<{ cause: string; created_at: string }>(noteId, uid);
   if (!latest) return true;
   if (latest.cause !== 'autosave') return true;
   const age = Date.now() - new Date(latest.created_at).getTime();
@@ -114,15 +169,17 @@ function versionMeta(v: VersionRow) {
 
 // --- Collection routes (must come before /:id) ---------------------------------
 
-router.get('/recent', (req, res) => {
+router.get('/recent', async (req, res) => {
+  const uid = userId(req);
   const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 100);
-  const rows = db
-    .prepare('SELECT * FROM notes WHERE archived = 0 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?')
-    .all(limit) as NoteRow[];
-  res.json({ notes: rows.map(noteLite) });
+  const rows = await db
+    .prepare('SELECT * FROM notes WHERE user_id = ? AND archived = 0 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?')
+    .all<NoteRow>(uid, limit);
+  res.json({ notes: await Promise.all(rows.map(r => noteLite(r))) });
 });
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
+  const uid = userId(req);
   const notebookId = typeof req.query.notebookId === 'string' ? req.query.notebookId : undefined;
   const tag = typeof req.query.tag === 'string' ? req.query.tag : undefined;
   const archived = req.query.archived !== undefined ? String(req.query.archived) === '1' : false;
@@ -130,8 +187,10 @@ router.get('/', (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-  const conditions = ['n.archived = ?', 'n.deleted_at IS NULL'];
-  const conditionParams: unknown[] = [archived ? 1 : 0];
+  // The owner predicate leads so it applies to the tag-join variant too; a notebookId
+  // from the query string narrows within the caller's own notes, it never widens.
+  const conditions = ['n.user_id = ?', 'n.archived = ?', 'n.deleted_at IS NULL'];
+  const conditionParams: unknown[] = [uid, archived ? 1 : 0];
   if (notebookId) {
     conditions.push('n.notebook_id = ?');
     conditionParams.push(notebookId);
@@ -139,24 +198,44 @@ router.get('/', (req, res) => {
   const join = tag ? 'JOIN note_tags nt ON nt.note_id = n.id AND nt.tag = ?' : '';
   const params = tag ? [tag, ...conditionParams] : conditionParams;
 
-  const orderBy = sort === 'created' ? 'n.created_at DESC' : sort === 'title' ? 'n.title COLLATE NOCASE ASC' : 'n.updated_at DESC';
+  // SQLite's COLLATE NOCASE has no Postgres equivalent; lower() gives the same
+  // case-insensitive title ordering.
+  const orderBy = sort === 'created' ? 'n.created_at DESC' : sort === 'title' ? 'lower(n.title) ASC' : 'n.updated_at DESC';
   const whereSql = conditions.join(' AND ');
 
-  const rows = db
+  const rows = await db
     .prepare(`SELECT n.* FROM notes n ${join} WHERE ${whereSql} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
-    .all(...params, limit, offset) as NoteRow[];
-  const total = (db.prepare(`SELECT COUNT(*) as c FROM notes n ${join} WHERE ${whereSql}`).get(...params) as { c: number }).c;
+    .all<NoteRow>(...params, limit, offset);
+  // COUNT(*) is BIGINT; db.ts registers a type parser that hands it back as a JS number.
+  const totalRow = await db
+    .prepare(`SELECT COUNT(*) as c FROM notes n ${join} WHERE ${whereSql}`)
+    .get<{ c: number }>(...params);
+  const total = Number(totalRow?.c ?? 0);
 
-  res.json({ notes: rows.map(noteLite), total });
+  res.json({ notes: await Promise.all(rows.map(r => noteLite(r))), total });
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
+  const uid = userId(req);
   const b = req.body ?? {};
-  if (typeof b.notebookId !== 'string' || !b.notebookId) return res.status(400).json({ error: 'notebookId is required' });
-  const notebook = db.prepare('SELECT id FROM notebooks WHERE id = ?').get(b.notebookId);
-  if (!notebook) return res.status(400).json({ error: 'unknown notebookId' });
+  if (typeof b.notebookId !== 'string' || !b.notebookId) {
+    res.status(400).json({ error: 'notebookId is required' });
+    return;
+  }
+  // Owner-scoped: another user's notebook must read as unknown rather than accept the
+  // note, otherwise any caller could file notes into an account they cannot see.
+  const notebook = await db
+    .prepare('SELECT id FROM notebooks WHERE id = ? AND user_id = ?')
+    .get<{ id: string }>(b.notebookId, uid);
+  if (!notebook) {
+    res.status(400).json({ error: 'unknown notebookId' });
+    return;
+  }
   const contentJsonError = validateContentJson(b.contentJson);
-  if (contentJsonError) return res.status(400).json({ error: contentJsonError });
+  if (contentJsonError) {
+    res.status(400).json({ error: contentJsonError });
+    return;
+  }
 
   const id = newId();
   const now = nowIso();
@@ -165,49 +244,79 @@ router.post('/', (req, res) => {
   const contentJson = JSON.stringify(contentJsonObj);
   const contentText = b.contentText !== undefined ? String(b.contentText) : b.contentJson !== undefined ? plainTextFallback(contentJsonObj) : '';
 
-  db.prepare(
-    `INSERT INTO notes (id, notebook_id, title, content_json, content_text, pinned, archived, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)`,
-  ).run(id, b.notebookId, title, contentJson, contentText, now, now);
+  await db
+    .prepare(
+      `INSERT INTO notes (id, user_id, notebook_id, title, content_json, content_text, pinned, archived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+    )
+    .run(id, uid, b.notebookId, title, contentJson, contentText, now, now);
 
-  if (b.tags !== undefined) setTags(id, b.tags);
-  if (contentText) syncLinksForNote(id, contentText);
+  if (b.tags !== undefined) await setTags(uid, id, b.tags);
+  if (contentText) await syncLinksForNote(uid, id, contentText);
 
-  const row = getNoteRow(id)!;
-  res.status(201).json({ note: noteFull(row) });
+  const row = (await getNoteRow(uid, id))!;
+  res.status(201).json({ note: await noteFull(row) });
 });
 
 // --- Single-note routes ----------------------------------------------------------
 
-router.get('/:id', (req, res) => {
-  const row = getNoteRow(req.params.id);
-  if (!row) return res.status(404).json({ error: 'note not found' });
+router.get('/:id', async (req, res) => {
+  const uid = userId(req);
+  const row = await getNoteRow(uid, req.params.id);
+  if (!row) {
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
 
-  const backlinkRows = db
-    .prepare('SELECT n.* FROM links l JOIN notes n ON n.id = l.from_note_id WHERE l.to_note_id = ? ORDER BY n.updated_at DESC')
-    .all(row.id) as NoteRow[];
-  const outgoingRows = db
-    .prepare('SELECT n.* FROM links l JOIN notes n ON n.id = l.to_note_id WHERE l.from_note_id = ? ORDER BY n.updated_at DESC')
-    .all(row.id) as NoteRow[];
+  // `links` has no user_id of its own, so the owner filter goes on the joined note.
+  const backlinkRows = await db
+    .prepare(
+      `SELECT n.* FROM links l JOIN notes n ON n.id = l.from_note_id
+       WHERE l.to_note_id = ? AND n.user_id = ? ORDER BY n.updated_at DESC`,
+    )
+    .all<NoteRow>(row.id, uid);
+  const outgoingRows = await db
+    .prepare(
+      `SELECT n.* FROM links l JOIN notes n ON n.id = l.to_note_id
+       WHERE l.from_note_id = ? AND n.user_id = ? ORDER BY n.updated_at DESC`,
+    )
+    .all<NoteRow>(row.id, uid);
 
-  res.json({ note: noteFull(row), backlinks: backlinkRows.map(noteLite), outgoingLinks: outgoingRows.map(noteLite) });
+  res.json({
+    note: await noteFull(row),
+    backlinks: await Promise.all(backlinkRows.map(r => noteLite(r))),
+    outgoingLinks: await Promise.all(outgoingRows.map(r => noteLite(r))),
+  });
 });
 
-router.patch('/:id', (req, res) => {
-  const row = getNoteRow(req.params.id);
-  if (!row) return res.status(404).json({ error: 'note not found' });
+router.patch('/:id', async (req, res) => {
+  const uid = userId(req);
+  const row = await getNoteRow(uid, req.params.id);
+  if (!row) {
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
 
   const b = req.body ?? {};
   if (b.notebookId !== undefined) {
-    const notebook = db.prepare('SELECT id FROM notebooks WHERE id = ?').get(b.notebookId);
-    if (!notebook) return res.status(400).json({ error: 'unknown notebookId' });
+    // Moving a note into a notebook the caller does not own would hand it to them.
+    const notebook = await db
+      .prepare('SELECT id FROM notebooks WHERE id = ? AND user_id = ?')
+      .get<{ id: string }>(b.notebookId, uid);
+    if (!notebook) {
+      res.status(400).json({ error: 'unknown notebookId' });
+      return;
+    }
   }
   const contentJsonError = validateContentJson(b.contentJson);
-  if (contentJsonError) return res.status(400).json({ error: contentJsonError });
+  if (contentJsonError) {
+    res.status(400).json({ error: contentJsonError });
+    return;
+  }
 
   const contentChanging = b.title !== undefined || b.contentJson !== undefined || b.contentText !== undefined;
-  if (contentChanging && shouldAutosaveSnapshot(row.id)) {
-    insertVersion(row.id, row.title, row.content_json, 'autosave');
+  if (contentChanging && (await shouldAutosaveSnapshot(uid, row.id))) {
+    await insertVersion(uid, row.id, row.title, row.content_json, 'autosave');
   }
 
   const newTitle = b.title !== undefined ? String(b.title) : row.title;
@@ -222,112 +331,171 @@ router.patch('/:id', (req, res) => {
   const newArchived = b.archived !== undefined ? (b.archived ? 1 : 0) : row.archived;
   const newNotebookId = b.notebookId !== undefined ? b.notebookId : row.notebook_id;
 
-  db.prepare('UPDATE notes SET title = ?, content_json = ?, content_text = ?, pinned = ?, archived = ?, notebook_id = ?, updated_at = ? WHERE id = ?').run(
-    newTitle,
-    newContentJson,
-    newContentText,
-    newPinned,
-    newArchived,
-    newNotebookId,
-    nowIso(),
-    row.id,
-  );
+  await db
+    .prepare(
+      `UPDATE notes SET title = ?, content_json = ?, content_text = ?, pinned = ?, archived = ?, notebook_id = ?, updated_at = ?
+       WHERE id = ? AND user_id = ?`,
+    )
+    .run(newTitle, newContentJson, newContentText, newPinned, newArchived, newNotebookId, nowIso(), row.id, uid);
 
-  if (b.tags !== undefined) setTags(row.id, b.tags);
-  if (b.contentText !== undefined || b.contentJson !== undefined) syncLinksForNote(row.id, newContentText);
+  if (b.tags !== undefined) await setTags(uid, row.id, b.tags);
+  if (b.contentText !== undefined || b.contentJson !== undefined) await syncLinksForNote(uid, row.id, newContentText);
   // Renaming a note is link-preserving: fix up the [[oldTitle]] references in every note
   // that links here so backlinks (and the on-screen wikilink text) follow the new title.
+  // Confined to this user's notes — a shared title must not rewrite anyone else's text.
   if (b.title !== undefined && newTitle !== row.title) {
-    renameWikilinksToTitle(row.id, row.title, newTitle);
+    await renameWikilinksToTitle(uid, row.id, row.title, newTitle);
   }
 
-  const updated = getNoteRow(row.id)!;
-  res.json({ note: noteFull(updated) });
+  const updated = (await getNoteRow(uid, row.id))!;
+  res.json({ note: await noteFull(updated) });
 });
 
 // Soft-delete: move to trash. Version history survives; a boot-time sweep hard-purges
 // notes deleted >30 days ago (see db.ts purgeExpiredDeletedNotes).
-router.delete('/:id', (req, res) => {
-  const row = getNoteRow(req.params.id);
-  if (!row) return res.status(404).json({ error: 'note not found' });
-  db.prepare('UPDATE notes SET deleted_at = ? WHERE id = ?').run(nowIso(), row.id);
+router.delete('/:id', async (req, res) => {
+  const uid = userId(req);
+  const row = await getNoteRow(uid, req.params.id);
+  if (!row) {
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
+  await db.prepare('UPDATE notes SET deleted_at = ? WHERE id = ? AND user_id = ?').run(nowIso(), row.id, uid);
   // Drop outgoing links so a trashed note stops appearing as a backlink elsewhere.
-  db.prepare('DELETE FROM links WHERE from_note_id = ? OR to_note_id = ?').run(row.id, row.id);
+  // `row.id` came from the owner-scoped lookup above, so these link rows are provably
+  // the caller's; `links` has no user_id column of its own to filter on.
+  await db.prepare('DELETE FROM links WHERE from_note_id = ? OR to_note_id = ?').run(row.id, row.id);
   res.json({ ok: true });
 });
 
 // Undo a soft-delete within the retention window.
-router.post('/:id/undelete', (req, res) => {
-  const row = getNoteRowAny(req.params.id);
-  if (!row) return res.status(404).json({ error: 'note not found' });
-  if (!row.deleted_at) return res.json({ note: noteFull(row) }); // already live — no-op
-  db.prepare('UPDATE notes SET deleted_at = NULL WHERE id = ?').run(row.id);
+router.post('/:id/undelete', async (req, res) => {
+  const uid = userId(req);
+  const row = await getNoteRowAny(uid, req.params.id);
+  if (!row) {
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
+  if (!row.deleted_at) {
+    res.json({ note: await noteFull(row) }); // already live — no-op
+    return;
+  }
+  await db.prepare('UPDATE notes SET deleted_at = NULL WHERE id = ? AND user_id = ?').run(row.id, uid);
   // Rebuild this note's outgoing links and any incoming links from live notes.
-  syncLinksForNote(row.id, row.content_text);
-  resyncNotesReferencingTitle(row.title, row.id);
-  const restored = getNoteRow(row.id)!;
-  res.json({ note: noteFull(restored) });
+  await syncLinksForNote(uid, row.id, row.content_text);
+  await resyncNotesReferencingTitle(uid, row.title, row.id);
+  const restored = (await getNoteRow(uid, row.id))!;
+  res.json({ note: await noteFull(restored) });
 });
 
-router.get('/:id/versions', (req, res) => {
-  const note = getNoteRow(req.params.id);
-  if (!note) return res.status(404).json({ error: 'note not found' });
-  const rows = db
-    .prepare('SELECT id, title, content_json, cause, label, created_at FROM note_versions WHERE note_id = ? ORDER BY created_at DESC, id DESC')
-    .all(note.id) as VersionRow[];
+router.get('/:id/versions', async (req, res) => {
+  const uid = userId(req);
+  const note = await getNoteRow(uid, req.params.id);
+  if (!note) {
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
+  // note_versions has no user_id; the join to notes carries the ownership filter.
+  const rows = await db
+    .prepare(
+      `SELECT v.id, v.title, v.content_json, v.cause, v.label, v.created_at
+       FROM note_versions v JOIN notes n ON n.id = v.note_id
+       WHERE v.note_id = ? AND n.user_id = ?
+       ORDER BY v.created_at DESC, v.id DESC`,
+    )
+    .all<VersionRow>(note.id, uid);
   res.json({ versions: rows.map(versionMeta) });
 });
 
-router.get('/:id/versions/:vid', (req, res) => {
-  const note = getNoteRow(req.params.id);
-  if (!note) return res.status(404).json({ error: 'note not found' });
-  const v = db
-    .prepare('SELECT id, title, content_json, cause, label, created_at FROM note_versions WHERE id = ? AND note_id = ?')
-    .get(req.params.vid, note.id) as VersionRow | undefined;
-  if (!v) return res.status(404).json({ error: 'version not found' });
+router.get('/:id/versions/:vid', async (req, res) => {
+  const uid = userId(req);
+  const note = await getNoteRow(uid, req.params.id);
+  if (!note) {
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
+  const vid = parseVersionId(req.params.vid);
+  const v =
+    vid === null
+      ? undefined
+      : await db
+          .prepare(
+            `SELECT v.id, v.title, v.content_json, v.cause, v.label, v.created_at
+             FROM note_versions v JOIN notes n ON n.id = v.note_id
+             WHERE v.id = ? AND v.note_id = ? AND n.user_id = ?`,
+          )
+          .get<VersionRow>(vid, note.id, uid);
+  if (!v) {
+    res.status(404).json({ error: 'version not found' });
+    return;
+  }
   res.json({ version: { id: v.id, title: v.title, contentJson: JSON.parse(v.content_json), cause: v.cause, label: v.label, createdAt: v.created_at } });
 });
 
-router.post('/:id/versions', (req, res) => {
-  const note = getNoteRow(req.params.id);
-  if (!note) return res.status(404).json({ error: 'note not found' });
+router.post('/:id/versions', async (req, res) => {
+  const uid = userId(req);
+  const note = await getNoteRow(uid, req.params.id);
+  if (!note) {
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
   const label = typeof req.body?.label === 'string' && req.body.label.trim() ? req.body.label.trim() : null;
-  insertVersion(note.id, note.title, note.content_json, 'manual', label);
-  const v = db
-    .prepare('SELECT id, title, content_json, cause, label, created_at FROM note_versions WHERE note_id = ? ORDER BY id DESC LIMIT 1')
-    .get(note.id) as VersionRow;
+  const v = await insertVersion(uid, note.id, note.title, note.content_json, 'manual', label);
+  if (!v) {
+    // Only reachable if the note vanished between the lookup and the insert.
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
   res.status(201).json({ version: versionMeta(v) });
 });
 
-router.post('/:id/restore/:vid', (req, res) => {
-  const note = getNoteRow(req.params.id);
-  if (!note) return res.status(404).json({ error: 'note not found' });
-  const v = db.prepare('SELECT id, title, content_json FROM note_versions WHERE id = ? AND note_id = ?').get(req.params.vid, note.id) as
-    | { id: number; title: string; content_json: string }
-    | undefined;
-  if (!v) return res.status(404).json({ error: 'version not found' });
+router.post('/:id/restore/:vid', async (req, res) => {
+  const uid = userId(req);
+  const note = await getNoteRow(uid, req.params.id);
+  if (!note) {
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
+  const vid = parseVersionId(req.params.vid);
+  const v =
+    vid === null
+      ? undefined
+      : await db
+          .prepare(
+            `SELECT v.id, v.title, v.content_json
+             FROM note_versions v JOIN notes n ON n.id = v.note_id
+             WHERE v.id = ? AND v.note_id = ? AND n.user_id = ?`,
+          )
+          .get<{ id: number; title: string; content_json: string }>(vid, note.id, uid);
+  if (!v) {
+    res.status(404).json({ error: 'version not found' });
+    return;
+  }
 
-  insertVersion(note.id, note.title, note.content_json, 'restore');
+  await insertVersion(uid, note.id, note.title, note.content_json, 'restore');
 
   const restoredContentText = plainTextFallback(JSON.parse(v.content_json));
-  db.prepare('UPDATE notes SET title = ?, content_json = ?, content_text = ?, updated_at = ? WHERE id = ?').run(
-    v.title,
-    v.content_json,
-    restoredContentText,
-    nowIso(),
-    note.id,
-  );
-  syncLinksForNote(note.id, restoredContentText);
+  await db
+    .prepare('UPDATE notes SET title = ?, content_json = ?, content_text = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+    .run(v.title, v.content_json, restoredContentText, nowIso(), note.id, uid);
+  await syncLinksForNote(uid, note.id, restoredContentText);
 
-  const updated = getNoteRow(note.id)!;
-  res.json({ note: noteFull(updated) });
+  const updated = (await getNoteRow(uid, note.id))!;
+  res.json({ note: await noteFull(updated) });
 });
 
-router.get('/:id/export', (req, res) => {
-  const note = getNoteRow(req.params.id);
-  if (!note) return res.status(404).json({ error: 'note not found' });
+router.get('/:id/export', async (req, res) => {
+  const uid = userId(req);
+  const note = await getNoteRow(uid, req.params.id);
+  if (!note) {
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
   const format = typeof req.query.format === 'string' ? req.query.format : 'markdown';
-  if (format !== 'markdown') return res.status(400).json({ error: 'unsupported export format' });
+  if (format !== 'markdown') {
+    res.status(400).json({ error: 'unsupported export format' });
+    return;
+  }
 
   const markdown = tiptapToMarkdown(JSON.parse(note.content_json) as TTNode);
   const safeName = (note.title || 'untitled').replace(/[^a-z0-9\-_ ]/gi, '').trim().replace(/\s+/g, '-').slice(0, 80) || 'untitled';
@@ -337,21 +505,42 @@ router.get('/:id/export', (req, res) => {
   res.send(markdown);
 });
 
-router.get('/:id/unlinked-mentions', (req, res) => {
-  const note = getNoteRow(req.params.id);
-  if (!note) return res.status(404).json({ error: 'note not found' });
-  if (!note.title.trim()) return res.json({ notes: [] });
+router.get('/:id/unlinked-mentions', async (req, res) => {
+  const uid = userId(req);
+  const note = await getNoteRow(uid, req.params.id);
+  if (!note) {
+    res.status(404).json({ error: 'note not found' });
+    return;
+  }
+  if (!note.title.trim()) {
+    res.json({ notes: [] });
+    return;
+  }
 
   const linkedIds = new Set(
-    (db.prepare('SELECT from_note_id FROM links WHERE to_note_id = ?').all(note.id) as Array<{ from_note_id: string }>).map(r => r.from_note_id),
+    (
+      await db
+        .prepare(
+          `SELECT l.from_note_id FROM links l JOIN notes n ON n.id = l.from_note_id
+           WHERE l.to_note_id = ? AND n.user_id = ?`,
+        )
+        .all<{ from_note_id: string }>(note.id, uid)
+    ).map(r => r.from_note_id),
   );
 
-  const candidates = db
-    .prepare(`SELECT * FROM notes WHERE id != ? AND archived = 0 AND deleted_at IS NULL AND lower(content_text) LIKE lower(?) ESCAPE '\\'`)
-    .all(note.id, `%${escapeLike(note.title)}%`) as NoteRow[];
+  // The candidate scan is a full-text LIKE over note bodies, so the owner filter here
+  // is load-bearing: without it this endpoint would report (and snippet) other users'
+  // notes that happen to mention this title.
+  const candidates = await db
+    .prepare(
+      `SELECT * FROM notes
+       WHERE user_id = ? AND id != ? AND archived = 0 AND deleted_at IS NULL
+         AND lower(content_text) LIKE lower(?) ESCAPE '\\'`,
+    )
+    .all<NoteRow>(uid, note.id, `%${escapeLike(note.title)}%`);
 
   const filtered = candidates.filter(c => !linkedIds.has(c.id));
-  res.json({ notes: filtered.map(noteLite) });
+  res.json({ notes: await Promise.all(filtered.map(r => noteLite(r))) });
 });
 
 export default router;
