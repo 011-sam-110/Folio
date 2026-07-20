@@ -21,7 +21,7 @@ import AssistantPanel from './AssistantPanel';
 import AiPreviewModal from './AiPreviewModal';
 import DropdownButton from './DropdownButton';
 import ImportModal from '../import/ImportModal';
-import { useAiEnabled } from '../../lib/aiPrefs';
+import { useAiAvailable } from '../../lib/aiStatus';
 import { useAutosave } from './useAutosave';
 import { setActiveFlush } from './autosaveBus';
 import { markdownToSafeHtml } from './markdown';
@@ -181,7 +181,9 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const [importOpen, setImportOpen] = useState(false);
   const [importKind, setImportKind] = useState<'photo' | 'slides' | 'transcript'>('photo');
   const [aiBusy, setAiBusy] = useState<string | null>(null);
-  const [aiOn] = useAiEnabled();
+  // Availability, not just preference — see lib/aiStatus. With no reachable gateway
+  // the AI menu and assistant panel would render as live controls that always fail.
+  const aiOn = useAiAvailable();
   const [flashcardStep, setFlashcardStep] = useState(false);
   const [flashcardBanner, setFlashcardBanner] = useState<number | null>(null);
   const [aiWholeResult, setAiWholeResult] = useState<{ kind: 'improve' | 'summarize' | 'clean'; model: string; markdown: string } | null>(null);

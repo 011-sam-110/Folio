@@ -8,6 +8,7 @@ import type { Notebook } from '../../lib/types';
 import { toast } from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import { useAiEnabled } from '../../lib/aiPrefs';
+import { refreshAiHealth, useAiHealth } from '../../lib/aiStatus';
 import { markdownToDoc } from './mdToTiptap';
 import './AskPage.css';
 
@@ -32,6 +33,9 @@ export default function AskPage() {
   const [asking, setAsking] = useState(false);
   const [insertingId, setInsertingId] = useState<string | null>(null);
   const [aiOn, setAiOn] = useAiEnabled();
+  // Must be called here, above the early returns below — a hook after a conditional
+  // return would break the rules-of-hooks ordering.
+  const aiHealth = useAiHealth();
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
@@ -56,6 +60,30 @@ export default function AskPage() {
           action={
             <button type="button" className="btn btn-primary" onClick={() => setAiOn(true)}>
               Turn AI back on
+            </button>
+          }
+        />
+      </div>
+    );
+  }
+
+  // Distinct from the kill-switch above on purpose: "you turned this off" and "the
+  // model gateway can't be reached" are different problems with different fixes, and
+  // collapsing them into one message sends the user looking in the wrong place.
+  if (aiHealth.status === 'bad') {
+    return (
+      <div className="ask-page" data-testid="ask-unavailable">
+        <EmptyState
+          icon="🔌"
+          title="AI isn’t reachable right now"
+          hint={
+            aiHealth.error
+              ? `Folio couldn’t reach the model gateway (${aiHealth.error}). Everything else — notes, search, flashcards, canvas — works as normal.`
+              : 'Folio couldn’t reach the model gateway. Everything else — notes, search, flashcards, canvas — works as normal.'
+          }
+          action={
+            <button type="button" className="btn" onClick={() => void refreshAiHealth()}>
+              Try again
             </button>
           }
         />

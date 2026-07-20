@@ -102,10 +102,19 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
     }
   }
 
-  /** Guard the close: an un-acknowledged reveal is the one state where closing
-   *  loses something the user cannot get back. */
+  /**
+   * Guard the close while a link is revealed — that is the one state where
+   * dismissing loses something unrecoverable.
+   *
+   * It refuses AND SAYS SO. A close button that silently does nothing reads as a
+   * broken dialog, and the user's next move is to reload the page, which is
+   * exactly the outcome the guard exists to prevent.
+   */
   function close() {
-    if (minted) return;
+    if (minted) {
+      toast('Copy the link first — Folio cannot show it again', 'info');
+      return;
+    }
     onClose();
   }
 

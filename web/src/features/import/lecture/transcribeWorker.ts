@@ -151,12 +151,13 @@ async function transcribe(
     const sliceStartSeconds = readStart / sampleRate;
     const committedFrom = offsetSamples / sampleRate;
 
+    // No `language`/`task` here: every model offered is an English-only (.en) checkpoint, and
+    // those reject both options outright ("Cannot specify `task` or `language` for an
+    // English-only model"). Passing them defensively fails the entire import.
     const out = await runBatch(slice, {
       return_timestamps: true,
       chunk_length_s: 30,
       stride_length_s: 5,
-      language: 'en',
-      task: 'transcribe',
     });
 
     const produced: TranscriptChunk[] = [];

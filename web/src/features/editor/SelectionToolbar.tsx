@@ -9,7 +9,7 @@ import type { Transaction } from '@tiptap/pm/state';
 import { api, ApiError } from '../../lib/api';
 import { toast } from '../../components/Toast';
 import Icon from '../../components/Icon';
-import { useAiEnabled } from '../../lib/aiPrefs';
+import { useAiAvailable } from '../../lib/aiStatus';
 import AiPreviewModal from './AiPreviewModal';
 import QuickCardModal from './QuickCardModal';
 import CommentIcon from '../comments/CommentIcon';
@@ -64,7 +64,9 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
-  const [aiEnabled] = useAiEnabled();
+  // Availability, not just preference: with no reachable gateway these buttons
+  // would look live and fail only after the user clicks and waits.
+  const aiEnabled = useAiAvailable();
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
   const [commentSaving, setCommentSaving] = useState(false);

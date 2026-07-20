@@ -11,6 +11,7 @@ import { useNotebooks } from './NotebooksContext';
 import { toast } from './Toast';
 import { useTheme } from '../lib/theme';
 import { useAiEnabled } from '../lib/aiPrefs';
+import { useAiHealth } from '../lib/aiStatus';
 import Icon from './Icon';
 import Tooltip from './Tooltip';
 import EmojiPicker from './EmojiPicker';
@@ -81,9 +82,9 @@ export default function Sidebar({
   const [submittingNew, setSubmittingNew] = useState(false);
 
   const [studyDue, setStudyDue] = useState<number | null>(null);
-  const [aiHealth, setAiHealth] = useState<{ status: 'pending' | 'ok' | 'bad'; model?: string; error?: string }>({
-    status: 'pending',
-  });
+  // Shared probe (lib/aiStatus) rather than a local one, so the status dot here and
+  // the gating of every AI affordance elsewhere always agree and cost one request.
+  const aiHealth = useAiHealth();
 
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const newNameRef = useRef<HTMLInputElement | null>(null);
@@ -96,13 +97,6 @@ export default function Sidebar({
       api.studyStats().then((s) => setStudyDue(s.due)).catch(() => {});
     }, 60_000);
     return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    api
-      .aiHealth()
-      .then((h) => setAiHealth({ status: h.ok ? 'ok' : 'bad', model: h.model, error: h.error }))
-      .catch((e) => setAiHealth({ status: 'bad', error: errorMessage(e, 'Unreachable') }));
   }, []);
 
   useEffect(() => {

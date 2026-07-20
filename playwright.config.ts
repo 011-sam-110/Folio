@@ -2,12 +2,13 @@ import { defineConfig, devices } from '@playwright/test';
 
 // E2E runs on dedicated ports with a dedicated, freshly-seeded database so it
 // never collides with a running dev server or touches real notes.
-const API_PORT = '4781';
-const WEB_PORT = '5174';
+const API_PORT = '4796';
+const WEB_PORT = '5196';
 const E2E_ENV = {
   FOLIO_PORT: API_PORT,
   FOLIO_WEB_PORT: WEB_PORT,
-  FOLIO_DB_PATH: 'data/e2e.db',
+  DATABASE_URL: 'postgresql://folio:folio@localhost:5433/folio_e2e',
+  FOLIO_AI_BASE_URL: 'http://localhost:3002/v1',
 };
 
 export default defineConfig({
