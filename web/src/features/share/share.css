@@ -1,0 +1,722 @@
+/* Sharing + guest collaboration.
+   Everything here is built on the tokens in styles/tokens.css, so light and dark
+   both fall out of the same rules — there is not a single hard-coded colour that
+   is not either a token or a per-guest presence colour chosen by the server. */
+
+/* ==========================================================================
+   Owner side — the share dialog
+   ========================================================================== */
+
+.sh-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sh-dialog__lede {
+  margin: 0;
+  font-size: var(--fs-chrome-lg);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.sh-perm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.sh-perm legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.sh-perm__opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease-out), background var(--dur) var(--ease-out);
+}
+.sh-perm__opt:hover {
+  background: var(--bg-hover);
+}
+.sh-perm__opt.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.sh-perm__opt input {
+  margin-top: 3px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+.sh-perm__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sh-perm__title {
+  font-size: var(--fs-chrome-lg);
+  font-weight: 600;
+  color: var(--ink);
+}
+.sh-perm__hint {
+  font-size: var(--fs-chrome);
+  color: var(--ink-3);
+  line-height: 1.4;
+}
+
+.sh-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-chrome-lg);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.sh-check input {
+  accent-color: var(--accent);
+}
+
+.sh-dialog__create {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+}
+
+/* --- existing links ------------------------------------------------------ */
+
+.sh-existing {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.sh-existing__heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--fs-chrome);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+.sh-existing__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--ink-2);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.sh-existing__empty,
+.sh-existing__note,
+.sh-existing__error {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+.sh-existing__error {
+  color: var(--danger);
+}
+
+.sh-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-elevated, var(--bg));
+}
+
+.sh-link__badge {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sh-link__badge--edit {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.sh-link__badge--view {
+  background: var(--bg-active);
+  color: var(--ink-2);
+}
+
+.sh-link__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-chrome);
+  color: var(--ink-3);
+}
+.sh-link__meta svg {
+  display: inline-block;
+  vertical-align: -1px;
+}
+
+.sh-link__revoke {
+  flex: 0 0 auto;
+  color: var(--danger);
+}
+
+/* --- the one-time reveal -------------------------------------------------
+   Mirrors .auth-recovery: same shape, same friction, because it is the same
+   promise — this is the last time the secret exists anywhere reachable. */
+
+.sh-minted {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.sh-minted__badge {
+  align-self: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sh-minted__title {
+  margin: 0;
+  text-align: center;
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.sh-minted__lede,
+.sh-minted__perm,
+.sh-minted__hint {
+  margin: 0;
+  text-align: center;
+  font-size: var(--fs-chrome-lg);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.sh-minted__perm,
+.sh-minted__hint {
+  font-size: var(--fs-chrome);
+  color: var(--ink-3);
+}
+
+/* Monospace + break-all: a share URL is long, and it must be readable and
+   selectable in full rather than silently truncated. */
+.sh-minted__url {
+  display: block;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-align: center;
+  color: var(--ink);
+  word-break: break-all;
+  user-select: all; /* one click selects the whole link */
+}
+
+.sh-minted__actions {
+  display: flex;
+}
+.sh-minted__actions .btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.sh-minted__ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--fs-chrome-lg);
+  line-height: 1.4;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.sh-minted__ack input {
+  margin-top: 2px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+.sh-minted__done {
+  width: 100%;
+}
+
+/* --- header entry point -------------------------------------------------- */
+
+/* Self-contained rather than borrowing .folio-btn (notePage.css) or a canvas
+   class, because the same button appears in both headers and only one of those
+   stylesheets is loaded at a time. The metrics match .folio-btn so it sits in the
+   note action bar without looking like a foreign control. */
+.sh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out),
+    border-color var(--dur) var(--ease-out);
+}
+.sh-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+/* An active share is a standing state of the note, not a transient one, so the
+   button itself carries it rather than a badge elsewhere that could drift. */
+.sh-btn.is-shared {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* A dot rather than a count: at a glance the author needs to know the note is
+   reachable by someone else, not how many links exist. */
+.sh-btn__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+/* ==========================================================================
+   Guest side — join screens
+   ========================================================================== */
+
+.sh-page {
+  position: relative;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: var(--bg-sidebar);
+}
+
+.sh-page__theme {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+.sh-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: var(--shadow-2);
+}
+
+.sh-card__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.sh-card__mark {
+  font-size: 20px;
+  line-height: 1;
+}
+.sh-card__wordmark {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.sh-card__title {
+  margin: 0 0 6px;
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.sh-card__subtitle {
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: var(--fs-chrome-lg);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.sh-join__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  font-size: var(--fs-chrome-lg);
+  color: var(--ink-2);
+}
+
+.sh-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sh-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sh-field__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--ink);
+}
+.sh-field__hint {
+  font-size: var(--fs-chrome);
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.sh-gate__error {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-chrome);
+  line-height: 1.4;
+}
+
+.sh-gate__submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+}
+
+.sh-dead {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.sh-dead__badge {
+  align-self: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--bg-active);
+  color: var(--ink-3);
+}
+.sh-dead__home {
+  align-self: center;
+}
+
+/* ==========================================================================
+   Guest side — the live session
+   ========================================================================== */
+
+.sh-session {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.sh-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.sh-header__mark {
+  font-size: 15px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.sh-header__title {
+  min-width: 0;
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-chrome-lg);
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.sh-header__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sh-header__badge--edit {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sh-header__spacer {
+  flex: 1 1 auto;
+}
+
+.sh-presence {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.sh-presence__chip {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.sh-presence__chip--you {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.sh-presence__more {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.sh-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
+}
+.sh-sync:hover {
+  background: var(--bg-hover);
+  color: var(--ink-2);
+}
+.sh-sync.is-offline {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.sh-session__note {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 7px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-sidebar);
+  font-size: var(--fs-chrome);
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* --- shared document ----------------------------------------------------- */
+
+.sh-doc {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sh-doc__shell {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 40px 32px 25vh; /* tall tail so the last line is never pinned to the fold */
+}
+
+.sh-doc__title {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.sh-doc__title:focus {
+  outline: none;
+}
+.sh-doc__title::placeholder {
+  color: var(--ink-3);
+}
+.sh-doc__title--static {
+  cursor: default;
+}
+
+.sh-doc__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  margin: 10px 0 4px;
+}
+
+.sh-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.sh-chip--ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.sh-chip--error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.sh-chip--error button {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* A view-only reader must not get a text caret suggesting they can type — the
+   editor is genuinely non-editable, and the cursor should say so. */
+.sh-doc__editor.is-readonly .folio-prosemirror {
+  cursor: default;
+}
+
+/* --- shared board -------------------------------------------------------- */
+
+.sh-board {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.sh-board .cv-board {
+  flex: 1 1 auto;
+}
+
+/* The owner's board stacks its pills vertically because it has three of them;
+   the shared board has two and reads better side by side. */
+.sh-board__tools {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100% - 32px);
+}
+
+.sh-board__hint {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-elevated, var(--bg));
+  box-shadow: var(--shadow-1);
+  color: var(--ink-3);
+  font-size: var(--fs-chrome);
+  z-index: 6;
+}
+
+/* --- narrow screens ------------------------------------------------------ */
+
+@media (max-width: 640px) {
+  .sh-header {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .sh-header__title {
+    max-width: 100%;
+  }
+  .sh-header__spacer {
+    flex-basis: 100%;
+  }
+  .sh-doc__shell {
+    padding: 24px 18px 25vh;
+  }
+  .sh-doc__title {
+    font-size: 28px;
+  }
+}

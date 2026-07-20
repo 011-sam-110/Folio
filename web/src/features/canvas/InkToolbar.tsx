@@ -19,6 +19,10 @@ export interface InkToolbarProps {
   onClear: () => void;
   /** Present on the doc-note overlay, where the toolbar can dismiss the layer. */
   onClose?: () => void;
+  /** Hides the eraser and "clear all" together. Off for share links, whose ink
+   *  API is append-only (POST with no DELETE) — an eraser there would appear to
+   *  work and then un-erase on the next load, which is worse than not having one. */
+  allowErase?: boolean;
 }
 
 const TOOLS: Array<{ id: InkTool; icon: 'pen' | 'highlighter' | 'eraser'; label: string }> = [
@@ -38,15 +42,17 @@ export default function InkToolbar({
   onFingerDrawsChange,
   onClear,
   onClose,
+  allowErase = true,
 }: InkToolbarProps) {
   const isEraser = tool === 'eraser';
   const colors = tool === 'highlighter' ? HIGHLIGHTER_COLORS : PEN_COLORS;
   const widths = tool === 'highlighter' ? HIGHLIGHTER_WIDTHS : PEN_WIDTHS;
+  const tools = allowErase ? TOOLS : TOOLS.filter((t) => t.id !== 'eraser');
 
   return (
     <div className="cv-inkbar" role="toolbar" aria-label="Ink tools">
       <div className="cv-inkbar__group">
-        {TOOLS.map((t) => (
+        {tools.map((t) => (
           <Tooltip key={t.id} content={t.label}>
             <button
               type="button"
@@ -117,11 +123,13 @@ export default function InkToolbar({
             <Icon name="hand" size={16} />
           </button>
         </Tooltip>
-        <Tooltip content="Erase all ink on this note">
-          <button type="button" className="cv-inkbar__btn" aria-label="Clear all ink" onClick={onClear}>
-            <Icon name="trash" size={15} />
-          </button>
-        </Tooltip>
+        {allowErase && (
+          <Tooltip content="Erase all ink on this note">
+            <button type="button" className="cv-inkbar__btn" aria-label="Clear all ink" onClick={onClear}>
+              <Icon name="trash" size={15} />
+            </button>
+          </Tooltip>
+        )}
         {onClose && (
           <Tooltip content="Close the ink layer">
             <button type="button" className="cv-inkbar__btn" aria-label="Close ink layer" onClick={onClose}>

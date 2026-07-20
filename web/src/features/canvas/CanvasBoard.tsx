@@ -44,6 +44,7 @@ import InkSurface from './InkSurface';
 import InkToolbar from './InkToolbar';
 import SelectionToolbar from './SelectionToolbar';
 import NotePickerModal from './NotePickerModal';
+import ShareButton from '../share/ShareButton';
 import './canvas.css';
 
 type PlacementMode = 'sticky' | 'text' | 'rect' | 'ellipse' | 'arrow';
@@ -742,6 +743,7 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
         <span className="cv-header__badge">
           <Icon name="canvas" size={13} /> Canvas
         </span>
+        <ShareButton noteId={note.id} noteTitle={title} kind={note.kind} />
       </header>
 
       <div

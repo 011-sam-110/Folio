@@ -31,6 +31,10 @@ export interface BuildExtensionsOpts {
   editorBox: { current: Editor | null };
   getNotebookId: () => string;
   onTableOfContents?: () => void;
+  /** Override the empty-paragraph placeholder. The default advertises the slash
+   *  menu, which is wrong anywhere that menu is not mounted (the shared-link
+   *  editor, for one). Pass '' for no placeholder at all. */
+  paragraphPlaceholder?: string;
 }
 
 const UNIQUE_ID_TYPES = [
@@ -59,7 +63,7 @@ export function createFolioExtensions(opts: BuildExtensionsOpts): Extensions {
       placeholder: ({ node }) => {
         if (node.type.name === 'heading') return `Heading ${(node.attrs.level as number) ?? 1}`;
         if (node.type.name === 'blockquote') return 'Quote';
-        if (node.type.name === 'paragraph') return "Type '/' for commands…";
+        if (node.type.name === 'paragraph') return opts.paragraphPlaceholder ?? "Type '/' for commands…";
         return '';
       },
     }),

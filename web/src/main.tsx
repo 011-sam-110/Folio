@@ -15,6 +15,7 @@ import RequireAuth from './features/auth/RequireAuth'
 import LoginPage from './features/auth/LoginPage'
 import SignupPage from './features/auth/SignupPage'
 import RecoverPage from './features/auth/RecoverPage'
+import JoinPage from './features/share/JoinPage'
 import './styles/index.css'
 
 // AuthProvider sits inside the router (rather than around RouterProvider) so the auth
@@ -36,6 +37,12 @@ const router = createBrowserRouter([
       { path: '/login', element: <LoginPage /> },
       { path: '/signup', element: <SignupPage /> },
       { path: '/recover', element: <RecoverPage /> },
+
+      // Share links. PUBLIC and outside RequireAuth by design — a guest opening
+      // one has no Folio account at all; their access is a per-share cookie the
+      // join call sets. It stays inside AuthRoot so the page can still recognise
+      // the note's OWNER when they open their own link.
+      { path: '/join/:token', element: <JoinPage /> },
 
       // Phone capture flow renders without the desktop shell, but still needs a session:
       // it writes notes into the signed-in user's notebooks.

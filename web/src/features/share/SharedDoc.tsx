@@ -191,6 +191,10 @@ export default function SharedDoc({ token, initial, onSaved, registerDocHandler,
       const max = ed.state.doc.content.size;
       ed.commands.setTextSelection(Math.min(from, max));
       setRemoteAt(new Date());
+      // The "someone else changed this" flag is a transient acknowledgement, not
+      // a persistent state — leaving it up forever would make a board look
+      // permanently contested.
+      window.setTimeout(() => setRemoteAt(null), 4000);
     } catch {
       // The next event retries; a transient failure must not break the session.
     }

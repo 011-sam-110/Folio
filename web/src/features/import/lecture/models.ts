@@ -12,7 +12,7 @@ export interface ModelChoice {
   size: WhisperSize;
   id: string;
   label: string;
-  /** Download in MB, WebGPU (fp16) and WASM (q8) respectively. */
+  /** Download in MB, WebGPU (fp32) and WASM (q8) respectively. */
   downloadMb: { webgpu: number; wasm: number };
   /** Rough multiple of realtime, i.e. 6 means a 60-minute lecture takes ~10 minutes. */
   speed: { webgpu: number; wasm: number };
@@ -25,7 +25,7 @@ export const MODELS: Record<WhisperSize, ModelChoice> = {
     size: 'tiny',
     id: 'onnx-community/whisper-tiny.en',
     label: 'Tiny',
-    downloadMb: { webgpu: 73, wasm: 39 },
+    downloadMb: { webgpu: 144, wasm: 39 },
     speed: { webgpu: 12, wasm: 4 },
     accuracy: 'Roughest',
     detail: 'Fastest and smallest. Gets the gist, but garbles technical terms and names.',
@@ -34,7 +34,7 @@ export const MODELS: Record<WhisperSize, ModelChoice> = {
     size: 'base',
     id: 'onnx-community/whisper-base.en',
     label: 'Base',
-    downloadMb: { webgpu: 139, wasm: 73 },
+    downloadMb: { webgpu: 278, wasm: 73 },
     speed: { webgpu: 7, wasm: 2.2 },
     accuracy: 'Balanced',
     detail: 'The sensible default — noticeably better on jargon than Tiny, still practical.',
@@ -43,7 +43,7 @@ export const MODELS: Record<WhisperSize, ModelChoice> = {
     size: 'small',
     id: 'onnx-community/whisper-small.en',
     label: 'Small',
-    downloadMb: { webgpu: 463, wasm: 238 },
+    downloadMb: { webgpu: 923, wasm: 238 },
     speed: { webgpu: 2.5, wasm: 0.8 },
     accuracy: 'Best',
     detail: 'Clearly the most accurate, but a big download and slow without a GPU.',
@@ -52,9 +52,26 @@ export const MODELS: Record<WhisperSize, ModelChoice> = {
 
 export const MODEL_ORDER: WhisperSize[] = ['tiny', 'base', 'small'];
 
-/** WebGPU is several times faster than the WASM fallback, so it changes every estimate. */
+/** Cheap synchronous check, good enough for a first estimate before anything is committed. */
 export function hasWebGPU(): boolean {
   return typeof navigator !== 'undefined' && 'gpu' in navigator;
+}
+
+/**
+ * Whether WebGPU can actually be used, which is not the same question as whether
+ * `navigator.gpu` exists — the object is present in browsers that cannot hand out an
+ * adapter (no supported GPU, blocklisted driver, headless/software rendering). Trusting
+ * the property alone selects the GPU path and then runs it on a software fallback, which
+ * measured far SLOWER than simply using WASM. Ask for the adapter instead.
+ */
+export async function detectWebGPU(): Promise<boolean> {
+  if (!hasWebGPU()) return false;
+  try {
+    const gpu = (navigator as unknown as { gpu: { requestAdapter(): Promise<unknown | null> } }).gpu;
+    return (await gpu.requestAdapter()) != null;
+  } catch {
+    return false;
+  }
 }
 
 export function formatDuration(seconds: number): string {

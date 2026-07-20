@@ -42,6 +42,10 @@ type Transcriber = (
 
 let transcriber: Transcriber | null = null;
 let cancelled = false;
+/** Kept so the WebGPU path can be rebuilt on the CPU backend if it turns out not to work. */
+let currentDevice: 'webgpu' | 'wasm' = 'wasm';
+let currentModelId = '';
+let buildPipeline: ((device: 'webgpu' | 'wasm') => Promise<Transcriber>) | null = null;
 
 const post = (msg: WorkerResponse, transfer?: Transferable[]) =>
   (self as unknown as DedicatedWorkerGlobalScope).postMessage(msg, transfer ?? []);
@@ -55,25 +59,67 @@ async function init(modelId: string, device: 'webgpu' | 'wasm'): Promise<void> {
   env.useBrowserCache = true;
   env.allowLocalModels = false;
 
-  transcriber = (await pipeline('automatic-speech-recognition', modelId, {
-    device,
-    // fp16 is the WebGPU-friendly weight set; q8 keeps the WASM download and memory sane.
-    dtype: device === 'webgpu' ? 'fp16' : 'q8',
-    progress_callback: (p: unknown) => {
-      const e = p as { status?: string; file?: string; progress?: number; loaded?: number; total?: number };
-      if (e.status === 'progress' && e.file) {
-        post({
-          type: 'download',
-          file: e.file,
-          progress: e.progress ?? 0,
-          loaded: e.loaded ?? 0,
-          total: e.total ?? 0,
-        });
-      }
-    },
-  })) as unknown as Transcriber;
+  const progress_callback = (p: unknown) => {
+    const e = p as { status?: string; file?: string; progress?: number; loaded?: number; total?: number };
+    if (e.status === 'progress' && e.file) {
+      post({
+        type: 'download',
+        file: e.file,
+        progress: e.progress ?? 0,
+        loaded: e.loaded ?? 0,
+        total: e.total ?? 0,
+      });
+    }
+  };
 
-  post({ type: 'ready', device });
+  const build = (d: 'webgpu' | 'wasm') =>
+    pipeline('automatic-speech-recognition', modelId, {
+      device: d,
+      // fp32 on the GPU, q8 on the CPU. fp16 was tried first and is NOT safe here: the
+      // pipeline builds, then the very first inference dies inside onnxruntime with
+      // "Missing required scale ... TransposeDQWeightsForMatMulNBits". q8 also keeps the
+      // WASM download and memory footprint sane.
+      dtype: d === 'webgpu' ? 'fp32' : 'q8',
+      progress_callback,
+    }) as unknown as Promise<Transcriber>;
+
+  buildPipeline = build;
+  currentModelId = modelId;
+
+  let used = device;
+  try {
+    transcriber = await build(device);
+  } catch (err) {
+    // An adapter can be advertised and still fail to build a working session (driver
+    // blocklists, exhausted GPU memory). Falling back beats failing the whole import.
+    if (device !== 'webgpu') throw err;
+    used = 'wasm';
+    transcriber = await build('wasm');
+  }
+
+  currentDevice = used;
+  post({ type: 'ready', device: used });
+}
+
+/**
+ * Runs one batch, falling back from GPU to CPU if the GPU backend fails.
+ *
+ * The fallback has to live here and not only around pipeline construction: onnxruntime
+ * creates its sessions lazily, so a broken GPU configuration builds cleanly and only throws
+ * on the FIRST inference. Catching it at build time alone let that failure reach the user.
+ */
+async function runBatch(slice: Float32Array, options: Record<string, unknown>) {
+  if (!transcriber) throw new Error('Model is not loaded');
+  try {
+    return await transcriber(slice, options);
+  } catch (err) {
+    if (currentDevice !== 'webgpu' || !buildPipeline) throw err;
+    console.warn(`[folio] WebGPU transcription failed for ${currentModelId}; retrying on CPU`, err);
+    transcriber = await buildPipeline('wasm');
+    currentDevice = 'wasm';
+    post({ type: 'ready', device: 'wasm' });
+    return await transcriber(slice, options);
+  }
 }
 
 async function transcribe(
@@ -105,7 +151,7 @@ async function transcribe(
     const sliceStartSeconds = readStart / sampleRate;
     const committedFrom = offsetSamples / sampleRate;
 
-    const out = await transcriber(slice, {
+    const out = await runBatch(slice, {
       return_timestamps: true,
       chunk_length_s: 30,
       stride_length_s: 5,

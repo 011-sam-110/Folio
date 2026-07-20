@@ -3,7 +3,7 @@
 // actually observed so far rather than from an optimistic constant.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MODELS, type WhisperSize, hasWebGPU } from './models';
+import { MODELS, type WhisperSize, detectWebGPU } from './models';
 import type { TranscriptChunk, WorkerRequest, WorkerResponse } from './transcribeWorker';
 
 export type TranscribePhase = 'idle' | 'loading-model' | 'transcribing' | 'done' | 'error' | 'cancelled';
@@ -72,9 +72,10 @@ export function useTranscription() {
   }, [terminate]);
 
   const run = useCallback(
-    (audio: Float32Array, sampleRate: number, size: WhisperSize): Promise<TranscriptChunk[]> => {
+    async (audio: Float32Array, sampleRate: number, size: WhisperSize): Promise<TranscriptChunk[]> => {
       terminate();
-      const device: 'webgpu' | 'wasm' = hasWebGPU() ? 'webgpu' : 'wasm';
+      // Confirmed by actually requesting an adapter, not by sniffing navigator.gpu.
+      const device: 'webgpu' | 'wasm' = (await detectWebGPU()) ? 'webgpu' : 'wasm';
       startedAtRef.current = Date.now();
       setState({
         ...INITIAL,

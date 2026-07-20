@@ -30,6 +30,7 @@ import CommentsPanel from '../comments/CommentsPanel';
 import CommentIcon from '../comments/CommentIcon';
 import CanvasBoard from '../canvas/CanvasBoard';
 import NoteInkOverlay from '../canvas/NoteInkOverlay';
+import ShareButton from '../share/ShareButton';
 import FindReplaceBar, { type FindReplaceMode } from './FindReplaceBar';
 import { createFindReplacePlugin, FindReplacePluginKey } from './FindReplace';
 import { createHashtagPlugin, HashtagPluginKey } from './HashtagExtension';
@@ -687,6 +688,8 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
             >
               <Icon name="pen" size={15} />
             </button>
+
+            <ShareButton noteId={note.id} noteTitle={title} kind={note.kind} />
 
             <button type="button" className="folio-btn" onClick={() => setHistoryOpen(true)}>
               History
