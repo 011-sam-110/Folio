@@ -107,6 +107,12 @@
   flex: none;
   min-height: 40px;
 }
+/* The capture flow is phone-only, so its notebook chips are always a touch target. */
+@media (pointer: coarse) {
+  .cp-notebooks .im-chip {
+    min-height: 44px;
+  }
+}
 
 .cp-notebooks__hint {
   font-size: 13px;

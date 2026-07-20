@@ -424,3 +424,27 @@
 .sidebar__ai-dot.pending {
   background: var(--ink-3);
 }
+
+/* Touch/stylus sizing for the sidebar. This matters most at iPad landscape (1024px),
+   where the sidebar is PERMANENT rather than a drawer, so every row here is a real
+   touch target on a device with no mouse. The rows keep their compact desktop
+   metrics under a fine pointer. */
+@media (pointer: coarse) {
+  .sidebar__nav-link,
+  .notebook-row,
+  .sidebar__new-notebook-btn,
+  .sidebar__search-btn,
+  .sidebar-account__trigger {
+    min-height: 44px;
+  }
+  .sidebar__icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+  /* The row is the visual target, so the link inside must fill it rather than
+     leaving a 16px-tall hit area in the middle of a 44px row. */
+  .notebook-row__link {
+    align-self: stretch;
+    min-height: 44px;
+  }
+}

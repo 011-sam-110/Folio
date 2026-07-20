@@ -240,6 +240,13 @@
   min-height: 40px;
   font-size: 14px;
 }
+/* Outranks the 40px above (which is more specific than the shared .btn rule in
+   base.css) so the primary action of every auth form clears 44px on touch. */
+@media (pointer: coarse) {
+  .btn.auth-submit {
+    min-height: 44px;
+  }
+}
 
 .auth-form__note {
   font-size: 12px;

@@ -146,11 +146,35 @@
 
 /* ---------- Table ---------- */
 
+/* TipTap already wraps a resizable table in .tableWrapper; making that the scroll
+   container is what keeps a wide table off the page's own horizontal scrollbar.
+   Without the min-width below the table just obeys width:100% and squeezes its
+   columns to a few characters each on a phone, which "fits" but is unreadable —
+   scrolling the wrapper is the behaviour the layout actually wants. */
+.folio-prosemirror .tableWrapper {
+  overflow-x: auto;
+  max-width: 100%;
+  /* Keeps the resize handles and the horizontal scrollbar from being clipped. */
+  padding-bottom: 2px;
+}
+
 .folio-prosemirror table {
   border-collapse: collapse;
   width: 100%;
   table-layout: fixed;
   margin: 0.4em 0;
+}
+
+/* Phone/small-tablet only. TipTap's resizable table writes an INLINE
+   `min-width: <cellMinWidth * columns>px` (200px for a 5-column table), so a
+   stylesheet min-width cannot win — !important is the only way to beat an inline
+   style, and it is deliberately confined to this breakpoint so desktop column
+   resizing keeps TipTap's own minimum. Below this width the columns would
+   otherwise squeeze to a few characters each; scrolling .tableWrapper is better. */
+@media (max-width: 720px) {
+  .folio-prosemirror table {
+    min-width: 480px !important;
+  }
 }
 
 .folio-prosemirror th,

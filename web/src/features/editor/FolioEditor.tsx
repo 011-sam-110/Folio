@@ -99,6 +99,29 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
+  // A table wide enough to scroll must be reachable by keyboard, or a keyboard-only
+  // user simply cannot see the off-screen columns (axe: scrollable-region-focusable).
+  // TipTap builds .tableWrapper itself, so the attributes are applied to whatever it
+  // renders — via an observer, because the wrapper is recreated on document changes.
+  useEffect(() => {
+    if (!editor) return;
+    const root = editor.view.dom;
+    function label() {
+      // Array.from rather than for..of: the project's TS lib target does not
+      // expose NodeList's iterator.
+      for (const w of Array.from(root.querySelectorAll<HTMLElement>('.tableWrapper'))) {
+        if (w.tabIndex === 0) continue;
+        w.tabIndex = 0;
+        w.setAttribute('role', 'region');
+        w.setAttribute('aria-label', 'Table, scrollable');
+      }
+    }
+    label();
+    const mo = new MutationObserver(label);
+    mo.observe(root, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, [editor]);
+
   if (!editor) return null;
 
   return (

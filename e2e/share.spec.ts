@@ -226,28 +226,13 @@ test.describe('Guest join', () => {
   });
 
   /**
-   * KNOWN APP BUG — marked expected-to-fail rather than deleted, so it is tracked and
-   * so this file turns red the moment it is fixed (an unexpected pass is a failure),
-   * prompting the annotation to be removed.
-   *
-   * PATCH /api/share/:token/note (server/src/routes/share.ts) writes `content_json`
-   * but never `content_text`:
-   *
-   *     if (b.contentJson && typeof b.contentJson === 'object') {
-   *       await db.prepare('UPDATE notes SET content_json = ?, updated_at = ? WHERE id = ?')
-   *     }
-   *
-   * The owner's own PATCH /api/notes/:id derives content_text alongside it (see
-   * `plainTextFallback` in server/src/routes/notes.ts). content_text is what full-text
-   * search queries, what note-card snippets render, and what is fed to the AI
-   * endpoints — so anything a guest writes is invisible to search and shows a stale
-   * snippet, indefinitely.
-   *
-   * NOT fixed here: server/src/routes/share.ts is being actively edited by the agent
-   * that owns the share feature. The fix is to derive content_text in that handler the
-   * way notes.ts does (exporting `plainTextFallback` so both can share it).
+   * Regression guard. This was a real bug: PATCH /api/share/:token/note wrote
+   * content_json but never content_text, so everything a guest typed into a shared
+   * note was permanently unsearchable and its snippet stayed frozen at whatever the
+   * note said before they joined. Fixed by deriving content_text in that handler via
+   * the shared lib/plainText.ts helper, so both write paths cannot drift apart.
    */
-  test.fail(
+  test(
     'a guest edit also updates the note’s searchable text',
     async ({ page, request, browser }) => {
       const note = await openOwnedNote(page, request);
