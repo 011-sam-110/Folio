@@ -81,7 +81,33 @@ async function seedContent(request) {
   return { notebookId, noteIds: ids, canvasId: canvas?.note?.id ?? null };
 }
 
+const PUBLIC_PAGES = new Set(['login', 'signup', 'recover']);
+
+/**
+ * Capture, but refuse to record a screenshot that isn't of what it claims to be.
+ *
+ * This exists because it already happened: a concurrent process reset the database
+ * mid-run, the session died, and every "signed-in" route silently rendered the login
+ * page. The run reported 78 successful captures — 78 pictures of a login form, filed
+ * under names like `note` and `canvas`. A reviewer grading those would produce
+ * confident nonsense about screens it had never actually seen.
+ *
+ * A capture harness that cannot tell a page from a redirect is worse than no harness,
+ * because it converts a hard failure into a plausible-looking artefact.
+ */
 async function shoot(page, name, viewport, theme) {
+  const url = page.url();
+  const bouncedToAuth = /\/(login|signup|recover)(\?|#|$)/.test(url);
+  if (bouncedToAuth && !PUBLIC_PAGES.has(name)) {
+    manifest.failed.push({
+      name,
+      viewport,
+      theme,
+      reason: `expected an authenticated page but landed on ${url} — session lost, capture discarded`,
+    });
+    return false;
+  }
+
   const dir = path.join(OUT, `${viewport}-${theme}`);
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${name}.png`);
@@ -109,6 +135,23 @@ async function main() {
   const ctx = await browser.newContext({ viewport: VIEWPORTS[2] });
   await makeAccount(ctx.request);
   const { notebookId, noteIds, canvasId } = await seedContent(ctx.request);
+
+  // Prove the session actually works in a real page before capturing 70+ shots with
+  // it. Cheaper to fail here than to discover afterwards that every file is a login
+  // form, and it distinguishes "the app is broken" from "auth never took".
+  {
+    const probe = await ctx.newPage();
+    await probe.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+    await settle(probe);
+    if (/\/(login|signup)(\?|#|$)/.test(probe.url())) {
+      throw new Error(
+        `signed-in context was bounced to ${probe.url()} — the session did not survive. ` +
+          `Nothing was captured. If another process resets the database mid-run, the user row ` +
+          `behind this session disappears and every capture silently becomes a login page.`,
+      );
+    }
+    await probe.close();
+  }
 
   const routes = [
     ['dashboard', '/'],
@@ -209,6 +252,10 @@ async function main() {
     console.log(`  MISSING ${f.name} [${f.viewport ?? '-'}/${f.theme ?? '-'}] ${f.reason}`);
   }
   console.log(`\noutput: ${OUT}`);
+
+  // Non-zero exit on any gap, so a caller (or an agent driving this) cannot mistake a
+  // partial sweep for full coverage.
+  if (manifest.failed.length > 0) process.exitCode = 1;
 }
 
 main().catch((e) => {
