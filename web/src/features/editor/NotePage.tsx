@@ -28,6 +28,8 @@ import { markdownToSafeHtml } from './markdown';
 import type { OutlineItem } from './outline';
 import CommentsPanel from '../comments/CommentsPanel';
 import CommentIcon from '../comments/CommentIcon';
+import CanvasBoard from '../canvas/CanvasBoard';
+import NoteInkOverlay from '../canvas/NoteInkOverlay';
 import FindReplaceBar, { type FindReplaceMode } from './FindReplaceBar';
 import { createFindReplacePlugin, FindReplacePluginKey } from './FindReplace';
 import { createHashtagPlugin, HashtagPluginKey } from './HashtagExtension';
@@ -122,6 +124,15 @@ export default function NotePage() {
     );
   }
 
+  // A canvas is still a note (same id space, same notebook, same trash), but its
+  // content lives in canvas_items/canvas_edges rather than content_json — so the
+  // whole TipTap workspace below is the wrong surface for it. Branch before
+  // mounting NoteWorkspace rather than inside it: the editor, autosave, outline
+  // and comments machinery all assume a document and none of it applies here.
+  if (state.note.kind === 'canvas') {
+    return <CanvasBoard key={state.note.id} note={state.note} />;
+  }
+
   return (
     <NoteWorkspace
       key={state.note.id}
@@ -175,8 +186,14 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const [aiWholeResult, setAiWholeResult] = useState<{ kind: 'improve' | 'summarize' | 'clean'; model: string; markdown: string } | null>(null);
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
+  // Stylus annotation layer over this document. Off by default: it swallows
+  // pointer input over the note, so it must always be a deliberate choice.
+  const [inkOpen, setInkOpen] = useState(false);
 
   const editorRef = useRef<Editor | null>(null);
+  // Ink is stored relative to THIS element's top-left, so annotations stay pinned
+  // to the text they mark up as the page scrolls or the window is resized.
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef(title);
   titleRef.current = title;
   // Mirrors of the tag state, for the same reason titleRef exists: capturePending is a
@@ -557,7 +574,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
       }}
     >
       <div className="folio-note-main">
-        <div className="folio-note-shell">
+        <div className="folio-note-shell" ref={shellRef}>
           <div className="folio-breadcrumb">
             <Link to={`/notebook/${notebook.id}`} className="folio-breadcrumb-notebook">
               {notebook.emoji} {notebook.name}
@@ -660,6 +677,17 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
               </button>
             </div>
 
+            <button
+              type="button"
+              className={`folio-btn-icon${inkOpen ? ' active' : ''}`}
+              title={inkOpen ? 'Close the ink layer' : 'Annotate with a pen or Apple Pencil'}
+              aria-label={inkOpen ? 'Close the ink layer' : 'Annotate with a pen or Apple Pencil'}
+              aria-pressed={inkOpen}
+              onClick={() => setInkOpen((v) => !v)}
+            >
+              <Icon name="pen" size={15} />
+            </button>
+
             <button type="button" className="folio-btn" onClick={() => setHistoryOpen(true)}>
               History
             </button>
@@ -744,6 +772,8 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
           )}
         </div>
       </div>
+
+      <NoteInkOverlay noteId={note.id} anchorRef={shellRef} open={inkOpen} onClose={() => setInkOpen(false)} />
 
       <OutlinePane items={outline} editor={editorRef.current} />
 

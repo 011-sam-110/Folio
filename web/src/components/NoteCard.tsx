@@ -20,6 +20,8 @@ export default function NoteCard({
   controls?: ReactNode;
   testId?: string;
 }) {
+  const isCanvas = note.kind === 'canvas';
+
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -50,8 +52,18 @@ export default function NoteCard({
       )}
 
       <div className="note-card__main">
-        <div className="note-card__title">{note.title || 'Untitled'}</div>
-        <div className="note-card__snippet">{note.snippet || 'No content yet'}</div>
+        <div className="note-card__title">
+          {/* Canvases and documents live in the same lists, so the kind has to be
+              readable at a glance — otherwise "open it and find out" is the only
+              way to tell them apart. */}
+          {isCanvas && (
+            <span aria-label="Canvas" title="Canvas" style={{ color: 'var(--accent)', display: 'inline-flex', marginRight: 6, verticalAlign: '-2px' }}>
+              <Icon name="canvas" size={13} />
+            </span>
+          )}
+          {note.title || (isCanvas ? 'Untitled canvas' : 'Untitled')}
+        </div>
+        <div className="note-card__snippet">{note.snippet || (isCanvas ? 'Infinite board' : 'No content yet')}</div>
         <div className="note-card__meta">
           {compact && note.pinned && (
             <span aria-label="Pinned" style={{ color: 'var(--accent)', display: 'inline-flex' }}>
@@ -59,7 +71,8 @@ export default function NoteCard({
             </span>
           )}
           <span>{relativeTime(note.updatedAt)}</span>
-          <span>{plural(note.wordCount, 'word')}</span>
+          {/* A word count on a board is meaningless — it is always zero. */}
+          {!isCanvas && <span>{plural(note.wordCount, 'word')}</span>}
           {note.tags.length > 0 && (
             <span className="note-card__tags">
               {note.tags.slice(0, compact ? 3 : 2).map((t) => (

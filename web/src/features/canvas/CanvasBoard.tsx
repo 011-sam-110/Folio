@@ -525,7 +525,9 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
     function onPaste(e: ClipboardEvent) {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      const files = [...(e.clipboardData?.files ?? [])];
+      // Array.from, not spread: FileList is array-LIKE but is only iterable under
+      // the DOM.Iterable lib, which this project does not enable.
+      const files = e.clipboardData ? Array.from(e.clipboardData.files) : [];
       if (files.length === 0) return;
       e.preventDefault();
       const host = hostRef.current;
@@ -739,7 +741,7 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
           if (e.dataTransfer.types.includes('Files')) e.preventDefault();
         }}
         onDrop={(e) => {
-          const files = [...e.dataTransfer.files];
+          const files = Array.from(e.dataTransfer.files);
           if (files.length === 0) return;
           e.preventDefault();
           void addImageFiles(files, worldPoint(e));
@@ -940,7 +942,7 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
         multiple
         style={{ display: 'none' }}
         onChange={(e) => {
-          const files = [...(e.target.files ?? [])];
+          const files = e.target.files ? Array.from(e.target.files) : [];
           const host = hostRef.current;
           const center = host ? toWorld({ x: host.clientWidth / 2, y: host.clientHeight / 2 }, vpRef.current) : { x: 0, y: 0 };
           void addImageFiles(files, center);

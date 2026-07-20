@@ -135,6 +135,22 @@ function AppShell() {
     }
   }, [params.notebookId, notebooks, navigate]);
 
+  // Same filing rules as a new note — a canvas IS a note, so it belongs in the
+  // notebook you are currently working in rather than a special home of its own.
+  const handleNewCanvas = useCallback(async () => {
+    const notebookId = resolveFilingNotebook(params.notebookId, notebooks);
+    if (!notebookId) {
+      toast('Create a notebook first', 'error');
+      return;
+    }
+    try {
+      const { note } = await api.createNote({ notebookId, kind: 'canvas', title: 'Untitled canvas' });
+      navigate(`/note/${note.id}`);
+    } catch (e) {
+      toast(errorMessage(e, 'Could not create canvas'), 'error');
+    }
+  }, [params.notebookId, notebooks, navigate]);
+
   useShortcuts({
     onQuickSwitcher: () => setQuickSwitcherOpen((o) => !o),
     onNewNote: handleNewNote,
@@ -180,6 +196,7 @@ function AppShell() {
             onCloseMobile={() => setMobileOpen(false)}
             onOpenSearch={() => setQuickSwitcherOpen(true)}
             onNewNote={handleNewNote}
+            onNewCanvas={handleNewCanvas}
             currentNotebookId={params.notebookId}
             qrOpen={qrOpen}
             onOpenQr={() => setQrOpen(true)}

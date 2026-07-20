@@ -40,6 +40,8 @@ export interface SidebarProps {
   onCloseMobile: () => void;
   onOpenSearch: () => void;
   onNewNote: () => void;
+  /** Creates a note with kind='canvas' — an infinite board rather than a document. */
+  onNewCanvas: () => void;
   currentNotebookId?: string;
   /** Phone-capture QR modal — state lives in App.tsx so the command
    *  palette's "Open phone capture QR" command can trigger the same modal. */
@@ -55,6 +57,7 @@ export default function Sidebar({
   onCloseMobile,
   onOpenSearch,
   onNewNote,
+  onNewCanvas,
   currentNotebookId,
   qrOpen,
   onOpenQr,
@@ -248,6 +251,11 @@ export default function Sidebar({
       <div className="sidebar__divider" />
       <div className="sidebar__section-label">
         <span>Notebooks</span>
+        <Tooltip content="New canvas" placement="right">
+          <button type="button" className="icon-btn" aria-label="New canvas" onClick={onNewCanvas} style={{ width: 20, height: 20 }}>
+            <Icon name="canvas" size={13} />
+          </button>
+        </Tooltip>
         <Tooltip content="New note (⌘N)" placement="right">
           <button type="button" className="icon-btn" aria-label="New note" onClick={onNewNote} style={{ width: 20, height: 20 }}>
             <Icon name="plus" size={13} />

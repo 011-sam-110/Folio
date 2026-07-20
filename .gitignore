@@ -10,3 +10,10 @@ playwright-report/
 docs/review-pack/
 .vite/
 .claude/
+
+.vercel
+# `vercel link` appends a blanket `.env*` here, which also hides .env.example —
+# the one env file that is meant to be committed. Enumerate instead.
+.env.local
+.env.*.local
+.playwright-mcp/

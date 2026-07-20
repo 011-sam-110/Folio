@@ -85,6 +85,18 @@ export default function NotebookPage() {
     }
   }
 
+  /** A canvas is a note with kind='canvas'; it files into this notebook and shows
+   *  in these same lists, just with a board instead of an editor behind it. */
+  async function createNewCanvas() {
+    if (!notebookId) return;
+    try {
+      const { note } = await api.createNote({ notebookId, kind: 'canvas', title: 'Untitled canvas' });
+      navigate(`/note/${note.id}`);
+    } catch (e) {
+      toast(errorMessage(e, 'Could not create canvas'), 'error');
+    }
+  }
+
   // Split-button chevron: pick a template (or "Blank note", which is just createNewNote).
   async function createNoteFromTemplate(template: Template | null) {
     if (!notebookId) return;
@@ -343,6 +355,10 @@ export default function NotebookPage() {
               }),
             ]}
           />
+          <button type="button" className="btn btn-secondary" onClick={createNewCanvas}>
+            <Icon name="canvas" size={14} />
+            New canvas
+          </button>
           <div className="btn-split">
             <button type="button" className="btn btn-primary btn-split__main" onClick={createNewNote}>
               <Icon name="plus" size={14} />

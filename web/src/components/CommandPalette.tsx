@@ -118,6 +118,24 @@ export default function CommandPalette({
     });
 
     cmds.push({
+      id: 'create-canvas',
+      title: 'New canvas',
+      section: 'Create',
+      hint: 'Infinite board — stickies, shapes and Apple Pencil ink',
+      keywords: ['canvas', 'board', 'whiteboard', 'draw', 'sketch', 'mindmap'],
+      icon: 'canvas',
+      run: async (ctx) => {
+        const notebookId = resolveFilingNotebook(params.notebookId, notebooks);
+        if (!notebookId) {
+          toast('Create a notebook first', 'error');
+          return;
+        }
+        const { note } = await api.createNote({ notebookId, kind: 'canvas', title: 'Untitled canvas' });
+        ctx.navigate(`/note/${note.id}`);
+      },
+    });
+
+    cmds.push({
       id: 'create-notebook',
       title: 'New notebook',
       section: 'Create',

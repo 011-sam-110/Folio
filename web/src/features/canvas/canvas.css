@@ -1,0 +1,655 @@
+/* Canvas boards + stylus ink. Prefix: cv-
+   Everything chromatic comes from tokens.css so the board follows the app theme.
+   The two deliberate exceptions are sticky/shape colours and ink colours: those
+   are CONTENT the user picked, so they are fixed hex and must not flip with the
+   theme. Where such a surface is always light, its text colour is pinned dark to
+   match rather than left to var(--ink). */
+
+.cv-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.cv-page--message {
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+/* --- header ------------------------------------------------------------- */
+
+.cv-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  flex: 0 0 auto;
+}
+
+.cv-header__crumb {
+  font-size: var(--fs-chrome);
+  color: var(--ink-2);
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--radius);
+  padding: 2px 6px;
+  transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
+}
+.cv-header__crumb:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+.cv-header__sep {
+  color: var(--ink-3);
+  font-size: var(--fs-chrome);
+}
+
+.cv-header__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-chrome-lg);
+  font-weight: 600;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+}
+.cv-header__title:hover {
+  background: var(--bg-hover);
+}
+.cv-header__title:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.cv-header__title::placeholder {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.cv-header__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* --- board -------------------------------------------------------------- */
+
+.cv-board {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  /* Mandatory: without it the browser consumes pinch/drag as page scroll and
+     zoom, and neither panning nor drawing ever receives its pointer events. */
+  touch-action: none;
+  /* The board is a drawing surface, not a document — a stray double-click must
+     not select "text" across items. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.cv-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--line) 1px, transparent 1px);
+  /* size + position are set inline from the viewport so the grid tracks pan/zoom */
+}
+
+.cv-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  /* Origin at 0,0 so the inline translate/scale composes exactly with the
+     screen<->world maths in geometry.ts. */
+  transform-origin: 0 0;
+}
+
+.cv-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.cv-edge__line,
+.cv-edge__head {
+  stroke: var(--ink-3);
+  transition: stroke var(--dur) var(--ease-out);
+}
+.cv-edge.is-selected .cv-edge__line,
+.cv-edge.is-selected .cv-edge__head {
+  stroke: var(--accent);
+}
+.cv-edge--pending .cv-edge__line,
+.cv-edge--pending .cv-edge__head {
+  stroke: var(--accent);
+  opacity: 0.75;
+}
+
+/* --- items -------------------------------------------------------------- */
+
+.cv-item {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.cv-item__outline {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  outline-style: solid;
+  outline-color: var(--accent);
+  border-radius: var(--radius);
+}
+
+.cv-item__handle {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: var(--bg-elevated, var(--bg));
+  border-style: solid;
+  border-color: var(--accent);
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
+.cv-item__connect {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg-elevated, var(--bg));
+  border-style: solid;
+  border-color: var(--accent);
+  border-radius: 50%;
+  cursor: crosshair;
+  box-sizing: border-box;
+}
+
+.cv-body {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+}
+.cv-body.is-empty {
+  opacity: 0.42;
+}
+
+.cv-body--edit {
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  /* The textarea replaces the rendered div in place; matching metrics exactly is
+     what stops the text jumping a pixel when editing starts. */
+  font: inherit;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.cv-sticky {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-1, 0 1px 3px rgba(0, 0, 0, 0.14));
+  /* Sticky backgrounds are always pale, in both themes, so the text is pinned
+     dark rather than following --ink (which would go near-white in dark mode and
+     vanish against a yellow sticky). */
+  color: #1f2328;
+  overflow: hidden;
+}
+
+.cv-text {
+  width: 100%;
+  height: 100%;
+  color: var(--ink);
+}
+
+.cv-shape {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.cv-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius);
+  display: block;
+  background: var(--bg-hover);
+  -webkit-user-drag: none;
+}
+.cv-image--missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+  border: 1px dashed var(--line);
+}
+
+.cv-link {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-elevated, var(--bg));
+  color: var(--ink);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  box-shadow: var(--shadow-1, 0 1px 3px rgba(0, 0, 0, 0.08));
+}
+.cv-link__icon {
+  color: var(--accent);
+  display: inline-flex;
+}
+.cv-link__title {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cv-link__hint {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.cv-marquee {
+  position: absolute;
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+
+/* --- ink ---------------------------------------------------------------- */
+
+.cv-ink {
+  position: absolute;
+  inset: 0;
+  /* Ink is always drawn ABOVE the items (you annotate over cards) but only
+     receives pointer events when an ink tool is armed — otherwise selecting a
+     sticky underneath would be impossible. */
+  pointer-events: none;
+  touch-action: none;
+}
+.cv-ink.is-active {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+.cv-ink[data-tool='eraser'] {
+  /* The eraser draws its own ring on the live canvas, so the system cursor is
+     hidden to avoid two competing indicators. */
+  cursor: none;
+}
+
+.cv-ink__canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+/* Ink over a document note: a fixed overlay clipped to the scrolling region. */
+.cv-noteink {
+  position: fixed;
+  z-index: 40;
+  overflow: hidden;
+  pointer-events: none;
+}
+.cv-noteink .cv-ink {
+  pointer-events: auto;
+}
+
+.cv-noteink__bar {
+  position: fixed;
+  z-index: 41;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+}
+
+/* --- chrome ------------------------------------------------------------- */
+
+.cv-toolstack {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 6;
+}
+
+.cv-tools,
+.cv-inkbar,
+.cv-chrome,
+.cv-seltoolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-elevated, var(--bg));
+  box-shadow: var(--shadow-pop);
+}
+
+.cv-tools__btn,
+.cv-inkbar__btn,
+.cv-chrome__btn,
+.cv-seltoolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
+}
+.cv-tools__btn:hover,
+.cv-inkbar__btn:hover,
+.cv-chrome__btn:hover:not(:disabled),
+.cv-seltoolbar__btn:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+.cv-tools__btn.is-active,
+.cv-inkbar__btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.cv-tools__btn:focus-visible,
+.cv-inkbar__btn:focus-visible,
+.cv-chrome__btn:focus-visible,
+.cv-seltoolbar__btn:focus-visible,
+.cv-chrome__zoom:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.cv-chrome__btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.cv-tools__sep,
+.cv-inkbar__sep,
+.cv-seltoolbar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 4px;
+  background: var(--line);
+}
+
+.cv-chrome {
+  position: absolute;
+  bottom: 16px;
+  z-index: 6;
+}
+.cv-chrome--left {
+  left: 16px;
+}
+.cv-chrome--right {
+  right: 16px;
+}
+
+.cv-chrome__zoom {
+  min-width: 52px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cv-chrome__zoom:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+/* --- ink toolbar swatches ------------------------------------------------ */
+
+.cv-inkbar__group,
+.cv-seltoolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.cv-inkbar__swatch,
+.cv-seltoolbar__swatch {
+  width: 22px;
+  height: 22px;
+  margin: 5px 2px;
+  border-radius: 50%;
+  /* A ring rather than a border, so selecting a swatch does not resize it. */
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  cursor: pointer;
+  padding: 0;
+  transition: box-shadow var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+}
+.cv-inkbar__swatch:hover,
+.cv-seltoolbar__swatch:hover {
+  transform: scale(1.12);
+}
+.cv-inkbar__swatch.is-active {
+  box-shadow: 0 0 0 2px var(--bg-elevated, var(--bg)), 0 0 0 4px var(--accent);
+}
+
+.cv-inkbar__width {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+.cv-inkbar__width span {
+  display: block;
+  border-radius: 50%;
+  background: var(--ink-2);
+}
+.cv-inkbar__width:hover {
+  background: var(--bg-hover);
+}
+.cv-inkbar__width.is-active {
+  background: var(--accent-soft);
+}
+.cv-inkbar__width.is-active span {
+  background: var(--accent);
+}
+
+/* --- selection toolbar --------------------------------------------------- */
+
+.cv-seltoolbar {
+  position: absolute;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 4px;
+}
+.cv-seltoolbar__btn--danger:hover {
+  background: var(--danger-soft, rgba(209, 36, 47, 0.12));
+  color: var(--danger);
+}
+
+/* --- empty-board hint ---------------------------------------------------- */
+
+.cv-hint {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  max-width: 420px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: var(--fs-chrome-lg);
+  line-height: 1.6;
+  pointer-events: none;
+}
+.cv-hint kbd {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  color: var(--ink-2);
+}
+
+/* --- note picker --------------------------------------------------------- */
+
+.cv-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cv-picker__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-chrome-lg);
+}
+.cv-picker__input:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.cv-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.cv-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-chrome-lg);
+  text-align: left;
+  cursor: pointer;
+}
+.cv-picker__row:hover {
+  background: var(--bg-hover);
+}
+.cv-picker__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-picker__meta {
+  flex: 0 0 auto;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.cv-picker__state {
+  padding: 28px 0;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: var(--fs-chrome);
+}
+
+/* --- theme adjustments --------------------------------------------------- */
+
+:root[data-theme='dark'] .cv-grid {
+  /* The light-theme dot uses --line, which is nearly invisible on the dark
+     background; lift it just enough to read as texture without becoming noise. */
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.13) 1px, transparent 1px);
+}
+
+:root[data-theme='dark'] .cv-inkbar__swatch,
+:root[data-theme='dark'] .cv-seltoolbar__swatch {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+:root[data-theme='dark'] .cv-sticky {
+  /* Pale stickies on a dark board need a softer edge or they glare. */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* --- narrow screens ------------------------------------------------------ */
+
+@media (max-width: 720px) {
+  .cv-tools {
+    /* Too many tools for a phone-width pill — let it scroll rather than wrap
+       into a second row that would cover the board. */
+    max-width: calc(100vw - 32px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cv-tools::-webkit-scrollbar {
+    display: none;
+  }
+  .cv-chrome--left,
+  .cv-chrome--right {
+    bottom: 64px;
+  }
+  .cv-header__badge {
+    display: none;
+  }
+}
