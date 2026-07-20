@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from './auth.fixture';
-import { apiCreateNotebook, exact, uniqueName } from './utils';
+import { apiCreateNotebook, exact, skipIfUpstreamQuota, uniqueName } from './utils';
 
 // See import.spec.ts — `__dirname` is not defined in this ESM repo.
 const FIXTURES_DIR = fileURLToPath(new URL('fixtures', import.meta.url));
@@ -12,6 +12,24 @@ const FIXTURES_DIR = fileURLToPath(new URL('fixtures', import.meta.url));
 // role="tablist" containers (kind items are role="tab", notebook chips are plain
 // buttons), the big CTA is a `.cp-cta` button, and success is an
 // "Note ready" heading with a `.cp-success__title` paragraph + an "Open note" link.
+
+/**
+ * Waits for a capture job to reach a terminal state, whichever it is.
+ *
+ * Racing the success heading against the error banner means a failed job is
+ * diagnosed immediately with the server's own message instead of burning the full
+ * 90s budget and then reporting only "heading not found".
+ */
+async function settleCapture(page: import('@playwright/test').Page, successHeading: RegExp) {
+  const success = page.getByRole('heading', { name: successHeading });
+  const errorBanner = page.locator('.cp-error');
+  await expect(success.or(errorBanner)).toBeVisible({ timeout: 90_000 });
+  if (await errorBanner.isVisible().catch(() => false)) {
+    const detail = await errorBanner.locator('p').first().textContent().catch(() => null);
+    skipIfUpstreamQuota(detail);
+    throw new Error(`Mobile capture failed: ${detail ?? '(no error detail rendered)'}`);
+  }
+}
 
 test.describe('Mobile capture page (Pixel 7)', () => {
   test('renders a big capture button and scrollable notebook chips', async ({ page, request }) => {
@@ -49,13 +67,7 @@ test.describe('Mobile capture page (Pixel 7)', () => {
 
     await page.getByRole('button', { name: /upload.*process/i }).click();
 
-    const successHeading = page.getByRole('heading', { name: /note ready/i });
-    const errorBanner = page.locator('.cp-error');
-    await expect(successHeading.or(errorBanner)).toBeVisible({ timeout: 90_000 });
-    if (await errorBanner.isVisible().catch(() => false)) {
-      const detail = await errorBanner.locator('p').first().textContent().catch(() => null);
-      throw new Error(`Mobile capture failed: ${detail ?? '(no error detail rendered)'}`);
-    }
+    await settleCapture(page, /note ready/i);
 
     const title = page.locator('.cp-success__title');
     await expect(title).toBeVisible({ timeout: 5_000 });
@@ -79,7 +91,7 @@ test.describe('Mobile capture page (Pixel 7)', () => {
     // Page 1: the deadlocks transcript.
     await page.locator('input[type="file"]').first().setInputFiles(path.join(FIXTURES_DIR, 'transcript.txt'));
     await page.getByRole('button', { name: /upload.*process/i }).click();
-    await expect(page.getByRole('heading', { name: /note ready/i })).toBeVisible({ timeout: 90_000 });
+    await settleCapture(page, /note ready/i);
 
     const firstNoteHref = await page.getByRole('link', { name: /open note/i }).getAttribute('href');
     const firstNoteId = firstNoteHref?.match(/\/note\/([^/?#]+)/)?.[1];
@@ -92,7 +104,7 @@ test.describe('Mobile capture page (Pixel 7)', () => {
     // Page 2: the testing-pyramid docx (same transcript kind accepts .docx).
     await page.locator('input[type="file"]').first().setInputFiles(path.join(FIXTURES_DIR, 'essay.docx'));
     await page.getByRole('button', { name: /upload.*add to note/i }).click();
-    await expect(page.getByRole('heading', { name: /page added/i })).toBeVisible({ timeout: 90_000 });
+    await settleCapture(page, /page added/i);
 
     // Same note id, and the note now contains material from BOTH pages.
     const secondHref = await page.getByRole('link', { name: /open note/i }).getAttribute('href');

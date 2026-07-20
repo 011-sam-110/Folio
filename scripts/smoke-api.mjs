@@ -141,7 +141,7 @@ const anonNotes = await anon('GET', '/api/notes');
 check('anonymous /api/notes -> 401', anonNotes.status === 401, `got ${anonNotes.status}`);
 
 console.log('\n== sharing ==');
-const share = await alice('POST', `/api/notes/${noteId}/shares`, { permission: 'edit', password: 'letmein' });
+const share = await alice('POST', `/api/notes/${noteId}/shares`, { permission: 'edit', password: 'letmein-please' });
 check('share link created', share.status === 201, `got ${share.status}`);
 const token = share.data?.token;
 
@@ -155,7 +155,7 @@ check('wrong share password rejected', badJoin.status === 401, `got ${badJoin.st
 const preJoin = await makeClient()('GET', `/api/share/${token}/note`);
 check('cannot read shared note before joining', preJoin.status === 401, `got ${preJoin.status}`);
 
-const goodJoin = await guest('POST', `/api/share/${token}/join`, { password: 'letmein', displayName: 'Guest1' });
+const goodJoin = await guest('POST', `/api/share/${token}/join`, { password: 'letmein-please', displayName: 'Guest1' });
 check('correct share password accepted', goodJoin.status === 200, `got ${goodJoin.status}`);
 
 const guestRead = await guest('GET', `/api/share/${token}/note`);

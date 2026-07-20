@@ -199,8 +199,16 @@ test.describe('Recovery key redemption', () => {
     await page.getByRole('menuitem', { name: 'Sign out' }).click();
     await page.waitForURL(/\/login/, { timeout: 10_000 });
 
-    await page.getByRole('link', { name: /forgot your password/i }).click();
-    await page.waitForURL(/\/recover/, { timeout: 10_000 });
+    // The login form's Email field is autoFocused, so clicking this link blurs it and
+    // triggers a validation re-render in the same tick — which can detach the anchor
+    // between the hit-test and the click, losing the router navigation. Retry on the
+    // URL rather than on a timer; navigating to /recover is idempotent.
+    const forgot = page.getByRole('link', { name: /forgot your password/i });
+    await expect(forgot).toHaveAttribute('href', '/recover');
+    await expect(async () => {
+      if (!/\/recover/.test(page.url())) await forgot.click();
+      expect(new URL(page.url()).pathname).toBe('/recover');
+    }).toPass({ timeout: 15_000 });
 
     const newPassword = 'a-brand-new-password';
     await page.getByLabel('Email').fill(email);

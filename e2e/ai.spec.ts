@@ -1,8 +1,8 @@
 import type { APIRequestContext } from '@playwright/test';
 import { expect, test } from './auth.fixture';
-import { TESTIDS, apiCreateNote, apiCreateNotebook, uniqueName } from './utils';
+import { TESTIDS, apiCreateNote, apiCreateNotebook, skipIfUpstreamQuota, uniqueName } from './utils';
 
-// These specs hit the real local AI gateway (docs/SPEC.md: http://localhost:3001/v1)
+// These specs hit the real local AI gateway (its base URL is pinned by playwright.config.ts)
 // through the server's /api/ai/* routes — no mocking. Generous timeouts throughout
 // since a single call can legitimately take up to ~90s, and the suite runs serial
 // so a slow/overloaded gateway doesn't cause cross-test interference.
@@ -40,7 +40,8 @@ async function ensureAiHealthy(request: APIRequestContext): Promise<void> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok() || !body?.ok) {
     throw new Error(
-      `ai.spec.ts requires a running local AI gateway (http://localhost:3001) — ` +
+      `ai.spec.ts requires a running local AI gateway (FOLIO_AI_BASE_URL, pinned in ` +
+        `playwright.config.ts) — ` +
         `GET /api/meta/ai-health responded ${res.status()} ${JSON.stringify(body)}. ` +
         `Start the gateway before running this spec.`,
     );
@@ -59,6 +60,44 @@ async function openAiMenuAction(page: import('@playwright/test').Page, actionPat
   await main.getByRole('button', { name: actionPattern }).first().click();
 }
 
+/**
+ * Waits for an AI action to reach a terminal state — success OR the app's error toast.
+ *
+ * Without the error branch these tests just burn their full ~95s budget and then
+ * report "never rendered", which is indistinguishable between "the app is broken"
+ * and "the free gateway is out of quota". Racing the toast surfaces the provider's
+ * own message, and a spent quota is then skipped rather than failed (see
+ * skipIfUpstreamQuota) so a drought cannot mask a real regression elsewhere.
+ */
+async function settleAi(
+  page: import('@playwright/test').Page,
+  isReady: () => Promise<boolean>,
+  what: string,
+): Promise<void> {
+  const errorToast = page.locator('.folio-toast.error').first();
+  let failure: string | null = null;
+
+  await expect
+    .poll(
+      async () => {
+        if (await isReady().catch(() => false)) return 'ok';
+        const msg = await errorToast.textContent().catch(() => null);
+        if (msg && msg.trim()) {
+          failure = msg.trim();
+          return 'error';
+        }
+        return 'pending';
+      },
+      { timeout: 95_000, message: `${what} never reached a terminal state` },
+    )
+    .not.toBe('pending');
+
+  if (failure) {
+    skipIfUpstreamQuota(failure);
+    throw new Error(`${what} failed: ${failure}`);
+  }
+}
+
 test.describe('AI features (real gateway)', () => {
   test('Summarize a note renders a non-empty markdown preview', async ({ page, request }) => {
     test.setTimeout(180_000);
@@ -75,19 +114,16 @@ test.describe('AI features (real gateway)', () => {
     await openAiMenuAction(page, /summarize/i);
 
     // The AI preview modal only mounts once the (real) summarize call returns, which
-    // can legitimately take up to ~90s — the disabled "AI…" button is the in-flight
-    // signal until then. Poll the modal's own testid for non-empty markdown so a
-    // single budget covers both "modal appeared" and "content rendered".
+    // can legitimately take up to ~90s. One budget covers both "modal appeared" and
+    // "content rendered" — and now also "the call failed", so a dead gateway is
+    // reported as such instead of as a silent timeout.
     const preview = page.getByTestId(TESTIDS.aiPreviewModal);
-    await expect
-      .poll(
-        async () => {
-          const text = await preview.textContent({ timeout: 2_000 }).catch(() => '');
-          return (text ?? '').trim().length;
-        },
-        { timeout: 95_000, message: 'AI summarize preview never rendered non-empty markdown' },
-      )
-      .toBeGreaterThan(20);
+    await settleAi(
+      page,
+      async () => ((await preview.textContent({ timeout: 1_000 }).catch(() => '')) ?? '').trim().length > 20,
+      'AI summarize',
+    );
+    await expect(preview).toBeVisible();
   });
 
   test('Generate flashcards shows a success toast', async ({ page, request }) => {
@@ -106,9 +142,9 @@ test.describe('AI features (real gateway)', () => {
     // The AI menu asks "How many?" before generating — pick a count.
     await page.locator('.folio-flashcard-count').getByRole('button', { name: '8' }).click();
 
-    await expect(page.getByText(/\d+\s*cards?\s*added|flashcards?\s*(created|added|generated)/i)).toBeVisible({
-      timeout: 90_000,
-    });
+    const banner = page.getByText(/\d+\s*cards?\s*added|flashcards?\s*(created|added|generated)/i);
+    await settleAi(page, async () => banner.isVisible(), 'AI flashcard generation');
+    await expect(banner).toBeVisible();
   });
 
   test('/ask answers a question from the notes with at least one source', async ({ page, request }) => {
@@ -131,15 +167,11 @@ test.describe('AI features (real gateway)', () => {
 
     const pair = page.locator('.ak-pair').last();
     const answer = pair.locator('.ak-answer__markdown');
-    await expect
-      .poll(
-        async () => {
-          const text = await answer.textContent({ timeout: 3_000 }).catch(() => '');
-          return (text ?? '').trim().length;
-        },
-        { timeout: 90_000, message: '/ask never produced an answer' },
-      )
-      .toBeGreaterThan(50);
+    await settleAi(
+      page,
+      async () => ((await answer.textContent({ timeout: 1_000 }).catch(() => '')) ?? '').trim().length > 50,
+      '/ask',
+    );
 
     const sources = pair.locator('.ak-sources a');
     await expect(sources.first()).toBeVisible({ timeout: 5_000 });
@@ -167,15 +199,11 @@ test.describe('AI features (real gateway)', () => {
     await panel.getByTestId('assistant-find-gaps').click();
 
     const result = panel.getByTestId('assistant-result');
-    await expect
-      .poll(
-        async () => {
-          const text = await result.textContent({ timeout: 2_000 }).catch(() => '');
-          return (text ?? '').trim().length;
-        },
-        { timeout: 95_000, message: 'assistant never produced a gap analysis' },
-      )
-      .toBeGreaterThan(40);
+    await settleAi(
+      page,
+      async () => ((await result.textContent({ timeout: 1_000 }).catch(() => '')) ?? '').trim().length > 40,
+      'assistant gap analysis',
+    );
 
     // The assistant NEVER writes the note by itself.
     const editorTextAfter = (await page.getByTestId(TESTIDS.noteEditor).textContent()) ?? '';

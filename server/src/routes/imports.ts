@@ -1,13 +1,14 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import multer from 'multer';
-import fs from 'node:fs';
 import path from 'node:path';
-import { UPLOADS_DIR } from '../config.js';
+import { IS_SERVERLESS } from '../config.js';
 import { db, tx, newId, nowIso } from '../db.js';
 import { userId } from '../auth/middleware.js';
 import { chat, AiError, capForAi } from '../ai/client.js';
 import { ocrPhotoPrompt, slidesRestructurePrompt, transcriptNotesPrompt, improvePrompt, titlePrompt, cleanTitle } from '../ai/prompts.js';
 import { extractFromUpload } from '../lib/extract.js';
+import { extractPptxImages, type SlideImage } from '../lib/slideImages.js';
+import { insertAttachment, withTempFile, attachmentUrl } from '../lib/attachments.js';
 import { markdownToTipTap, markdownToPlainText, stripLeadingTitleHeading } from '../lib/markdown.js';
 import { syncLinksForNote, createTitleResolver } from '../lib/links.js';
 import { createJob, updateJob, getJob } from '../lib/jobs.js';
@@ -20,7 +21,18 @@ const router = Router();
 // lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
 // failure mode is a loud 500, never an unscoped query.
 
-const MAX_SIZE = 25 * 1024 * 1024;
+/**
+ * Upload ceiling.
+ *
+ * Vercel rejects a request whose body exceeds ~4.5MB before it ever reaches this handler,
+ * so advertising the old 25MB in production was a promise the platform overrules — the
+ * user got an opaque platform error instead of our message. Cap below that ourselves and
+ * multipart framing overhead still fits, so anything we accept genuinely uploads.
+ *
+ * Local/self-hosted runs have no such ceiling, so they keep the larger limit.
+ */
+const MAX_SIZE = IS_SERVERLESS ? 4 * 1024 * 1024 : 25 * 1024 * 1024;
+const MAX_SIZE_LABEL = IS_SERVERLESS ? '4MB' : '25MB';
 
 const MIME_EXT: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -49,16 +61,21 @@ function fileFilter(_req: Request, file: Express.Multer.File, cb: multer.FileFil
   cb(new Error(`Unsupported file type: ${file.mimetype || ext || 'unknown'}`));
 }
 
-// Uploads still land on local disk and are served from /uploads. attachments.bytes exists in
-// the Postgres schema for the serverless case (no durable disk) but is deliberately left unset
-// here — moving the payload into the row is a separate change.
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
-  filename: (_req, file, cb) => cb(null, `${newId()}${safeExt(file.originalname, file.mimetype)}`),
-});
+// Uploads are held in memory and persisted into attachments.bytes; nothing touches the
+// local filesystem. diskStorage used to write into data/uploads/, which is read-only on
+// a serverless host — every import in production died with EROFS. Memory storage is the
+// one path that behaves identically in both places.
+//
+// Bounded by MAX_SIZE above, so "in memory" is at most a few MB per in-flight request.
+const storage = multer.memoryStorage();
 
 const upload = multer({ storage, limits: { fileSize: MAX_SIZE }, fileFilter });
 const uploadImage = multer({ storage, limits: { fileSize: MAX_SIZE } });
+
+/** The name an upload is stored and served under. Also the key /uploads/:name looks up. */
+function storedNameFor(originalName: string, mime: string): string {
+  return `${newId()}${safeExt(originalName, mime)}`;
+}
 
 /** Wraps a multer single-file middleware so upload errors become clean JSON, not a 500. */
 function handleUpload(mw: RequestHandler): RequestHandler {
@@ -66,7 +83,7 @@ function handleUpload(mw: RequestHandler): RequestHandler {
     mw(req, res, (err: unknown) => {
       if (!err) return next();
       if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-        res.status(413).json({ error: 'File is too large (max 25MB)' });
+        res.status(413).json({ error: `File is too large (max ${MAX_SIZE_LABEL})` });
         return;
       }
       const message = err instanceof Error ? err.message : 'upload failed';
@@ -267,10 +284,70 @@ async function mergeMarkdownIntoNote(noteId: string, markdown: string, uid: stri
   return noteId;
 }
 
+/**
+ * Only .pptx carries an unpackable media folder, so it is the only format the figure pass
+ * runs against. A PDF import skips it entirely rather than trying and reporting nothing —
+ * embedded-image extraction from PDF is a different problem and is not implemented.
+ */
+export function isPptx(mime: string, originalName: string): boolean {
+  return mime === PPTX_MIME || path.extname(originalName).toLowerCase() === '.pptx';
+}
+
+// Bounds on the figure pass. A pathological deck should not be able to turn one import
+// into hundreds of rows or tens of megabytes of writes.
+const MAX_FIGURES = 40;
+const MAX_FIGURE_TOTAL_BYTES = 24 * 1024 * 1024;
+
+/**
+ * A labelled gallery of the deck's figures, tagged by the slide each came from.
+ *
+ * Deliberately appended as its own section rather than interleaved with the prose. The
+ * slide text is restructured by the model before the note is written, so nothing reliable
+ * survives linking a finished paragraph back to the slide a picture sat on. Guessing at
+ * placement would drop diagrams beside text they do not illustrate — confidently wrong,
+ * and harder to spot than an honest gallery the reader can match up by slide number.
+ */
+export function figuresMarkdown(figures: Array<{ slide: number; url: string }>): string {
+  if (!figures.length) return '';
+  const out = ['## Figures from the slides', ''];
+  for (const f of figures) {
+    out.push(`**Slide ${f.slide}**`, '', `![Figure from slide ${f.slide}](${f.url})`, '');
+  }
+  return out.join('\n').trimEnd();
+}
+
+/** Persist extracted figures as attachments owned by `uid` and filed against `noteId`. */
+async function storeFigures(
+  figures: SlideImage[],
+  uid: string,
+  noteId: string,
+): Promise<Array<{ slide: number; url: string }>> {
+  const stored: Array<{ slide: number; url: string }> = [];
+  let total = 0;
+  for (const fig of figures.slice(0, MAX_FIGURES)) {
+    if (total + fig.bytes.byteLength > MAX_FIGURE_TOTAL_BYTES) break;
+    total += fig.bytes.byteLength;
+    const storedName = `${newId()}${path.extname(fig.name).toLowerCase() || '.png'}`;
+    await insertAttachment({
+      uid,
+      noteId,
+      kind: 'image',
+      originalName: path.basename(fig.name),
+      storedName,
+      mime: fig.mime,
+      bytes: fig.bytes,
+      status: 'ready',
+    });
+    stored.push({ slide: fig.slide, url: attachmentUrl(storedName) });
+  }
+  return stored;
+}
+
 interface ProcessArgs {
   jobId: string;
   attachmentId: string;
-  filePath: string;
+  /** The upload itself. Held in memory — there is no durable disk on a serverless host. */
+  bytes: Buffer;
   mime: string;
   originalName: string;
   kind: ImportKind;
@@ -282,23 +359,38 @@ interface ProcessArgs {
 }
 
 async function processImport(args: ProcessArgs): Promise<void> {
-  const { jobId, attachmentId, filePath, mime, originalName, kind, mode, uid, notebookId, noteId } = args;
+  const { jobId, attachmentId, bytes, mime, originalName, kind, mode, uid, notebookId, noteId } = args;
   updateJob(jobId, { status: 'running', step: 'Extracting text…' });
   await markAttachment(attachmentId, 'extracting', uid);
 
   try {
     let extractedMarkdown: string;
+    let figures: SlideImage[] = [];
+    const ext = safeExt(originalName, mime) || path.extname(originalName).toLowerCase();
 
     if (kind === 'photo') {
-      const buf = await fs.promises.readFile(filePath);
-      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`;
+      const dataUrl = `data:${mime};base64,${bytes.toString('base64')}`;
       const messages = ocrPhotoPrompt();
       const userMsg = messages[1];
       if (Array.isArray(userMsg.content)) userMsg.content.push({ type: 'image_url', image_url: { url: dataUrl } });
       const { text } = await chat(messages, { vision: true });
       extractedMarkdown = text.trim();
     } else if (kind === 'slides') {
-      const { text: rawText } = await extractFromUpload(filePath, mime, originalName);
+      // One temp file serves both passes: the extractors take a path, not a buffer.
+      const pptx = isPptx(mime, originalName);
+      const rawText = await withTempFile(bytes, ext, async (filePath) => {
+        const { text } = await extractFromUpload(filePath, mime, originalName);
+        if (pptx) {
+          // A failed figure pass must never take down an import whose text extracted
+          // fine — the pictures are a bonus, the notes are the point.
+          try {
+            figures = await extractPptxImages(filePath);
+          } catch (err) {
+            console.error('[folio] slide figure extraction failed', err);
+          }
+        }
+        return text;
+      });
       const pages = rawText
         .split(/\n\n--- Page \d+ ---\n\n/)
         .map(s => s.trim())
@@ -307,7 +399,10 @@ async function processImport(args: ProcessArgs): Promise<void> {
       const { text } = await chat(slidesRestructurePrompt(pages.length ? pages : [rawText]));
       extractedMarkdown = text.trim();
     } else {
-      const { text: rawText } = await extractFromUpload(filePath, mime, originalName);
+      const rawText = await withTempFile(bytes, ext, async (filePath) => {
+        const { text } = await extractFromUpload(filePath, mime, originalName);
+        return text;
+      });
       updateJob(jobId, { step: 'Improving with AI…' });
       const { text } = await chat(transcriptNotesPrompt(rawText));
       extractedMarkdown = text.trim();
@@ -324,6 +419,20 @@ async function processImport(args: ProcessArgs): Promise<void> {
       resultNoteId = await withNoteLock(noteId!, () => appendMarkdownToNote(noteId!, extractedMarkdown, uid));
     } else {
       resultNoteId = await withNoteLock(noteId!, () => mergeMarkdownIntoNote(noteId!, extractedMarkdown, uid));
+    }
+
+    // Figures go in after the note exists, so they can be filed against it — that note_id
+    // is what lets a share-link guest load them. Same non-fatal treatment as extraction:
+    // the note is already saved, and losing the gallery is not worth failing the import.
+    if (figures.length) {
+      try {
+        updateJob(jobId, { step: 'Saving figures…' });
+        const stored = await storeFigures(figures, uid, resultNoteId);
+        const section = figuresMarkdown(stored);
+        if (section) await withNoteLock(resultNoteId, () => appendMarkdownToNote(resultNoteId, section, uid));
+      } catch (err) {
+        console.error('[folio] storing slide figures failed', err);
+      }
     }
 
     await db.prepare('UPDATE attachments SET extracted_text = ?, status = ?, note_id = ? WHERE id = ? AND user_id = ?').run(
@@ -353,8 +462,8 @@ router.post('/', handleUpload(upload.single('file')), async (req, res) => {
   const notebookId = body.notebookId?.trim() || undefined;
   const noteId = body.noteId?.trim() || undefined;
 
+  // Nothing to unlink any more — a rejected upload is just a buffer that goes out of scope.
   const fail = (status: number, error: string) => {
-    if (file) fs.unlink(file.path, () => {});
     res.status(status).json({ error });
   };
 
@@ -381,12 +490,17 @@ router.post('/', handleUpload(upload.single('file')), async (req, res) => {
     if (!targetNote) return fail(400, 'unknown noteId');
   }
 
-  const attachmentId = newId();
-  const now = nowIso();
-  await db.prepare(
-    `INSERT INTO attachments (id, user_id, note_id, kind, original_name, stored_name, mime, size, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'uploaded', ?)`,
-  ).run(attachmentId, uid, targetNote?.id ?? null, kind, file.originalname, path.basename(file.path), file.mimetype, file.size, now);
+  // The payload goes into the row, not onto disk. attachments.bytes was always the
+  // serverless plan in schema.sql; this is the write that finally uses it.
+  const attachmentId = await insertAttachment({
+    uid,
+    noteId: targetNote?.id ?? null,
+    kind,
+    originalName: file.originalname,
+    storedName: storedNameFor(file.originalname, file.mimetype),
+    mime: file.mimetype,
+    bytes: file.buffer,
+  });
 
   const jobId = newId();
   createJob(jobId, { status: 'queued', attachmentId });
@@ -396,7 +510,7 @@ router.post('/', handleUpload(upload.single('file')), async (req, res) => {
     processImport({
       jobId,
       attachmentId,
-      filePath: file.path,
+      bytes: file.buffer,
       mime: file.mimetype,
       originalName: file.originalname,
       kind,
@@ -434,16 +548,31 @@ router.get('/jobs/:id', async (req, res) => {
 });
 
 // POST /api/import/image — plain image upload for embedding in the editor.
-// No attachments row is written (the editor references the file by URL), so there is nothing
-// to scope beyond requireAuth above.
-router.post('/image', handleUpload(uploadImage.single('file')), (req, res) => {
+//
+// This now writes an attachments row, because the row IS the storage — the returned URL is
+// only resolvable if the bytes are in the database. The row also carries the owner, which
+// is what /uploads/:name scopes reads against. note_id stays null: the editor uploads
+// before the image is placed, so the note it lands in is not known yet, and reads fall back
+// to matching the URL inside note content.
+router.post('/image', handleUpload(uploadImage.single('file')), async (req, res) => {
+  const uid = userId(req);
   const file = req.file;
   if (!file) return res.status(400).json({ error: 'file is required' });
   if (!file.mimetype.startsWith('image/')) {
-    fs.unlink(file.path, () => {});
     return res.status(400).json({ error: 'file must be an image' });
   }
-  res.json({ url: `/uploads/${path.basename(file.path)}` });
+  const storedName = storedNameFor(file.originalname, file.mimetype);
+  await insertAttachment({
+    uid,
+    noteId: null,
+    kind: 'image',
+    originalName: file.originalname,
+    storedName,
+    mime: file.mimetype,
+    bytes: file.buffer,
+    status: 'ready',
+  });
+  res.json({ url: attachmentUrl(storedName) });
 });
 
 export default router;

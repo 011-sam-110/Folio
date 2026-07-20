@@ -95,22 +95,16 @@ test.describe('Import (ImportModal)', () => {
     const notebook = await apiCreateNotebook(request, uniqueName('E2E Import Photo Notebook'));
     await page.goto(`/notebook/${notebook.id}`);
 
-    try {
-      await runDesktopImport(page, {
-        kindLabel: /photo/i,
-        filePath: path.join(FIXTURES_DIR, 'note-photo.png'),
-        notebookName: notebook.name,
-        doneTimeout: 150_000,
-      });
-    } catch (err) {
-      // The free gateway's VISION pool is burst/day rate-limited upstream. When every
-      // vision model is exhausted this is an external quota condition, not an app bug —
-      // the app correctly surfaces the failure with a Retry. Skip (loudly) rather than
-      // fail so quota droughts don't mask real regressions elsewhere in the suite.
-      const msg = err instanceof Error ? err.message : String(err);
-      test.skip(/All AI models failed/i.test(msg), `vision providers rate-limited upstream: ${msg}`);
-      throw err;
-    }
+    // The upstream-quota skip that used to live here now lives in runDesktopImport
+    // (see skipIfUpstreamQuota in utils.ts), so every import kind gets it, not just
+    // this one — the TEXT pool exhausts under a parallel run just as the VISION pool
+    // does, and only this test was classifying that correctly.
+    await runDesktopImport(page, {
+      kindLabel: /photo/i,
+      filePath: path.join(FIXTURES_DIR, 'note-photo.png'),
+      notebookName: notebook.name,
+      doneTimeout: 150_000,
+    });
 
     const body = editorBody(page);
     await expect

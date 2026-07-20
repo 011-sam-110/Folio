@@ -1,4 +1,5 @@
-import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import { type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import { expect, test } from './auth.fixture';
 
 /**
  * Shared helpers for the Folio e2e suite.
@@ -38,6 +39,30 @@ export const TESTIDS = {
 
 export function uniqueName(prefix: string): string {
   return `${prefix} ${Date.now()}-${Math.floor(Math.random() * 10_000)}`;
+}
+
+/**
+ * The signature the server produces once every model in a pool has been refused by
+ * the provider — i.e. the free gateway's burst/day allowance is spent.
+ */
+export const UPSTREAM_QUOTA_RE = /All AI models failed|rate.?limit(ed)?|quota|429/i;
+
+/**
+ * Classify an AI failure as "the upstream free tier is exhausted" rather than "the
+ * app is broken", and skip if so.
+ *
+ * The three gateway-backed spec files drive a real, shared, free-tier gateway. When
+ * its pool is spent every one of them fails identically and for a reason that has
+ * nothing to do with Folio — which is exactly the situation in which a red suite
+ * stops carrying information. Skipping loudly (with the provider's own message)
+ * keeps a quota drought from masking real regressions elsewhere.
+ *
+ * This deliberately does NOT swallow other AI failures: anything that is not the
+ * provider-exhaustion signature still fails the test.
+ */
+export function skipIfUpstreamQuota(detail: string | null | undefined): void {
+  const text = detail ?? '';
+  test.skip(UPSTREAM_QUOTA_RE.test(text), `AI gateway exhausted upstream: ${text}`);
 }
 
 function escapeRegex(s: string): string {
@@ -118,10 +143,26 @@ export async function setNoteTitle(page: Page, title: string): Promise<void> {
   await input.fill(title);
 }
 
-/** Opens the Ctrl/Cmd+K quick switcher. */
+/**
+ * Opens the Ctrl/Cmd+K quick switcher.
+ *
+ * The binding lives in the App shell (lib/useShortcuts.ts, mounted by AppShell), so
+ * it does not exist until that shell has mounted and its effect has run. Pressing
+ * immediately after a fresh `page.goto` can land before the listener is attached and
+ * be swallowed — which is exactly how this failed from the dashboard while working
+ * fine on a note page that had been open for a while.
+ *
+ * So: wait for the shell to be on screen, then press. The retry is guarded by a
+ * visibility check because Ctrl+K TOGGLES — an unguarded re-press would close the
+ * panel it had just opened.
+ */
 export async function openQuickSwitcher(page: Page): Promise<void> {
-  await page.keyboard.press('Control+k');
-  await expect(page.getByTestId(TESTIDS.quickSwitcher)).toBeVisible({ timeout: 5_000 });
+  const switcher = page.getByTestId(TESTIDS.quickSwitcher);
+  await expect(sidebarNav(page)).toBeVisible({ timeout: 15_000 });
+  await expect(async () => {
+    if (!(await switcher.isVisible())) await page.keyboard.press('Control+k');
+    await expect(switcher).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
 }
 
 export function quickSwitcherInput(page: Page): Locator {
@@ -255,6 +296,9 @@ export async function runDesktopImport(
   await expect(openNoteBtn.or(failed)).toBeVisible({ timeout: opts.doneTimeout ?? 120_000 });
   if (await failed.isVisible().catch(() => false)) {
     const detail = await d.locator('.im-result__message').textContent().catch(() => null);
+    // A spent upstream quota is an environment condition, not a regression — the
+    // app correctly surfaced the failure with a Retry. Anything else still fails.
+    skipIfUpstreamQuota(detail);
     throw new Error(`Import job failed: ${detail ?? '(no error detail rendered)'}`);
   }
 

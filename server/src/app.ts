@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, UPLOADS_DIR, config } from './config.js';
+import { ROOT, UPLOADS_DIR, IS_SERVERLESS, config } from './config.js';
 import { migrate } from './db.js';
 import { requireAuth } from './auth/middleware.js';
 
@@ -19,6 +19,7 @@ import templatesRouter from './routes/templates.js';
 import canvasRouter from './routes/canvas.js';
 import shareRouter from './routes/share.js';
 import metaRouter from './routes/meta.js';
+import uploadsRouter from './routes/uploads.js';
 
 /**
  * The app is multi-user and cookie-authenticated, which makes a permissive CORS policy
@@ -104,7 +105,16 @@ export function buildApp(): express.Express {
   // about the host, not public information, so it is signed-in-only like the rest.
   app.use('/api/meta', requireAuth, metaRouter);
 
-  app.use('/uploads', express.static(UPLOADS_DIR));
+  // Attachment payloads live in Postgres and are served from there — the database is the
+  // source of truth, and the only storage that exists at all on a serverless host.
+  // Mounted BEFORE the static handler so the row always wins over a stale local file.
+  //
+  // The static mount is kept behind it for local development, where uploads written by an
+  // older build (or by the seed script) may still be sitting in data/uploads/. It only ever
+  // sees requests the database could not answer. It is skipped entirely on serverless,
+  // where UPLOADS_DIR does not exist.
+  app.use('/uploads', uploadsRouter);
+  if (!IS_SERVERLESS) app.use('/uploads', express.static(UPLOADS_DIR));
 
   // JSON 404 for unknown API routes. Must precede the SPA catch-all, or an unknown
   // /api path would be answered with index.html.

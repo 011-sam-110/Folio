@@ -5,6 +5,7 @@ import { db, newId, nowIso } from '../db.js';
 import { SESSION_SECRET, IS_SERVERLESS } from '../config.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import { requireAuth, userId } from '../auth/middleware.js';
+import { rateLimit } from '../auth/rateLimit.js';
 import { COOKIE_NAME, readCookie, resolveSession } from '../auth/session.js';
 
 const router = Router();
@@ -89,8 +90,11 @@ router.post('/notes/:noteId/shares', requireAuth, async (req, res) => {
   const b = (req.body ?? {}) as Record<string, unknown>;
   const permission = b.permission === 'view' ? 'view' : 'edit';
   const password = typeof b.password === 'string' && b.password ? b.password : null;
-  if (password && password.length < 4) {
-    res.status(400).json({ error: 'Share password must be at least 4 characters' });
+  // Was 4. A share link is a bearer credential on a public URL, so its password is
+  // the only thing standing between a leaked link and the note behind it — and four
+  // characters is inside brute-force range even with the join throttle in place.
+  if (password && password.length < 8) {
+    res.status(400).json({ error: 'Share password must be at least 8 characters' });
     return;
   }
 
@@ -164,9 +168,10 @@ router.get('/share/:token', async (req, res) => {
   });
 });
 
-router.post('/share/:token/join', async (req, res) => {
-  const { token } = req.params;
-  const share = await loadShareByToken(token);
+router.post('/share/:token/join', rateLimit({ limit: 12, windowMs: 5 * 60_000, message: 'Too many attempts on this link. Please wait a few minutes and try again.' }), async (req, res) => {
+  // Express types a bare Request's params as string | string[]; :token is always a
+  // single path segment.
+  const share = await loadShareByToken(String(req.params.token));
   if (!share) {
     res.status(404).json({ error: 'This link is invalid, expired, or has been revoked' });
     return;
@@ -306,6 +311,70 @@ async function requireShareAccess(req: Request, res: Response, next: NextFunctio
 function ctx(req: Request): ShareContext {
   if (!req.shareContext) throw new Error('route requires requireShareAccess middleware');
   return req.shareContext;
+}
+
+/**
+ * May this request read the attachment stored as `storedName`?
+ *
+ * Images embedded in a note are fetched by the browser as plain `<img src="/uploads/…">`
+ * requests. Those carry no share token — the token lives in the page URL, not in the
+ * image URL — so a guest viewing a shared note would get a 404 for every figure if
+ * attachment reads were scoped to the owner alone.
+ *
+ * The cookies a guest received at join time are the credential we do have, so this walks
+ * them: for each `folio_guest_<shareId>` cookie, confirm the guest row is live and the
+ * share is neither revoked nor expired, then confirm the shared note actually references
+ * this attachment. That last check is what keeps this narrow — holding a share link
+ * grants the images in *that* note, not the run of every attachment in the database.
+ */
+export async function shareGrantsAttachmentAccess(req: Request, storedName: string): Promise<boolean> {
+  const header = req.headers.cookie;
+  if (!header) return false;
+
+  const now = nowIso();
+  for (const part of header.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq === -1) continue;
+    const name = part.slice(0, eq).trim();
+    if (!name.startsWith(GUEST_COOKIE_PREFIX)) continue;
+
+    const shareId = name.slice(GUEST_COOKIE_PREFIX.length);
+    let guestToken: string;
+    try {
+      guestToken = decodeURIComponent(part.slice(eq + 1).trim());
+    } catch {
+      continue; // malformed cookie value — not a credential
+    }
+
+    const guest = await db
+      .prepare('SELECT id, expires_at FROM share_guests WHERE id = ? AND share_id = ?')
+      .get<{ id: string; expires_at: string }>(hashToken(guestToken), shareId);
+    if (!guest || guest.expires_at <= now) continue;
+
+    const share = await db
+      .prepare('SELECT id, note_id, revoked, expires_at FROM note_shares WHERE id = ?')
+      .get<{ id: string; note_id: string; revoked: number; expires_at: string | null }>(shareId);
+    if (!share || share.revoked === 1) continue;
+    if (share.expires_at && share.expires_at <= now) continue;
+
+    // Two ways the attachment can belong to the shared note: it was filed against it
+    // (import figures set note_id), or its URL appears in the note body (editor uploads
+    // are referenced by URL and carry no note_id).
+    const owned = await db
+      .prepare(
+        `SELECT 1 AS ok FROM attachments
+          WHERE stored_name = ? AND note_id = ? LIMIT 1`,
+      )
+      .get<{ ok: number }>(storedName, share.note_id);
+    if (owned) return true;
+
+    const note = await db
+      .prepare('SELECT content_json FROM notes WHERE id = ?')
+      .get<{ content_json: string }>(share.note_id);
+    if (note?.content_json?.includes(`/uploads/${storedName}`)) return true;
+  }
+
+  return false;
 }
 
 /** The shared document itself. */

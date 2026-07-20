@@ -11,6 +11,7 @@ import {
   setSessionCookie,
 } from '../auth/session.js';
 import { requireAuth, userId } from '../auth/middleware.js';
+import { rateLimit } from '../auth/rateLimit.js';
 import { generateRecoveryKey, hashRecoveryKey, verifyRecoveryKey } from '../auth/recovery.js';
 import { seedNewUser } from '../seed.js';
 
@@ -42,7 +43,7 @@ function validate(body: unknown): { email: string; password: string; error?: str
   return { email, password };
 }
 
-router.post('/signup', async (req, res) => {
+router.post('/signup', rateLimit({ limit: 12, windowMs: 15 * 60_000 }), async (req, res) => {
   const { email, password, error } = validate(req.body);
   if (error) {
     res.status(400).json({ error });
@@ -98,7 +99,7 @@ router.post('/signup', async (req, res) => {
   res.status(201).json({ user: publicUser(row!), recoveryKey });
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', rateLimit({ limit: 12, windowMs: 5 * 60_000, message: 'Too many sign-in attempts. Please wait a few minutes and try again.' }), async (req, res) => {
   const b = (req.body ?? {}) as Record<string, unknown>;
   const email = String(b.email ?? '').trim().toLowerCase();
   const password = String(b.password ?? '');
@@ -186,7 +187,7 @@ router.post('/password', requireAuth, async (req, res) => {
  * bearer credential that identifies the account, so a leaked key would let an
  * attacker discover which account it belongs to by brute-forcing nothing at all.
  */
-router.post('/recover', async (req, res) => {
+router.post('/recover', rateLimit({ limit: 8, windowMs: 15 * 60_000, message: 'Too many recovery attempts. Please wait a few minutes and try again.' }), async (req, res) => {
   const b = (req.body ?? {}) as Record<string, unknown>;
   const email = String(b.email ?? '').trim().toLowerCase();
   const key = String(b.recoveryKey ?? '');

@@ -8,8 +8,10 @@
       "includeFiles": "server/src/schema.sql"
     }
   },
+  "// rewrites": "/uploads/* serves attachment bytes out of Postgres, so it must reach the function. Without its own rule it fell through to the SPA catch-all and every embedded image resolved to index.html — an HTML body served as if it were a picture.",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/uploads/(.*)", "destination": "/api" },
+    { "source": "/((?!api/|uploads/).*)", "destination": "/index.html" }
   ]
 }

@@ -16,6 +16,18 @@ import { apiCreateNote, apiCreateNotebook, uniqueName } from './utils';
 
 const MARKER = 'SHARED-CONTENT-MARKER';
 
+/**
+ * Context options for a guest browser.
+ *
+ * `browser.newContext()` INHERITS the test's context options, storageState included —
+ * so without this the "guest" carried the worker account's session, JoinPage
+ * recognised them as the note's owner (it deliberately does that for the owner's own
+ * link), skipped the join gate entirely, and the specs proved nothing.
+ */
+const GUEST: import('@playwright/test').BrowserContextOptions = {
+  storageState: { cookies: [], origins: [] },
+};
+
 /** Owner-side: mint a link on an open note, returning its URL. */
 async function mintShareLink(
   page: import('@playwright/test').Page,
@@ -95,7 +107,7 @@ test.describe('Share links (owner side)', () => {
     const path = joinPath(shareUrl);
 
     // It works before the revoke.
-    const before = await browser.newContext();
+    const before = await browser.newContext(GUEST);
     try {
       const guest = await before.newPage();
       await joinAsGuest(guest, path, { name: 'Early Guest' });
@@ -109,7 +121,7 @@ test.describe('Share links (owner side)', () => {
     await expect(page.getByRole('dialog').locator('.sh-link')).toHaveCount(0, { timeout: 10_000 });
 
     // And not after.
-    const after = await browser.newContext();
+    const after = await browser.newContext(GUEST);
     try {
       const guest = await after.newPage();
       await guest.goto(path);
@@ -127,7 +139,7 @@ test.describe('Guest join', () => {
     const note = await openOwnedNote(page, request);
     const path = joinPath(await mintShareLink(page));
 
-    const guestContext = await browser.newContext();
+    const guestContext = await browser.newContext(GUEST);
     try {
       const guest = await guestContext.newPage();
 
@@ -156,7 +168,7 @@ test.describe('Guest join', () => {
     await openOwnedNote(page, request);
     const path = joinPath(await mintShareLink(page, { permission: 'view' }));
 
-    const guestContext = await browser.newContext();
+    const guestContext = await browser.newContext(GUEST);
     try {
       const guest = await guestContext.newPage();
       await joinAsGuest(guest, path, { name: 'Read Only Guest' });
@@ -183,7 +195,7 @@ test.describe('Guest join', () => {
     const path = joinPath(await mintShareLink(page, { permission: 'edit' }));
     const guestEdit = `GUEST-EDIT-${Date.now()}`;
 
-    const guestContext = await browser.newContext();
+    const guestContext = await browser.newContext(GUEST);
     try {
       const guest = await guestContext.newPage();
       await joinAsGuest(guest, path, { name: 'Editing Guest' });
@@ -202,12 +214,65 @@ test.describe('Guest join', () => {
       await guestContext.close();
     }
 
-    // The owner's copy of the note really changed.
+    // The owner's copy of the note really changed — checked the way the owner would
+    // actually see it, by reopening the note in their own editor.
+    await page.reload();
+    await expect(page.getByTestId('note-editor')).toContainText(guestEdit, { timeout: 20_000 });
+
     const res = await request.get(`/api/notes/${note.id}`);
     expect(res.ok()).toBeTruthy();
     const { note: fresh } = await res.json();
-    expect(fresh.contentText).toContain(guestEdit);
+    expect(JSON.stringify(fresh.contentJson)).toContain(guestEdit);
   });
+
+  /**
+   * KNOWN APP BUG — marked expected-to-fail rather than deleted, so it is tracked and
+   * so this file turns red the moment it is fixed (an unexpected pass is a failure),
+   * prompting the annotation to be removed.
+   *
+   * PATCH /api/share/:token/note (server/src/routes/share.ts) writes `content_json`
+   * but never `content_text`:
+   *
+   *     if (b.contentJson && typeof b.contentJson === 'object') {
+   *       await db.prepare('UPDATE notes SET content_json = ?, updated_at = ? WHERE id = ?')
+   *     }
+   *
+   * The owner's own PATCH /api/notes/:id derives content_text alongside it (see
+   * `plainTextFallback` in server/src/routes/notes.ts). content_text is what full-text
+   * search queries, what note-card snippets render, and what is fed to the AI
+   * endpoints — so anything a guest writes is invisible to search and shows a stale
+   * snippet, indefinitely.
+   *
+   * NOT fixed here: server/src/routes/share.ts is being actively edited by the agent
+   * that owns the share feature. The fix is to derive content_text in that handler the
+   * way notes.ts does (exporting `plainTextFallback` so both can share it).
+   */
+  test.fail(
+    'a guest edit also updates the note’s searchable text',
+    async ({ page, request, browser }) => {
+      const note = await openOwnedNote(page, request);
+      const path = joinPath(await mintShareLink(page, { permission: 'edit' }));
+      const guestEdit = `GUESTSEARCHABLE${Date.now()}`;
+
+      const guestContext = await browser.newContext(GUEST);
+      try {
+        const guest = await guestContext.newPage();
+        await joinAsGuest(guest, path, { name: 'Searching Guest' });
+        const editor = guest.getByTestId('shared-note-editor');
+        await expect(editor).toContainText(MARKER, { timeout: 20_000 });
+        await editor.click();
+        await guest.keyboard.press('End');
+        await guest.keyboard.type(` ${guestEdit}`, { delay: 10 });
+        await expect(guest.locator('.sh-chip--ok')).toHaveText('Saved', { timeout: 20_000 });
+      } finally {
+        await guestContext.close();
+      }
+
+      const res = await request.get(`/api/notes/${note.id}`);
+      const { note: fresh } = await res.json();
+      expect(fresh.contentText).toContain(guestEdit);
+    },
+  );
 
   test('a password-protected link refuses the wrong password and admits the right one', async ({
     page,
@@ -218,7 +283,7 @@ test.describe('Guest join', () => {
     const password = 'share-password-123';
     const path = joinPath(await mintShareLink(page, { password }));
 
-    const guestContext = await browser.newContext();
+    const guestContext = await browser.newContext(GUEST);
     try {
       const guest = await guestContext.newPage();
       await guest.goto(path);
@@ -239,7 +304,7 @@ test.describe('Guest join', () => {
   });
 
   test('a made-up token does not open anything', async ({ browser }) => {
-    const guestContext = await browser.newContext();
+    const guestContext = await browser.newContext(GUEST);
     try {
       const guest = await guestContext.newPage();
       await guest.goto('/join/definitely-not-a-real-share-token');

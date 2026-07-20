@@ -30,6 +30,11 @@ export const pool = new pg.Pool({
  * text is never mistaken for a parameter.
  */
 export function toPgPlaceholders(sql: string): string {
+  return rewrite(sql).text;
+}
+
+/** Rewrite, and report how many placeholders were emitted so callers can check. */
+export function rewrite(sql: string): { text: string; count: number } {
   let out = '';
   let n = 0;
   let i = 0;
@@ -59,6 +64,50 @@ export function toPgPlaceholders(sql: string): string {
       while (i < sql.length && sql[i] !== '\n') out += sql[i++];
       continue;
     }
+    // Block comments. Without this, a '?' inside /* ... */ is counted as a
+    // parameter and every placeholder after it shifts by one — binding values to
+    // the wrong columns silently, with no error anywhere.
+    if (ch === '/' && sql[i + 1] === '*') {
+      out += '/*';
+      i += 2;
+      while (i < sql.length && !(sql[i] === '*' && sql[i + 1] === '/')) out += sql[i++];
+      if (i < sql.length) {
+        out += '*/';
+        i += 2;
+      }
+      continue;
+    }
+    // Dollar-quoted strings ($$...$$ or $tag$...$tag$). Same hazard as above, and
+    // additionally the body is literal text where a '?' is never a parameter.
+    if (ch === '$') {
+      const tag = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(sql.slice(i))?.[0];
+      if (tag) {
+        const end = sql.indexOf(tag, i + tag.length);
+        const stop = end === -1 ? sql.length : end + tag.length;
+        out += sql.slice(i, stop);
+        i = stop;
+        continue;
+      }
+    }
+    // E'...' escape strings, where a backslash escapes the closing quote.
+    if ((ch === 'E' || ch === 'e') && sql[i + 1] === "'") {
+      out += sql[i] + "'";
+      i += 2;
+      while (i < sql.length) {
+        if (sql[i] === '\\' && i + 1 < sql.length) {
+          out += sql[i] + sql[i + 1];
+          i += 2;
+          continue;
+        }
+        out += sql[i];
+        if (sql[i] === "'") {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
     if (ch === '?') {
       out += '$' + ++n;
       i++;
@@ -67,7 +116,7 @@ export function toPgPlaceholders(sql: string): string {
     out += ch;
     i++;
   }
-  return out;
+  return { text: out, count: n };
 }
 
 type Params = readonly unknown[];
@@ -88,17 +137,42 @@ interface Queryable {
 }
 
 function statement(runner: Queryable, sql: string): Statement {
-  const text = toPgPlaceholders(sql);
+  const { text, count } = rewrite(sql);
+
+  /**
+   * Catch a placeholder miscount at the call site instead of letting Postgres bind
+   * values to the wrong columns.
+   *
+   * The rewriter has to understand every way SQL can quote or comment out a literal
+   * '?'. A security review found it mishandled block comments and dollar-quoting —
+   * harmless in this codebase today because no query contains them, but the failure
+   * mode is silent data corruption, not an error. This assertion does not depend on
+   * the rewriter being right about syntax it has never seen: if the number of
+   * placeholders emitted disagrees with the number of arguments supplied, the query
+   * does not run.
+   */
+  const assertArity = (params: Params) => {
+    if (params.length !== count) {
+      throw new Error(
+        `SQL parameter mismatch: query expects ${count} placeholder(s) but ${params.length} argument(s) were supplied. ` +
+          `This usually means a literal '?' inside a comment or quoted string was counted as a parameter. SQL: ${sql.slice(0, 200)}`,
+      );
+    }
+  };
+
   return {
     async all<T>(...params: Params) {
+      assertArity(params);
       const r = await runner.query(text, params as unknown[]);
       return r.rows as T[];
     },
     async get<T>(...params: Params) {
+      assertArity(params);
       const r = await runner.query(text, params as unknown[]);
       return r.rows[0] as T | undefined;
     },
     async run(...params: Params) {
+      assertArity(params);
       const r = await runner.query(text, params as unknown[]);
       return { changes: r.rowCount ?? 0 };
     },

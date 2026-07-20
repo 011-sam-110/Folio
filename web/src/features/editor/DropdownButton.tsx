@@ -31,7 +31,11 @@ export default function DropdownButton({ label, disabled, align = 'left', childr
   return (
     <div className="folio-dropdown" ref={ref}>
       <button type="button" className="folio-btn" disabled={disabled} onClick={() => setOpen((v) => !v)}>
-        {label} ▾
+        {label}
+        {/* Decorative: the chevron says "this opens a menu", which the menu itself
+            already conveys. Left exposed it became part of the accessible name, so
+            this button announced as "AI down-triangle" rather than "AI". */}
+        <span aria-hidden="true"> ▾</span>
       </button>
       {open && <div className={`folio-dropdown-menu folio-dropdown-${align}`}>{children(() => setOpen(false))}</div>}
     </div>
