@@ -62,7 +62,7 @@ describe('GET /api/search — phrase match', () => {
 
     const res = await api.get('/api/search').query({ q: '"binary search"' });
     expect(res.status).toBe(200);
-    expect(res.body.parsed).toEqual({ terms: [], phrases: ['binary search'], excluded: [], tag: null, notebook: null });
+    expect(res.body.parsed).toEqual({ terms: [], phrases: ['binary search'], excluded: [], tags: [], excludedTags: [], notebook: null });
     expect(ids(res)).toEqual([adjacent]);
     expect(res.body.results[0].snippetHtml).toContain('<mark>');
   });
@@ -101,7 +101,7 @@ describe('GET /api/search — tag filter', () => {
 
     const res = await api.get('/api/search').query({ q: 'tag:week3' });
     expect(res.status).toBe(200);
-    expect(res.body.parsed).toEqual({ terms: [], phrases: [], excluded: [], tag: 'week3', notebook: null });
+    expect(res.body.parsed).toEqual({ terms: [], phrases: [], excluded: [], tags: ['week3'], excludedTags: [], notebook: null });
     expect(ids(res)).toEqual([tagged]);
     // No FTS row backs this branch, so score falls back to 0 and the snippet is
     // the plain note snippet rather than a <mark>-highlighted FTS one.
@@ -143,7 +143,7 @@ describe('GET /api/search — combination', () => {
 
     const res = await api.get('/api/search').query({ q: 'tag:week1 redundancy' });
     expect(res.status).toBe(200);
-    expect(res.body.parsed.tag).toBe('week1');
+    expect(res.body.parsed.tags).toEqual(['week1']);
     expect(res.body.parsed.terms).toEqual(['redundancy']);
     expect(ids(res)).toEqual([match]);
   });
@@ -198,7 +198,7 @@ describe('GET /api/search — empty', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       results: [],
-      parsed: { terms: [], phrases: [], excluded: [], tag: null, notebook: null },
+      parsed: { terms: [], phrases: [], excluded: [], tags: [], excludedTags: [], notebook: null },
     });
   });
 
@@ -212,5 +212,70 @@ describe('GET /api/search — empty', () => {
     const res = await api.get('/api/search').query({ q: '   ' });
     expect(res.status).toBe(200);
     expect(res.body.results).toEqual([]);
+  });
+});
+
+/**
+ * Regressions found by a student-persona critique of the running app. Each of these
+ * returned a WRONG result set silently — never an error — so the user got a
+ * confident answer to a question they had not asked.
+ */
+describe('GET /api/search — operator regressions', () => {
+  it('notebook:"Two Words" filters by the quoted name instead of dropping the filter', async () => {
+    // Phrase extraction used to run before operator parsing, so the quoted value was
+    // stripped away and `notebook:` was discarded as empty — the name then fell
+    // through as a plain text search. Folio's own default notebook is "My notes".
+    const ml = await insertNotebook('Machine Learning');
+    const db2 = await insertNotebook('Databases');
+    const a = await insertNote(ml, 'Gradient descent', 'iterative optimisation');
+    await insertNote(db2, 'Normalisation', 'third normal form');
+
+    const res = await api.get('/api/search?q=' + encodeURIComponent('notebook:"Machine Learning"'));
+    expect(res.status).toBe(200);
+    expect(ids(res)).toEqual([a]);
+    expect(res.body.parsed.notebook).toBe('Machine Learning');
+  });
+
+  it('requires EVERY tag when more than one tag: is given', async () => {
+    // Was "first one wins", which contradicted the Tags page's own promise that
+    // multiple tags return only notes carrying all of them.
+    const nb = await insertNotebook('Algorithms');
+    const both = await insertNote(nb, 'BFS', 'queue traversal');
+    const onlyMl = await insertNote(nb, 'Perceptron', 'linear classifier');
+    await tagNote(both, 'ml');
+    await tagNote(both, 'lecture');
+    await tagNote(onlyMl, 'ml');
+
+    const res = await api.get('/api/search?q=' + encodeURIComponent('tag:ml tag:lecture'));
+    expect(ids(res)).toEqual([both]);
+    expect(res.body.parsed.tags).toEqual(['ml', 'lecture']);
+  });
+
+  it('-tag:name excludes, rather than being mangled into a bareword', async () => {
+    // `-tag:lecture` fell into the generic `-` branch, where cleanToken stripped the
+    // colon and it became an exclusion of the nonsense word "taglecture".
+    const nb = await insertNotebook('Algorithms');
+    const both = await insertNote(nb, 'BFS', 'queue traversal');
+    const onlyMl = await insertNote(nb, 'Perceptron', 'linear classifier');
+    await tagNote(both, 'ml');
+    await tagNote(both, 'lecture');
+    await tagNote(onlyMl, 'ml');
+
+    const res = await api.get('/api/search?q=' + encodeURIComponent('tag:ml -tag:lecture'));
+    expect(ids(res)).toEqual([onlyMl]);
+    expect(res.body.parsed.excludedTags).toEqual(['lecture']);
+  });
+
+  it('applies -excluded when combined with tag:, not just on its own', async () => {
+    // The tag-only browse branch built its own SQL and never read parsed.excluded,
+    // so the exclusion was silently dropped and the full set came back.
+    const nb = await insertNotebook('Algorithms');
+    const keep = await insertNote(nb, 'Breadth first', 'queue traversal');
+    const drop = await insertNote(nb, 'Gradient descent', 'gradient of the loss');
+    await tagNote(keep, 'ml');
+    await tagNote(drop, 'ml');
+
+    const res = await api.get('/api/search?q=' + encodeURIComponent('tag:ml -gradient'));
+    expect(ids(res)).toEqual([keep]);
   });
 });

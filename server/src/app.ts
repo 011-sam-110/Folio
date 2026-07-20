@@ -18,6 +18,7 @@ import studyRouter from './routes/study.js';
 import templatesRouter from './routes/templates.js';
 import canvasRouter from './routes/canvas.js';
 import shareRouter from './routes/share.js';
+import commentsRouter from './routes/comments.js';
 import metaRouter from './routes/meta.js';
 import uploadsRouter from './routes/uploads.js';
 
@@ -91,6 +92,9 @@ export function buildApp(): express.Express {
   // inside each router: one place to audit, and one session lookup per request.
   // `userId(req)` inside these routers throws if the guard is ever removed, so a
   // mis-mount fails loudly with a 500 rather than silently querying `undefined`.
+  // Paths are /notes/:id/comments and /comments/:id, so this mounts at /api —
+  // before /api/notes so the nested route resolves.
+  app.use('/api', requireAuth, commentsRouter);
   app.use('/api/notebooks', requireAuth, notebooksRouter);
   app.use('/api/notes', requireAuth, notesRouter);
   app.use('/api/search', requireAuth, searchRouter);

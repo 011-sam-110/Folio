@@ -46,10 +46,43 @@
   margin-top: 0;
 }
 
+/* Restore list markers. The global reset in styles/base.css sets
+   `ul, ol { list-style: none }` for nav and layout lists, and nothing here ever put
+   it back — so a bulleted list and a numbered list rendered as identical indented
+   text. For an ordered algorithm that is not cosmetic, it is wrong. The structure
+   and the markdown export were correct all along; only the display was missing. */
 .folio-prosemirror ul,
 .folio-prosemirror ol {
   padding-left: 1.4em;
   margin: 0;
+}
+
+.folio-prosemirror ul:not([data-type='taskList']) {
+  list-style: disc outside;
+}
+
+.folio-prosemirror ul:not([data-type='taskList']) ul {
+  list-style: circle outside;
+}
+
+.folio-prosemirror ul:not([data-type='taskList']) ul ul {
+  list-style: square outside;
+}
+
+.folio-prosemirror ol {
+  list-style: decimal outside;
+}
+
+.folio-prosemirror ol ol {
+  list-style: lower-alpha outside;
+}
+
+.folio-prosemirror ol ol ol {
+  list-style: lower-roman outside;
+}
+
+.folio-prosemirror li::marker {
+  color: var(--ink-3);
 }
 
 .folio-prosemirror li p {

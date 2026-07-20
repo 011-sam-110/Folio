@@ -268,6 +268,31 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     return () => clearActiveNotebook();
   }, [initialNote.notebookId]);
 
+  /**
+   * Put the caret in the title of a brand-new note.
+   *
+   * Creating a note left focus on <body>, so the first thing typed after "New note"
+   * went nowhere — no caret, no feedback, no text. That is the single most common
+   * action in the app, and it failed in exactly the moment someone is mid-lecture.
+   * It also caused its own follow-on: typing produced nothing, so people clicked
+   * New note again and accumulated empty notes.
+   *
+   * Guarded on the note actually being empty. Focusing on every open would yank the
+   * caret away from someone who came to read, and would scroll a long note back to
+   * the top on mobile.
+   */
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const focusedNoteRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (focusedNoteRef.current === initialNote.id) return; // don't re-grab on re-render
+    const isUntouched = !initialNote.title.trim() && !initialNote.contentText?.trim();
+    if (!isUntouched) return;
+    focusedNoteRef.current = initialNote.id;
+    // After paint, so the input exists and TipTap has finished claiming focus itself.
+    const raf = requestAnimationFrame(() => titleInputRef.current?.focus());
+    return () => cancelAnimationFrame(raf);
+  }, [initialNote.id, initialNote.title, initialNote.contentText]);
+
   // Pull fresh server content into the LIVE editor after a history restore or an import that
   // targets this open note, killing any pending/stale autosave first so it can't revert the
   // change on the next keystroke (fix 4). Without this, the toast says "restored"/"ready"
@@ -742,6 +767,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
           {/* Placeholder is not a label — it disappears on first keystroke and is not
               reliably exposed. This is the highest-traffic input in the product. */}
           <input
+            ref={titleInputRef}
             className="folio-title-input"
             aria-label="Note title"
             value={title}

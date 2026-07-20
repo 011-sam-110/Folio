@@ -144,7 +144,11 @@ export interface SearchParsed {
   terms: string[];
   phrases: string[];
   excluded: string[];
-  tag: string | null;
+  /** Every `tag:` in the query — all must match. Was a single `tag` that ignored
+   *  the second onwards, which contradicted what the Tags page promises. */
+  tags: string[];
+  /** Every `-tag:` — none may match. */
+  excludedTags: string[];
   notebook: string | null;
 }
 
