@@ -132,8 +132,15 @@ with a key that changes per instance.
   endpoint via `FOLIO_AI_BASE_URL`, which defaults to a local instance. Without one
   configured, the AI affordances report themselves unavailable; everything else
   works normally.
-- **In-browser transcription is slow.** A full-length lecture is a background job,
-  not a two-second operation. WebGPU helps substantially; WASM fallback is slower.
+- **In-browser transcription is slow.** Measured on a real 53-minute lecture: 47s to
+  detect slides, then 9m29s to transcribe on CPU (~5.6x realtime). It is a background
+  job with progress and a cancel button, not a two-second operation. The WebGPU path
+  is **unverified** — it could not be exercised in headless testing, and the speed
+  figures in `models.ts` are conservative estimates, labelled as such in the code.
+- **Slide detection is tuned on one course.** 94.1% precision and recall across three
+  lectures from the same module — same lecturer, same deck template, webcam overlay
+  bottom-right. Generalisation to other decks is unproven. The review filmstrip lets
+  you delete false positives before committing, so the tuning favours recall.
 - **The client bundle is large** and not yet code-split.
 - **Renaming a tag doesn't rewrite `#hashtags` already typed into note bodies**, so
   an inline tag reappears next time that note saves. The tag manager says so
