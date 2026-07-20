@@ -137,6 +137,10 @@ async function transcribe(
   const all: TranscriptChunk[] = [];
   let offsetSamples = 0;
 
+  // Emitted before any work so the UI shows 0% the moment the audio lands, rather than
+  // sitting blank until the first batch returns two minutes later.
+  post({ type: 'progress', processedSeconds: 0, totalSeconds, chunks: [] });
+
   while (offsetSamples < audio.length) {
     if (cancelled) {
       post({ type: 'cancelled' });

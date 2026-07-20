@@ -163,9 +163,18 @@ export function noteIdFromUrl(page: Page): string {
 
 // ---------------------------------------------------------------------------
 // Direct-API helpers for fast, reliable test *setup* (per docs/API.md). Used to
-// seed specific notebooks/notes/tags where the UI mechanism is either already
-// covered by another test or genuinely ambiguous (e.g. how tags get attached to
-// a note) — the *behavior under test* in each spec still goes through the UI.
+// seed notebooks/notes/cards whose creation is already covered by another spec —
+// the *behavior under test* in each spec still goes through the UI.
+//
+// These call the API through the built-in `request` fixture, which e2e/auth.fixture.ts
+// has already authenticated as the worker's own account. Everything they create is
+// therefore owned by, and only visible to, that account.
+//
+// NOTE: this block used to justify seeding TAGS here on the grounds that "how tags
+// get attached to a note" was ambiguous. It is not any more — there is a real chip
+// editor (web/src/features/editor/TagEditor.tsx) plus inline #hashtag parsing, and
+// both are exercised through the UI in tags.spec.ts. Tag authoring should not be
+// faked through the API again.
 // ---------------------------------------------------------------------------
 
 export interface ApiNotebook {
@@ -275,4 +284,27 @@ export async function apiCreateNote(
   expect(res.ok(), `create note failed: ${res.status()}`).toBeTruthy();
   const { note } = await res.json();
   return note;
+}
+
+export interface ApiFlashcard {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+/**
+ * Creates a flashcard attached to a note. POST /api/study/cards starts a card at
+ * `due_at = now`, so anything created here is immediately in the review queue —
+ * which is what lets the study specs assert exact due counts.
+ */
+export async function apiCreateFlashcard(
+  request: APIRequestContext,
+  noteId: string,
+  question: string,
+  answer: string,
+): Promise<ApiFlashcard> {
+  const res = await request.post('/api/study/cards', { data: { noteId, question, answer } });
+  expect(res.ok(), `create flashcard failed: ${res.status()}`).toBeTruthy();
+  const { card } = await res.json();
+  return card;
 }

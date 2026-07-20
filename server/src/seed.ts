@@ -14,6 +14,7 @@
 
 import { pathToFileURL } from 'node:url';
 import { db, migrate, newId, nowIso, tx } from './db.js';
+import { DATABASE_URL } from './config.js';
 import { markdownToTipTap, markdownToPlainText, stripLeadingTitleHeading } from './lib/markdown.js';
 import { syncLinksForNote } from './lib/links.js';
 import { seedBuiltinTemplates } from './routes/templates.js';
@@ -1047,7 +1048,38 @@ async function main(): Promise<void> {
 // 15 demo notes each time the server started.
 const invokedDirectly =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+/**
+ * Refuse to seed anything but a local database unless explicitly overridden.
+ *
+ * This exists because it already went wrong: an agent ran `npm run seed -- --force`
+ * expecting a local sandbox, while DATABASE_URL pointed at the shared Neon cloud
+ * database — a destructive reseed of production. Nothing of value was lost only
+ * because the app had no real users yet. The seed script has no way to know what it
+ * is pointed at, so the default must be "assume not local, and stop".
+ */
+function assertSafeSeedTarget(): void {
+  const target = DATABASE_URL;
+  const isLocal = /@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(target);
+  if (isLocal || process.env.FOLIO_ALLOW_REMOTE_SEED === '1') return;
+
+  let where = 'an unknown host';
+  try {
+    where = new URL(target).hostname;
+  } catch {
+    /* keep the generic description rather than echoing a malformed URL */
+  }
+  console.error(
+    `[seed] Refusing to run: DATABASE_URL points at ${where}, which is not a local database.\n` +
+      `[seed] Seeding is destructive. If you really mean to seed a remote database, re-run with\n` +
+      `[seed]   FOLIO_ALLOW_REMOTE_SEED=1 npm run seed -w server\n` +
+      `[seed] Note that a repo-root .env.local written by \`vercel env pull\` points at production.`,
+  );
+  process.exit(1);
+}
+
 if (invokedDirectly) {
+  assertSafeSeedTarget();
   main().then(
     () => process.exit(0),
     (err) => {

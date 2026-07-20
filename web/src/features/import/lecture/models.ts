@@ -1,10 +1,17 @@
 // Whisper model choices offered to the student.
 //
 // Sizes are the real measured download for the weight files this app actually requests
-// (encoder + merged decoder), not the repo total. Speeds are anchored to a measured
-// local baseline: faster_whisper on this machine's CPU ran a 53-minute lecture in 69s
-// with tiny and 150s with base. In-browser ONNX is several times slower than that, which
-// is why the estimates below are deliberately conservative rather than flattering.
+// (encoder + merged decoder), not the repo total.
+//
+// Speeds: the WASM figure for tiny is MEASURED in-browser (180s of real lecture audio
+// transcribed in ~36s => 5x realtime, CPU only). base/small are scaled from that using the
+// ratios observed locally with faster_whisper on the same audio (tiny 69s vs base 150s for a
+// 53-minute lecture). The WebGPU figures are ESTIMATES — see the note below.
+//
+// WebGPU could not be verified here: the only available environment was headless, where the
+// GPU path either hangs or fails inside onnxruntime. The code still prefers WebGPU when a
+// real adapter is present and falls back to CPU on failure, but treat these numbers as
+// unproven. They are deliberately conservative so the quoted time is a ceiling, not a hope.
 
 export type WhisperSize = 'tiny' | 'base' | 'small';
 
@@ -26,7 +33,7 @@ export const MODELS: Record<WhisperSize, ModelChoice> = {
     id: 'onnx-community/whisper-tiny.en',
     label: 'Tiny',
     downloadMb: { webgpu: 144, wasm: 39 },
-    speed: { webgpu: 12, wasm: 4 },
+    speed: { webgpu: 12, wasm: 5 },
     accuracy: 'Roughest',
     detail: 'Fastest and smallest. Gets the gist, but garbles technical terms and names.',
   },
@@ -35,7 +42,7 @@ export const MODELS: Record<WhisperSize, ModelChoice> = {
     id: 'onnx-community/whisper-base.en',
     label: 'Base',
     downloadMb: { webgpu: 278, wasm: 73 },
-    speed: { webgpu: 7, wasm: 2.2 },
+    speed: { webgpu: 7, wasm: 2.3 },
     accuracy: 'Balanced',
     detail: 'The sensible default — noticeably better on jargon than Tiny, still practical.',
   },

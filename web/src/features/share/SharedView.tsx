@@ -13,6 +13,7 @@ import { Toaster } from '../../components/Toast';
 import { useTheme } from '../../lib/theme';
 import { useAuth } from '../auth/AuthContext';
 import type { SharedNote } from '../../lib/types';
+import { DeadLink } from './ShareShell';
 import SharedBoard from './SharedBoard';
 import SharedDoc from './SharedDoc';
 import { POLL_VISIBLE_MS, useShareSync } from './useShareSync';
@@ -64,6 +65,12 @@ export default function SharedView({ token, initial }: SharedViewProps) {
 
   const others = sync.presence.filter((p) => p.name !== initial.you);
   const kindLabel = isCanvas ? 'Whiteboard' : 'Note';
+
+  // Access withdrawn mid-session. Taking over the screen is the honest move:
+  // leaving the stale document visible behind a "reconnecting" chip implies it
+  // is still live and still theirs to edit, and any edit they make from here is
+  // silently discarded by the server.
+  if (sync.lost) return <DeadLink midSession />;
 
   return (
     <div className="sh-session">

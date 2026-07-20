@@ -2,9 +2,10 @@
 // restore-refresh), soft-delete undo, notebook type-to-delete, context filing (Ctrl+N),
 // and the study notebook filter. Import-pipeline fixes live in import.spec.ts /
 // mobile-capture.spec.ts.
-import { expect, test } from '@playwright/test';
+import { expect, test } from './auth.fixture';
 import {
   TESTIDS,
+  apiCreateFlashcard,
   apiCreateNote,
   apiCreateNotebook,
   createNoteViaButton,
@@ -259,24 +260,48 @@ test.describe('AI kill-switch', () => {
 });
 
 test.describe('Study notebook filter', () => {
-  test('the Review tab can be scoped to one notebook via chips', async ({ page }) => {
-    // Uses the seeded vault: 'Databases' has exactly one due card (the 2NF one) while
-    // other notebooks have their own due cards.
+  test('the Review tab can be scoped to one notebook via chips', async ({ page, request }) => {
+    // This used to assert against the CLI demo vault ("Databases has exactly one due
+    // card"). That vault belonged to a single global user and no longer exists for a
+    // per-worker account, so the spec now plants its own two-notebook deck. Seeding two
+    // DIFFERENT card counts is the point: a filter that silently did nothing would still
+    // satisfy a one-notebook fixture.
+    const solo = await apiCreateNotebook(request, uniqueName('E2E Study Solo'));
+    const pair = await apiCreateNotebook(request, uniqueName('E2E Study Pair'));
+    const soloNote = await apiCreateNote(request, solo.id, uniqueName('Study Solo Note'));
+    const pairNote = await apiCreateNote(request, pair.id, uniqueName('Study Pair Note'));
+
+    const soloQuestion = uniqueName('Solo question');
+    await apiCreateFlashcard(request, soloNote.id, soloQuestion, 'The one and only answer.');
+    await apiCreateFlashcard(request, pairNote.id, uniqueName('Pair question A'), 'Answer A.');
+    await apiCreateFlashcard(request, pairNote.id, uniqueName('Pair question B'), 'Answer B.');
+
     await page.goto('/study');
 
     const filter = page.getByTestId('study-notebook-filter');
     await expect(filter).toBeVisible({ timeout: 10_000 });
+    const counter = page.locator('.sy-review__counter');
 
-    // Unfiltered queue has more than one due card (seed has 6 across notebooks).
-    await expect(page.locator('.sy-review__counter')).toContainText(/due/, { timeout: 10_000 });
+    // Scoped to the one-card notebook: an exact count, and it must be OUR card.
+    await filter.getByRole('button', { name: exact(solo.name) }).click();
+    await expect(page.getByText(`Reviewing ${solo.name} only`)).toBeVisible({ timeout: 5_000 });
+    await expect(counter).toHaveText('1 due', { timeout: 10_000 });
+    await expect(page.locator('.sy-review-card__question').first()).toHaveText(soloQuestion);
 
-    await filter.getByRole('button', { name: /Databases/ }).click();
-    await expect(page.getByText(/Reviewing Databases only/i)).toBeVisible({ timeout: 5_000 });
-    await expect(page.locator('.sy-review__counter')).toContainText('1 due', { timeout: 10_000 });
-    await expect(page.locator('.sy-review-card__question').first()).toContainText(/Second Normal Form/i);
+    // Scoped to the two-card notebook: the count tracks the filter rather than being
+    // whatever the queue happened to hold.
+    await filter.getByRole('button', { name: exact(pair.name) }).click();
+    await expect(page.getByText(`Reviewing ${pair.name} only`)).toBeVisible({ timeout: 5_000 });
+    await expect(counter).toHaveText('2 due', { timeout: 10_000 });
 
-    // Back to all notebooks.
+    // Back to all notebooks: at least the three we planted. Not an equality check —
+    // other specs sharing this worker's account may have left cards of their own.
     await filter.getByRole('button', { name: /All notebooks/ }).click();
     await expect(page.getByText(/across every notebook/i)).toBeVisible({ timeout: 5_000 });
+    await expect
+      .poll(async () => Number((((await counter.textContent()) ?? '').match(/(\d+)\s*due/) ?? [])[1] ?? 0), {
+        timeout: 10_000,
+      })
+      .toBeGreaterThanOrEqual(3);
   });
 });

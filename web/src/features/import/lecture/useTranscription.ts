@@ -102,18 +102,25 @@ export function useTranscription() {
             return;
           }
           if (msg.type === 'ready') {
-            setState(s => ({ ...s, phase: 'transcribing', downloadProgress: 1 }));
-            // Transferring hands the buffer over rather than structured-cloning ~200MB.
-            worker.postMessage(
-              {
-                type: 'transcribe',
-                audio,
-                sampleRate,
-                batchSeconds: 120,
-                overlapSeconds: 2,
-              } satisfies WorkerRequest,
-              [audio.buffer as ArrayBuffer],
-            );
+            setState(s => ({ ...s, phase: 'transcribing', downloadProgress: 1, device: msg.device as 'webgpu' | 'wasm' }));
+            const payload = {
+              type: 'transcribe',
+              audio,
+              sampleRate,
+              batchSeconds: 120,
+              overlapSeconds: 2,
+            } satisfies WorkerRequest;
+            try {
+              // Transferring hands the buffer over rather than structured-cloning ~200MB.
+              // It is not always allowed: `getChannelData()` can hand back a view whose buffer
+              // the AudioBuffer still owns, and transferring that throws. Falling back to a
+              // structured clone costs a copy but is far better than the alternative — the
+              // throw used to escape this listener, leaving the promise forever pending and
+              // the UI parked on "Transcribing…" with nothing running.
+              worker.postMessage(payload, [audio.buffer as ArrayBuffer]);
+            } catch {
+              worker.postMessage(payload);
+            }
             return;
           }
           if (msg.type === 'progress') {

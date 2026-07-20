@@ -116,7 +116,7 @@ export default function SharedBoard({ ink, canEdit }: SharedBoardProps) {
         />
 
         {canEdit && (
-          <div className="cv-toolstack sh-board__tools">
+          <div className="sh-board__tools">
             <div className="cv-tools" role="toolbar" aria-label="Board mode">
               <Tooltip content="Move around the board">
                 <button

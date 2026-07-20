@@ -1,8 +1,12 @@
 import path from 'node:path';
-import { expect, test } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
+import { expect, test } from './auth.fixture';
 import { apiCreateNotebook, editorBody, runDesktopImport, uniqueName } from './utils';
 
-const FIXTURES_DIR = path.join(__dirname, 'fixtures');
+// The repo is ESM ("type": "module" in the root package.json, set so Vercel compiles
+// api/index.ts as an ES module), so `__dirname` does not exist here — referencing it
+// threw at module load and took the WHOLE suite down, not just this file.
+const FIXTURES_DIR = fileURLToPath(new URL('fixtures', import.meta.url));
 
 test.describe.configure({ mode: 'serial' });
 

@@ -1,4 +1,5 @@
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import type { APIRequestContext } from '@playwright/test';
+import { expect, test } from './auth.fixture';
 import { TESTIDS, apiCreateNote, apiCreateNotebook, uniqueName } from './utils';
 
 // These specs hit the real local AI gateway (docs/SPEC.md: http://localhost:3001/v1)

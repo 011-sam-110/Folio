@@ -18,7 +18,7 @@
 // case where our own event and someone else's arrive in the same batch.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from '../../lib/api';
+import { api, ApiError } from '../../lib/api';
 import type { ShareEvent } from '../../lib/types';
 
 /** Foreground cadence. Fast enough to feel collaborative, slow enough that a
@@ -41,6 +41,14 @@ export interface ShareSync {
   lastSyncAt: Date | null;
   /** True once a poll has failed; cleared by the next success. */
   offline: boolean;
+  /**
+   * Access to this link has gone away mid-session — it was revoked, it expired,
+   * or the guest grant lapsed. Distinct from `offline` on purpose: one is a
+   * network blip that will heal, the other never will, and telling a user their
+   * connection is flaky when the owner has actually revoked their access leaves
+   * them refreshing a page that can no longer work.
+   */
+  lost: boolean;
   /** Poll immediately (after our own write, or when the tab is re-focused). */
   pollNow: () => void;
 }
@@ -64,6 +72,8 @@ export function useShareSync(
   const [presence, setPresence] = useState<Presence[]>([]);
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   const [offline, setOffline] = useState(false);
+  const [lost, setLost] = useState(false);
+  const lostRef = useRef(false);
 
   // Handlers change identity every render; a ref keeps the poll loop from being
   // torn down and rebuilt (which would reset the interval) on each parent render.
@@ -76,6 +86,8 @@ export function useShareSync(
   selfActorRef.current = selfActor;
 
   const poll = useCallback(async () => {
+    // Once access is gone it never comes back on this token, so stop asking.
+    if (lostRef.current) return;
     // One request at a time. A slow response must not let the interval stack up
     // requests that then land out of order and rewind `revision`.
     if (inFlightRef.current) return;
@@ -104,9 +116,17 @@ export function useShareSync(
           .flatMap((e) => (Array.isArray(e.payload?.ids) ? (e.payload.ids as string[]) : []));
         if (inkIds.length > 0) handlersRef.current.onInk?.(inkIds);
       }
-    } catch {
-      // A failed poll is not fatal — the next tick retries from the same
-      // revision, so no delta is ever skipped.
+    } catch (e) {
+      // 404 = the link is revoked or expired; 401 = this guest's grant lapsed.
+      // Both are permanent for this token, so they end the session rather than
+      // being retried forever behind a "reconnecting" chip.
+      if (e instanceof ApiError && (e.status === 404 || e.status === 401)) {
+        lostRef.current = true;
+        setLost(true);
+        return;
+      }
+      // Anything else is a blip — the next tick retries from the same revision,
+      // so no delta is ever skipped.
       setOffline(true);
     } finally {
       inFlightRef.current = false;
@@ -146,5 +166,5 @@ export function useShareSync(
     };
   }, [poll]);
 
-  return { revision, presence, lastSyncAt, offline, pollNow };
+  return { revision, presence, lastSyncAt, offline, lost, pollNow };
 }

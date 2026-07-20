@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './auth.fixture';
 import { apiCreateNote, apiCreateNotebook, editorBody, exact, sidebarNav, typeInEditor, uniqueName } from './utils';
 
 test.describe('Mobile shell (Pixel 7)', () => {

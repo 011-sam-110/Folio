@@ -14,13 +14,13 @@
 // them retype a name they already chose would be pointless friction.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import Icon from '../../components/Icon';
 import Spinner from '../../components/Spinner';
 import { api, ApiError } from '../../lib/api';
 import { errorMessage } from '../../lib/format';
-import { useTheme } from '../../lib/theme';
 import type { SharePeek, SharedNote } from '../../lib/types';
+import { DeadLink, ShareShell } from './ShareShell';
 import SharedView from './SharedView';
 import './share.css';
 
@@ -93,7 +93,7 @@ export default function JoinPage() {
     );
   }
 
-  if (phase === 'dead') return <DeadLink reason={deadReason} />;
+  if (phase === 'dead') return <DeadLink reason={deadReason || undefined} />;
 
   if (phase === 'session' && session) {
     return <SharedView token={token} initial={session} />;
@@ -104,57 +104,6 @@ export default function JoinPage() {
   }
 
   return null;
-}
-
-/** Page chrome for the pre-session screens: wordmark plus a theme toggle, since a
- *  guest never sees the sidebar that normally carries one. */
-function ShareShell({ children }: { children: React.ReactNode }) {
-  const [theme, , toggleTheme] = useTheme();
-  return (
-    <div className="sh-page">
-      <button
-        type="button"
-        className="icon-btn sh-page__theme"
-        aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-        onClick={toggleTheme}
-      >
-        <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
-      </button>
-      <main className="sh-card">
-        <div className="sh-card__brand">
-          <span className="sh-card__mark" aria-hidden="true">
-            📓
-          </span>
-          <span className="sh-card__wordmark">Folio</span>
-        </div>
-        {children}
-      </main>
-    </div>
-  );
-}
-
-function DeadLink({ reason }: { reason: string }) {
-  return (
-    <ShareShell>
-      <div className="sh-dead">
-        <div className="sh-dead__badge" aria-hidden="true">
-          <Icon name="link" size={20} />
-        </div>
-        <h1 className="sh-card__title">This link doesn’t open anything</h1>
-        {reason ? (
-          <p className="sh-card__subtitle">{reason}</p>
-        ) : (
-          <p className="sh-card__subtitle">
-            It may have expired, been revoked by whoever shared it, or been copied incompletely.
-            Ask them for a fresh link.
-          </p>
-        )}
-        <Link className="btn btn-secondary sh-dead__home" to="/">
-          Go to Folio
-        </Link>
-      </div>
-    </ShareShell>
-  );
 }
 
 function JoinGate({
@@ -221,26 +170,37 @@ function JoinGate({
       </p>
 
       <form className="sh-gate" onSubmit={submit}>
-        <label className="sh-field">
-          <span className="sh-field__label">Your name</span>
+        {/* The hint sits OUTSIDE the <label> and is wired up with aria-describedby.
+            Nested inside it, it would be concatenated into the field's accessible
+            name, so a screen reader would announce the whole sentence as the name
+            of the box every time focus landed there. */}
+        <div className="sh-field">
+          <label className="sh-field__label" htmlFor="sh-join-name">
+            Your name
+          </label>
           <input
+            id="sh-join-name"
             className="text-input"
             value={name}
             autoFocus
             maxLength={40}
             placeholder="How others will see you"
             autoComplete="nickname"
+            aria-describedby="sh-join-name-hint"
             onChange={(e) => setName(e.target.value)}
           />
-          <span className="sh-field__hint">Shown to everyone else on this {what}. Leave blank to join as “Guest”.</span>
-        </label>
+          <span className="sh-field__hint" id="sh-join-name-hint">
+            Shown to everyone else on this {what}. Leave blank to join as “Guest”.
+          </span>
+        </div>
 
         {peek.needsPassword && (
-          <label className="sh-field">
-            <span className="sh-field__label">
+          <div className="sh-field">
+            <label className="sh-field__label" htmlFor="sh-join-password">
               <Icon name="lock" size={12} /> Password
-            </span>
+            </label>
             <input
+              id="sh-join-password"
               ref={passwordRef}
               className="text-input"
               type="password"
@@ -249,7 +209,7 @@ function JoinGate({
               placeholder="Set by whoever shared this"
               onChange={(e) => setPassword(e.target.value)}
             />
-          </label>
+          </div>
         )}
 
         {error && (

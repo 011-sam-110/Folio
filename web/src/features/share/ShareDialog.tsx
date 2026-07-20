@@ -112,7 +112,7 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
    */
   function close() {
     if (minted) {
-      toast('Copy the link first — Folio cannot show it again', 'info');
+      toast('Copy the link first — Folio cannot show it again. Press Done when you have it.', 'info');
       return;
     }
     onClose();
@@ -243,7 +243,24 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
   );
 }
 
-/** The one-time reveal. Mirrors RecoveryKeyPanel: copy, acknowledge, then leave. */
+/**
+ * The one-time reveal.
+ *
+ * Modelled on RecoveryKeyPanel, but deliberately one notch softer, and the
+ * difference is worth stating. A recovery key gates the panel behind copy AND an
+ * acknowledgement because losing it is unrecoverable and the failure only
+ * surfaces months later, when the user is locked out. A share link is neither:
+ * losing it costs one click to mint a replacement, and you find out immediately.
+ * Matching that severity here would be friction the outcome does not justify —
+ * and a hard gate on "did you press Copy" is actively wrong, because the URL is
+ * `user-select: all` and selecting it by hand is a perfectly good way to copy it,
+ * which the button cannot observe. That combination would strand the user.
+ *
+ * So: the warning is loud, Copy is the prominent action, and "Done" — sitting
+ * directly under the warning — counts as a deliberate dismissal. The routes that
+ * dismiss a dialog by ACCIDENT (the X, Escape, clicking the backdrop) are the
+ * ones held back, in ShareDialog.close().
+ */
 function MintedLink({
   minted,
   permission,
@@ -254,7 +271,6 @@ function MintedLink({
   onDone: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const [acknowledged, setAcknowledged] = useState(false);
 
   // The server returns a path; the shareable thing is the absolute URL.
   const url = `${window.location.origin}${minted.url}`;
@@ -300,23 +316,13 @@ function MintedLink({
         {minted.share.hasPassword && ' They will need the password you set.'}
       </p>
 
-      <label className="sh-minted__ack">
-        <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
-        <span>I’ve saved this link somewhere</span>
-      </label>
-
-      <button
-        type="button"
-        className="btn btn-primary sh-minted__done"
-        disabled={!copied || !acknowledged}
-        onClick={onDone}
-      >
+      <button type="button" className="btn btn-primary sh-minted__done" onClick={onDone}>
         Done
       </button>
 
       {!copied && (
         <p className="sh-minted__hint" role="status">
-          Copy the link to continue.
+          You can also select the link above and copy it by hand.
         </p>
       )}
     </div>

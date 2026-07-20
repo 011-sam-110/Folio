@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './auth.fixture';
 import { TESTIDS, apiCreateNote, apiCreateNotebook, noteCards, selectOptionMatching, uniqueName } from './utils';
 
 test.describe('Dashboard', () => {
@@ -35,16 +35,13 @@ test.describe('Dashboard', () => {
     expect(/[1-9]\d*/.test(statsText)).toBeTruthy();
   });
 
-  test('notebook page lists notes, sort toggle reorders them, and a tag chip filters', async ({ page, request }) => {
+  test('notebook page lists notes and the sort toggle reorders them', async ({ page, request }) => {
     const notebook = await apiCreateNotebook(request, uniqueName('E2E Sort Notebook'));
 
     // Created in this order: "Zzz..." first (older), "Aaa..." second (newer).
     const older = await apiCreateNote(request, notebook.id, `Zzz Sort Last ${Date.now()}`);
     await new Promise((r) => setTimeout(r, 1100)); // ensure a distinct updated_at second
     const newer = await apiCreateNote(request, notebook.id, `Aaa Sort First ${Date.now()}`);
-
-    const tag = `e2etag${Date.now()}`;
-    const tagged = await apiCreateNote(request, notebook.id, uniqueName('Tagged Note'), { tags: [tag] });
 
     await page.goto(`/notebook/${notebook.id}`);
     // title == snippet here (the note body defaults to its title), so the text
@@ -76,20 +73,8 @@ test.describe('Dashboard', () => {
       expect(idxA).toBeLessThan(idxZ);
     }).toPass({ timeout: 10_000 });
 
-    // Tag chip filters the list down to only the tagged note.
-    const tagChip = page.getByRole('button', { name: exactTag(tag) }).or(page.getByText(exactTag(tag)));
-    await tagChip.first().click();
-
-    await expect(async () => {
-      const rows = noteCards(page);
-      const texts = await rows.allTextContents();
-      expect(texts.some((t) => t.includes(tagged.title))).toBeTruthy();
-      expect(texts.some((t) => t.includes(newer.title))).toBeFalsy();
-      expect(texts.some((t) => t.includes(older.title))).toBeFalsy();
-    }).toPass({ timeout: 10_000 });
+    // NOTE: tag-chip filtering used to be asserted here off a note seeded with
+    // `tags` through POST /api/notes. It now lives in tags.spec.ts, where the tag is
+    // attached through the real chip editor instead of injected by the test.
   });
 });
-
-function exactTag(tag: string): RegExp {
-  return new RegExp(`^#?${tag}$`);
-}

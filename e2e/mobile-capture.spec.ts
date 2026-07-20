@@ -1,8 +1,10 @@
 import path from 'node:path';
-import { expect, test } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
+import { expect, test } from './auth.fixture';
 import { apiCreateNotebook, exact, uniqueName } from './utils';
 
-const FIXTURES_DIR = path.join(__dirname, 'fixtures');
+// See import.spec.ts — `__dirname` is not defined in this ESM repo.
+const FIXTURES_DIR = fileURLToPath(new URL('fixtures', import.meta.url));
 
 // CapturePage.tsx (web/src/features/import/CapturePage.tsx) already exists with real
 // markup at the time this suite was written, so these selectors are matched against

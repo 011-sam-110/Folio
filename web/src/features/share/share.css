@@ -259,21 +259,6 @@
   gap: 6px;
 }
 
-.sh-minted__ack {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: var(--fs-chrome-lg);
-  line-height: 1.4;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-.sh-minted__ack input {
-  margin-top: 2px;
-  flex: 0 0 auto;
-  accent-color: var(--accent);
-}
-
 .sh-minted__done {
   width: 100%;
 }
@@ -673,13 +658,24 @@
   flex: 1 1 auto;
 }
 
-/* The owner's board stacks its pills vertically because it has three of them;
-   the shared board has two and reads better side by side. */
+/* The owner's board stacks its pills vertically because it has three of them.
+   The shared board has two, and a lone "Move" pill sitting on its own line above
+   the ink bar reads as a stray control — so they sit side by side instead.
+   Positioned here rather than borrowing .cv-toolstack, so the layout does not
+   depend on which of the two stylesheets the bundler happens to emit last. */
 .sh-board__tools {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
   flex-direction: row;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
   max-width: calc(100% - 32px);
+  z-index: 6;
 }
 
 .sh-board__hint {
