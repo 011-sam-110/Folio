@@ -17,3 +17,6 @@ docs/review-pack/
 .env.local
 .env.*.local
 .playwright-mcp/
+
+# Agent scratch/debug scripts — never part of the app
+__*.mjs
