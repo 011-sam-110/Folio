@@ -14,7 +14,7 @@ import { apiCreateNote, apiCreateNotebook, dismissTourIfPresent, exact, sidebarN
  * No cookies: every test below starts as a stranger.
  *
  * IMPORTANT: create accounts with the standalone `request` fixture, never with
- * `page.context().request` — the latter SHARES the browser's cookie jar, so a
+ * `page.context().request` - the latter SHARES the browser's cookie jar, so a
  * setup signup through it silently signs the browser in and the login wall these
  * specs exist to test never appears.
  */
@@ -102,12 +102,12 @@ test.describe('Signup', () => {
     await page.waitForURL((url) => url.pathname === '/', { timeout: 15_000 });
 
     // seedNewUser gives a brand-new account exactly one starter notebook, so the app
-    // is never a dead-end empty screen. That is the contract this asserts — not an
+    // is never a dead-end empty screen. That is the contract this asserts - not an
     // empty vault, and not the CLI demo vault either.
     await expect(sidebarNav(page).getByRole('link', { name: /My notes/ })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('button', { name: new RegExp(`Account menu for Signup Tester`) })).toBeVisible();
 
-    // The key is shown once and only once — it is not recoverable by revisiting.
+    // The key is shown once and only once - it is not recoverable by revisiting.
     await page.goto('/signup');
     await page.waitForURL((url) => url.pathname === '/', { timeout: 10_000 });
     await expect(page.getByLabel('Your recovery key')).toHaveCount(0);
@@ -161,9 +161,15 @@ test.describe('Login and logout', () => {
     await page.getByRole('menuitem', { name: 'Sign out' }).click();
 
     await page.waitForURL(/\/login/, { timeout: 10_000 });
+
     // And the session is genuinely gone server-side, not just cleared in React state.
+    // "/" no longer redirects a signed-out visitor: it serves the marketing page. So the
+    // proof is that the marketing page is what comes back, rather than the dashboard.
     await page.goto('/');
-    await page.waitForURL(/\/login/, { timeout: 10_000 });
+    await expect(page.getByRole('heading', { level: 1, name: /comes together/i })).toBeVisible({
+      timeout: 10_000,
+    });
+    expect(new URL(page.url()).pathname).toBe('/');
   });
 
   test('a wrong password is refused with one message that does not reveal whether the email exists', async ({
@@ -183,7 +189,7 @@ test.describe('Login and logout', () => {
     expect(knownText).toMatch(/incorrect email or password/i);
     expect(new URL(page.url()).pathname).toBe('/login');
 
-    // An address with no account must produce the SAME message — a different one
+    // An address with no account must produce the SAME message - a different one
     // would turn this form into an account-enumeration oracle.
     await page.getByLabel('Email').fill(uniqueEmail('nobody'));
     await page.getByLabel('Password', { exact: true }).fill('definitely-not-the-password');
@@ -206,7 +212,7 @@ test.describe('Recovery key redemption', () => {
     await page.waitForURL(/\/login/, { timeout: 10_000 });
 
     // The login form's Email field is autoFocused, so clicking this link blurs it and
-    // triggers a validation re-render in the same tick — which can detach the anchor
+    // triggers a validation re-render in the same tick - which can detach the anchor
     // between the hit-test and the click, losing the router navigation. Retry on the
     // URL rather than on a timer; navigating to /recover is idempotent.
     const forgot = page.getByRole('link', { name: /forgot your password/i });
@@ -274,7 +280,7 @@ test.describe('Recovery key redemption', () => {
     await expect(page.getByRole('alert')).toContainText(/not valid for this account/i, { timeout: 15_000 });
     expect(new URL(page.url()).pathname).toBe('/recover');
 
-    // A garbage key is refused with the same message — no probing which part was wrong.
+    // A garbage key is refused with the same message - no probing which part was wrong.
     await page.getByLabel('Recovery key').fill('AAAAA-BBBBB-CCCCC-DDDDD');
     await page.getByRole('button', { name: 'Reset password' }).click();
     await expect(page.getByRole('alert')).toContainText(/not valid for this account/i, { timeout: 15_000 });

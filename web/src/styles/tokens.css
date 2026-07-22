@@ -1,5 +1,5 @@
 /* Unote design tokens.
-   Names in the "contract" block are relied on by other agents' CSS — never rename them.
+   Names in the "contract" block are relied on by other agents' CSS - never rename them.
    Everything below the contract block is web-shell's own extension, safe to evolve. */
 
 :root {
@@ -14,7 +14,7 @@
      --bg: the old #6b7280 cleared 4.83:1 on white but fell to 4.27 on --bg-hover,
      4.01 on --bg-active and 4.32 on --accent-soft, so search hints and the
      dashboard week-grid failed AA. Measured now: bg 5.55, sidebar 5.18,
-     hover 4.91, active 4.61, accent-soft 4.97 — all >= 4.5. */
+     hover 4.91, active 4.61, accent-soft 4.97 - all >= 4.5. */
   --ink-3: #616974;
   --line: #e8e8e6;
   --accent: #4f46e5;
@@ -49,42 +49,6 @@
   --code-title: #2f62cc;
   --code-variable: #c0392b;
   --code-type: #8a5d00;
-
-  /* ---- warm auth landing ----
-     Fixed in BOTH themes: the login/signup hero and its form panel commit to a
-     golden-hour look regardless of the active theme (that warmth is the brand's
-     first impression). Only --warm-accent, used on the theme-following testimonials
-     band, flips in the dark block below. Every text pair below was checked to clear
-     WCAG AA against the surface it lands on. */
-  --warm-espresso-1: #1b1108;
-  --warm-espresso-2: #2a1a0d;
-  --warm-espresso-3: #3b2614;
-  --warm-ink: #fbf1dc;
-  --warm-ink-soft: #ead7b2;
-  --warm-eyebrow: #f4c572;
-  --warm-trust: #d9c39b;
-  --warm-gold: #eeae45;
-  --warm-gold-strong: #f0b85a;
-  --warm-gold-ink: #2a1b0b;
-  --warm-rose: #e9a08f;
-  --warm-glow: rgba(244, 197, 106, 0.5);
-  --warm-rose-glow: rgba(233, 160, 143, 0.35);
-
-  /* Parchment form panel (fixed in both themes). Consumed via scoped overrides in
-     landing.css so the shared form controls re-tint onto it. */
-  --parchment: #fbf3e2;
-  --parchment-input: #fffcf5;
-  --parchment-line: #e3d3b0;
-  --parchment-hover: #f1e6ce;
-  --parchment-ink: #2c2213;
-  --parchment-ink-2: #695939;
-  --parchment-ink-3: #7c6b49;
-  --parchment-accent: #a5581a;
-  --parchment-accent-soft: #f7e6cc;
-  --parchment-warn: #855400;
-
-  /* Warm accent for the testimonials band (theme-aware; light value here). */
-  --warm-accent: #b4691e;
 
   --sidebar-w: 260px;
   --sidebar-collapsed-w: 0px;
@@ -153,10 +117,6 @@
   --code-title: #8ab4f8;
   --code-variable: #f0918a;
   --code-type: #e5c07b;
-
-  /* Warm accent on the dark testimonials band: a lighter gold so it stays visible
-     on #191919 (9.17:1). The hero and parchment panel keep their fixed warm values. */
-  --warm-accent: #e8b25c;
 
   --scrim: rgba(0, 0, 0, 0.55);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);

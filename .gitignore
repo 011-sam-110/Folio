@@ -20,3 +20,6 @@ docs/review-pack/
 
 # Agent scratch/debug scripts — never part of the app
 __*.mjs
+
+# Landing-page review screenshots - regenerate with scripts/capture-landing.mjs
+docs/landing-review*/

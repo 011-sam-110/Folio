@@ -1,12 +1,12 @@
-// Sign-in screen. Renders without the app shell (see main.tsx) - it is the first thing
-// a signed-out visitor sees, so it doubles as the marketing landing (AuthLanding).
+// Sign-in screen. Renders without the app shell (see main.tsx). It is deliberately just
+// the form: the product is pitched on the marketing page at "/", so this screen has one
+// job and does not compete with it.
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Spinner from '../../components/Spinner';
 import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
-import { AuthLanding } from './AuthLanding';
-import { AuthAlert, AuthAltLink, Field } from './AuthShell';
+import { AuthAlert, AuthAltLink, AuthShell, Field } from './AuthShell';
 import OAuthButtons, { oauthErrorMessage } from './OAuthButtons';
 import { emailError, loginPasswordError } from './validation';
 
@@ -24,7 +24,7 @@ export default function LoginPage() {
   const location = useLocation();
   const target = safeRedirect((location.state as { from?: unknown } | null)?.from);
 
-  // A failed OAuth attempt bounces here as /login?error=...&provider=... — turn that into
+  // A failed OAuth attempt bounces here as /login?error=...&provider=... - turn that into
   // a readable message rather than leaving the user staring at an unexplained login page.
   const [searchParams] = useSearchParams();
   const oauthError = oauthErrorMessage(searchParams.get('error'), searchParams.get('provider'));
@@ -32,7 +32,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string | null; password?: string | null }>({});
-  // Errors only appear once a field has been left or the form submitted — validating
+  // Errors only appear once a field has been left or the form submitted - validating
   // every keystroke from empty would scold someone who has typed one character.
   const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -75,11 +75,10 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthLanding
-      getStarted={{ to: '/signup' }}
-      panelTitle="Welcome back"
-      panelSubtitle="Sign in to pick up where you left off."
-      panelFooter={<AuthAltLink prompt="New to Unote?" to="/signup" label="Create an account" />}
+    <AuthShell
+      title="Welcome back"
+      subtitle="Sign in to pick up where you left off."
+      footer={<AuthAltLink prompt="New to Unote?" to="/signup" label="Create an account" />}
     >
       {oauthError && <AuthAlert message={oauthError} />}
       <OAuthButtons />
@@ -132,6 +131,6 @@ export default function LoginPage() {
           Forgot your password?
         </Link>
       </form>
-    </AuthLanding>
+    </AuthShell>
   );
 }

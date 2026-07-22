@@ -64,7 +64,7 @@ ul, ol {
   color: var(--ink);
 }
 
-/* Focus visibility — every interactive element gets a consistent ring, never a
+/* Focus visibility - every interactive element gets a consistent ring, never a
    silent outline: none. */
 :focus {
   outline: none;
@@ -75,7 +75,7 @@ ul, ol {
   border-radius: var(--radius);
 }
 
-/* Skip link — first tab stop on every page, so a keyboard user can jump past the
+/* Skip link - first tab stop on every page, so a keyboard user can jump past the
    sidebar's long notebook list straight into the page content. Visually hidden
    until focused, then pinned over the top-left chrome. */
 .folio-skip-link {
@@ -124,7 +124,7 @@ ul, ol {
     min-height: 0;
   }
 
-  /* Text fields and selects are targets too — tapping one is how you focus it.
+  /* Text fields and selects are targets too - tapping one is how you focus it.
      Height only: their width is already set by the layout they sit in. Checkboxes,
      radios and ranges are excluded because a 44px box would visibly resize the
      control itself rather than just its hit area. */

@@ -1,4 +1,14 @@
 @import '@fontsource-variable/inter';
+/* Fraunces carries the display voice on the marketing page: an old-style serif with a
+   WONK axis, which is what stops it reading as "a serif" and makes it read as this
+   product's serif. The wonk subset is the same 36KB as the plain weight-only one, so the
+   extra axis is free. Browsers fetch only the unicode-range subset the page needs. */
+@import '@fontsource-variable/fraunces/wonk.css';
+/* Self-hosted so the mono is ONE typeface everywhere. The ui-monospace stack it replaces
+   resolved to Cascadia on Windows, SF Mono on macOS and DejaVu on Linux - so the page's
+   most characterful element was a different face for every third visitor. */
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
 
 @import './tokens.css';
 @import './base.css';

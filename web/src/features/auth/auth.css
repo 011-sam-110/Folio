@@ -1,6 +1,6 @@
 /* Auth screens (login/signup), the change-password form, and the sidebar account row.
    Everything here is built from the shared tokens in styles/tokens.css, so both themes
-   come along for free — there is no hard-coded colour below. */
+   come along for free - there is no hard-coded colour below. */
 
 /* --- boot splash ---------------------------------------------------------- */
 
@@ -88,6 +88,14 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 22px;
+  width: fit-content;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius);
+}
+.auth-card__brand:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .auth-card__mark {
@@ -368,7 +376,7 @@
   border-top: 1px solid var(--line);
 }
 
-/* Pushed to the top only when the account row is absent (signed out) — otherwise the
+/* Pushed to the top only when the account row is absent (signed out) - otherwise the
    two would fight over margin-top:auto. */
 .sidebar-account + .sidebar__footer {
   margin-top: 0;
@@ -585,4 +593,87 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ai-settings__meter-fill { transition: none; }
+}
+
+/* --- marketing skin ------------------------------------------------------
+
+   The signed-out auth screens now carry the landing page's paper-and-ink palette (see
+   AuthShell, which adds .mkt alongside .auth-page). A design review found the handoff
+   jarring: a visitor left warm paper and a black button and arrived at a cool blue-white
+   gradient and a saturated indigo one, at the exact moment of commitment.
+
+   Rather than restyle each control, this remaps the tokens the shared form primitives
+   already read - the same technique the old parchment panel used - so Field, the password
+   meter, the alert and the OAuth buttons all re-tint with no markup change. */
+
+.auth-page.mkt {
+  --bg: var(--mkt-paper);
+  --bg-elevated: #ffffff;
+  --bg-hover: var(--mkt-paper-2);
+  --bg-active: var(--mkt-paper-3);
+  --ink: var(--mkt-ink);
+  --ink-2: var(--mkt-ink-2);
+  --ink-3: var(--mkt-ink-tint);
+  --line: var(--mkt-rule);
+  --accent: var(--mkt-accent);
+  --accent-soft: var(--mkt-accent-soft);
+  --radius: 10px;
+  --radius-lg: var(--mkt-radius-lg);
+  --shadow-1: var(--mkt-shadow-sm);
+  --shadow-2: var(--mkt-shadow);
+  --shadow-pop: var(--mkt-shadow-lg);
+  background: var(--mkt-paper);
+  color: var(--mkt-ink);
+}
+
+/* The lit-paper wash from the hero, so the two pages share an atmosphere. */
+.auth-page.mkt::before {
+  background:
+    radial-gradient(ellipse 62% 48% at 50% -6%, rgba(255, 226, 122, 0.34), transparent 68%),
+    radial-gradient(ellipse 54% 42% at 50% 108%, rgba(79, 70, 229, 0.06), transparent 70%);
+}
+
+.auth-page.mkt .auth-card {
+  border: 1px solid var(--mkt-rule);
+  background: #ffffff;
+  box-shadow: var(--mkt-shadow-lg);
+}
+
+.auth-page.mkt .auth-card__wordmark {
+  font-family: var(--mkt-display);
+  font-variation-settings: 'WONK' 1;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.auth-page.mkt .auth-card__title {
+  font-family: var(--mkt-display);
+  font-variation-settings: 'WONK' 1, 'SOFT' 0;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  line-height: 1.14;
+}
+
+/* The landing page's primary button, not the app's indigo one. */
+.auth-page.mkt .auth-submit {
+  min-height: 52px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: var(--mkt-ink);
+  color: var(--mkt-paper);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.auth-page.mkt .auth-submit:hover:not(:disabled) {
+  background: #000000;
+}
+
+.auth-card__trust {
+  margin: 18px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--mkt-ink-tint);
 }

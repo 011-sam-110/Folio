@@ -1,0 +1,2090 @@
+/* Unote marketing landing page.
+
+   The page COMMITS to the light, paper-and-ink look in both themes - the same decision
+   the old warm auth hero made, for the same reason: a landing page is a first impression
+   and it should be the one we chose, not the one the visitor's OS chose. Every colour
+   below is declared locally under .mkt, so nothing here reads (or is disturbed by) the
+   app's light/dark tokens.
+
+   Palette is drawn from the audience's own materials rather than a generic SaaS blue:
+   paper, pen, the ruled line, and one highlighter yellow.
+
+   Two colour rules, both of which the first draft broke and a design review caught:
+     - YELLOW is the recall colour. It marks the things you highlight and the things you
+       revise from: the headline word, the passage in the demo, the flashcard, the review
+       grade. It is NOT general decoration - when it was also on card tags, list bullets
+       and avatars it signified nothing.
+     - INDIGO is link semantics only: wikilinks, search operators, focus rings. Never a
+       surface, never a glow, never handwriting. Handwriting on paper is ink.
+
+   Selector discipline: every rule is a single .mkt-* class. There are no element or
+   descendant selectors that could collide with the app's shared component CSS. */
+
+.mkt {
+  /* --- ink & paper --- */
+  --mkt-paper: #fdfcfa;
+  --mkt-paper-2: #f6f4f0;
+  --mkt-paper-3: #efece6;
+  --mkt-ink: #16181d;
+  /* Measured on --mkt-paper: ink 15.8:1, ink-2 7.1:1, ink-3 4.7:1. */
+  --mkt-ink-2: #4e5560;
+  --mkt-ink-3: #6d7480;
+  /* ink-3 only clears AA on plain paper. On the tinted surfaces it fell to 4.29:1
+     (paper-2) and 3.99:1 (paper-3), which is where most of the small labels live - so
+     those use this instead: 5.3:1 on paper-2, 4.9:1 on paper-3. */
+  --mkt-ink-tint: #5d6470;
+  --mkt-rule: #e7e4de;
+  --mkt-rule-soft: #f0ede8;
+  --mkt-rule-strong: #d8d4cc;
+
+  /* --- the signature --- */
+  --mkt-hl: #ffe27a;
+  --mkt-hl-deep: #ffd23f;
+  --mkt-hl-ink: #5a4506;
+
+  /* --- link semantics --- */
+  --mkt-accent: #4f46e5;
+  --mkt-accent-soft: #eef2ff;
+
+  /* --- the dark band --- */
+  --mkt-night: #14161b;
+  --mkt-night-2: #1c1f26;
+  --mkt-night-line: #2c313b;
+  --mkt-night-ink: #f2f0ec;
+  --mkt-night-ink-2: #a9b0bd;
+
+  /* --- type scale ---
+     Seven steps, and nothing off them. The first draft used 18 distinct static sizes
+     between 9.5px and 19px, including half-pixel values, none derived from any other. */
+  --t-xs: 12px;
+  --t-sm: 13px;
+  --t-base: 15px;
+  --t-md: 17px;
+  --t-lg: 20px;
+  --t-xl: 28px;
+  /* Display sizes share one vw coefficient so they scale together. */
+  --t-display: clamp(38px, 7vw, 74px);
+  --t-h2: clamp(30px, 4.4vw, 46px);
+  --t-h2-sm: clamp(28px, 4.4vw, 40px);
+
+  /* --- spacing --- */
+  --sp-section: clamp(72px, 9vw, 120px);
+  --sp-band: clamp(64px, 8vw, 104px);
+  --sp-gutter: clamp(16px, 5vw, 32px);
+
+  --mkt-shadow-sm: 0 1px 2px rgba(20, 22, 27, 0.05);
+  --mkt-shadow: 0 4px 16px rgba(20, 22, 27, 0.06), 0 1px 3px rgba(20, 22, 27, 0.04);
+  --mkt-shadow-lg: 0 28px 70px -24px rgba(20, 22, 27, 0.28), 0 8px 24px -12px rgba(20, 22, 27, 0.12);
+
+  --mkt-max: 1120px;
+  --mkt-radius: 12px;
+  --mkt-radius-lg: 18px;
+
+  /* Display voice. Fraunces is an old-style serif with an optical-size feel and a WONK
+     axis; set here with WONK on and a soft weight, it gives the page a typographic
+     opinion instead of the Inter-800-on-off-white look that reads as generated. Inter
+     stays for everything functional - UI chrome, body copy, the product replica - which
+     is the right division of labour: the serif argues, the sans works. */
+  --mkt-display: 'Fraunces Variable', 'Iowan Old Style', 'Palatino Linotype', Palatino,
+    Georgia, serif;
+  --mkt-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, Menlo, monospace;
+
+  color-scheme: light;
+  background: var(--mkt-paper);
+  color: var(--mkt-ink);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+/* Auto-hyphenation is right for justified body text and wrong for a centred marketing
+   lede. Left on, "re-watch" and "view-only" broke across the line at every width. */
+.mkt-hero__lede,
+.mkt-section-lede,
+.mkt-card__body,
+.mkt-also__item,
+.mkt-close__lede,
+.mkt-maker__body,
+.mkt-ai__lede {
+  hyphens: none;
+}
+
+/* --- skip link ------------------------------------------------------------ */
+
+.mkt-skip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 60;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--mkt-ink);
+  color: var(--mkt-paper);
+  font-size: var(--t-base);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-200%);
+  transition: transform var(--dur) var(--ease-out);
+}
+.mkt-skip:focus-visible {
+  transform: translateY(0);
+}
+
+/* --- the mark ------------------------------------------------------------- */
+
+.mkt-logo {
+  flex: none;
+}
+.mkt-logo__edge {
+  fill: var(--mkt-hl-deep);
+}
+
+/* --- buttons -------------------------------------------------------------- */
+
+.mkt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 20px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--dur) var(--ease-out),
+    border-color var(--dur) var(--ease-out),
+    transform var(--dur) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out);
+}
+.mkt-btn:focus-visible {
+  outline: 2px solid var(--mkt-accent);
+  outline-offset: 3px;
+}
+
+.mkt-btn--primary {
+  background: var(--mkt-ink);
+  color: var(--mkt-paper);
+  box-shadow: 0 1px 2px rgba(20, 22, 27, 0.18);
+}
+.mkt-btn--primary:hover {
+  background: #000;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -6px rgba(20, 22, 27, 0.4);
+}
+.mkt-btn--primary:active {
+  transform: translateY(0);
+}
+
+.mkt-btn--quiet {
+  background: transparent;
+  border-color: var(--mkt-rule);
+  color: var(--mkt-ink);
+}
+.mkt-btn--quiet:hover {
+  background: var(--mkt-paper-2);
+  border-color: var(--mkt-rule-strong);
+}
+
+.mkt-btn--lg {
+  min-height: 52px;
+  padding: 15px 26px;
+  font-size: var(--t-md);
+  border-radius: 11px;
+}
+.mkt-btn--sm {
+  min-height: 40px;
+  padding: 8px 15px;
+  font-size: var(--t-sm);
+  border-radius: 9px;
+}
+
+/* --- shared section furniture --------------------------------------------- */
+
+.mkt-eyebrow {
+  margin: 0 0 18px;
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mkt-ink-3);
+}
+.mkt-eyebrow--on-dark {
+  color: var(--mkt-night-ink-2);
+}
+
+.mkt-section-head {
+  max-width: 720px;
+  margin: 0 auto 56px;
+  text-align: center;
+}
+/* Display type. A serif at 600 needs far less negative tracking than Inter at 800 did -
+   tightening a serif this much closes its counters and it stops looking expensive. */
+.mkt-display {
+  font-family: var(--mkt-display);
+  font-variation-settings: 'WONK' 1, 'SOFT' 0;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+}
+.mkt-section-title {
+  margin: 0;
+  font-family: var(--mkt-display);
+  font-variation-settings: 'WONK' 1, 'SOFT' 0;
+  font-size: var(--t-h2);
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+.mkt-section-lede {
+  margin: 18px auto 0;
+  max-width: 560px;
+  font-size: var(--t-md);
+  line-height: 1.6;
+  color: var(--mkt-ink-2);
+  text-wrap: pretty;
+}
+
+/* --- nav ------------------------------------------------------------------ */
+
+.mkt-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid transparent;
+  transition:
+    background var(--dur-slow) var(--ease-out),
+    border-color var(--dur-slow) var(--ease-out);
+}
+.mkt-nav.is-scrolled {
+  background: rgba(253, 252, 250, 0.82);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border-bottom-color: var(--mkt-rule);
+}
+
+.mkt-nav__inner {
+  max-width: var(--mkt-max);
+  margin: 0 auto;
+  padding: 10px var(--sp-gutter);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.mkt-nav__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+  text-decoration: none;
+  color: var(--mkt-ink);
+}
+.mkt-nav__word {
+  font-family: var(--mkt-display);
+  font-variation-settings: 'WONK' 1;
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.mkt-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.mkt-nav__link {
+  padding: 12px;
+  border-radius: 8px;
+  font-size: var(--t-base);
+  font-weight: 500;
+  color: var(--mkt-ink-2);
+  text-decoration: none;
+  transition: color var(--dur) var(--ease-out), background var(--dur) var(--ease-out);
+}
+.mkt-nav__link:hover {
+  color: var(--mkt-ink);
+  background: var(--mkt-paper-2);
+}
+
+.mkt-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mkt-nav__login {
+  padding: 12px;
+  border-radius: 8px;
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--mkt-ink);
+  text-decoration: none;
+}
+.mkt-nav__login:hover {
+  background: var(--mkt-paper-2);
+}
+
+.mkt-nav__burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+}
+.mkt-nav__burger:focus-visible {
+  outline: 2px solid var(--mkt-accent);
+  outline-offset: 2px;
+}
+.mkt-burger {
+  position: relative;
+  display: block;
+  width: 17px;
+  height: 11px;
+}
+.mkt-burger span {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 1.5px;
+  border-radius: 2px;
+  background: var(--mkt-ink);
+  transition: transform var(--dur) var(--ease-out), top var(--dur) var(--ease-out);
+}
+.mkt-burger span:first-child {
+  top: 0;
+}
+.mkt-burger span:last-child {
+  top: 9px;
+}
+.mkt-burger.is-open span:first-child {
+  top: 5px;
+  transform: rotate(45deg);
+}
+.mkt-burger.is-open span:last-child {
+  top: 5px;
+  transform: rotate(-45deg);
+}
+
+.mkt-nav__sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px var(--sp-gutter) 20px;
+  background: var(--mkt-paper);
+  border-bottom: 1px solid var(--mkt-rule);
+}
+.mkt-nav__sheet[hidden] {
+  display: none;
+}
+.mkt-nav__sheet-link {
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--mkt-rule-soft);
+  font-size: var(--t-md);
+  font-weight: 500;
+  color: var(--mkt-ink);
+  text-decoration: none;
+}
+.mkt-nav__sheet-cta {
+  margin-top: 14px;
+  width: 100%;
+}
+
+/* --- sticky mobile CTA -----------------------------------------------------
+   Below 760px the nav's "Start free" button is hidden behind the burger, which left
+   roughly 80% of an 8,000px mobile scroll with no visible call to action. This restores
+   one, and hides itself when the closing CTA is on screen so there are never two
+   primaries competing. */
+
+.mkt-dock {
+  position: fixed;
+  z-index: 45;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: none;
+  padding: 12px var(--sp-gutter) calc(12px + env(safe-area-inset-bottom, 0px));
+  background: rgba(253, 252, 250, 0.93);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border-top: 1px solid var(--mkt-rule);
+  transform: translateY(110%);
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.mkt-dock.is-visible {
+  transform: translateY(0);
+}
+.mkt-dock__btn {
+  width: 100%;
+}
+
+/* --- hero ----------------------------------------------------------------- */
+
+.mkt-hero {
+  position: relative;
+  padding: clamp(48px, 8vw, 96px) var(--sp-gutter) 0;
+  text-align: center;
+  /* A faint ruled-paper wash, fading out before it reaches the product shot.
+     Deliberately near-invisible: it should register as texture, not as a grid. */
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 31px,
+    var(--mkt-rule-soft) 31px 32px
+  );
+}
+.mkt-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(253, 252, 250, 0.55) 0%, var(--mkt-paper) 62%);
+}
+
+/* Ambient light. Two soft gradients breathing out of phase over ~26s, at opacities low
+   enough that you register the paper as lit rather than watching an animation. Anything
+   more assertive competes with the headline, which is the one thing the hero is for. */
+.mkt-hero__ambience {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mkt-hero__lamp {
+  position: absolute;
+  top: -22%;
+  left: 6%;
+  width: min(760px, 78%);
+  height: 118%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 226, 122, 0.24), transparent 66%);
+  filter: blur(42px);
+  animation: mkt-breathe 26s ease-in-out infinite;
+}
+.mkt-hero__lamp--2 {
+  left: auto;
+  right: 2%;
+  top: -8%;
+  width: min(620px, 66%);
+  background: radial-gradient(circle at 50% 50%, rgba(79, 70, 229, 0.09), transparent 68%);
+  animation-duration: 34s;
+  animation-delay: -12s;
+}
+@keyframes mkt-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translate3d(2%, 3%, 0) scale(1.08);
+  }
+}
+
+.mkt-hero__inner {
+  position: relative;
+  z-index: 1;
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.mkt-hero__title {
+  margin: 0;
+  font-family: var(--mkt-display);
+  font-variation-settings: 'WONK' 1, 'SOFT' 0;
+  font-size: var(--t-display);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.06;
+  text-wrap: balance;
+}
+
+/* the signature: a highlighter swipe, not a pill */
+.mkt-mark {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+.mkt-mark__word {
+  position: relative;
+  z-index: 1;
+}
+.mkt-mark__ink {
+  position: absolute;
+  z-index: 0;
+  left: -3.5%;
+  /* Sits across the letterforms, not under them - a highlighter covers the word. Tuned
+     against the line box: the ink spans roughly 12%-87% of it, which lands on the
+     x-height band and clears the descender of the "g". */
+  bottom: 6%;
+  width: 107%;
+  height: 84%;
+  fill: var(--mkt-hl);
+  /* Swept on once at load, left to right, the way it would be drawn. */
+  clip-path: inset(0 100% 0 0);
+  animation: mkt-swipe 620ms cubic-bezier(0.33, 0.9, 0.4, 1) 480ms forwards;
+}
+.mkt-mark__ink-top {
+  fill: var(--mkt-hl-deep);
+  opacity: 0.55;
+}
+@keyframes mkt-swipe {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.mkt-hero__lede {
+  margin: 26px auto 0;
+  max-width: 600px;
+  font-size: clamp(var(--t-md), 2vw, var(--t-lg));
+  line-height: 1.55;
+  color: var(--mkt-ink-2);
+  text-wrap: pretty;
+}
+
+.mkt-hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  /* Matches the lede's own top margin. Previously 34px, which made the largest gap in
+     the block the one between the argument and the button it earns. */
+  margin-top: 26px;
+}
+
+.mkt-hero__trust {
+  margin: 18px 0 0;
+  font-size: var(--t-sm);
+  color: var(--mkt-ink-3);
+}
+
+/* --- product shot ---------------------------------------------------------
+
+   Everything in the replica renders FINISHED with no animation applied. The sequence
+   below is layered on only for wide screens with motion allowed, because a visitor who
+   arrives mid-run, resizes, or scrolls past in three seconds must still see the complete
+   argument. The first draft had it the other way round, and the payoff turned out to be
+   invisible in every screenshot taken of it. */
+
+.mkt-shot {
+  position: relative;
+  /* Same 1056px column as the feature grid below. At 1000px the page's left and right
+     edges visibly jogged inward at the hero and back out at the features. */
+  max-width: var(--mkt-max);
+  margin: clamp(44px, 6vw, 72px) auto 0;
+  padding: 0 var(--sp-gutter);
+}
+
+.mkt-shot__glow {
+  position: absolute;
+  z-index: 0;
+  inset: 12% 8% -6%;
+  pointer-events: none;
+  background: radial-gradient(60% 60% at 50% 40%, rgba(20, 22, 27, 0.12), transparent 72%);
+  filter: blur(48px);
+}
+
+.mkt-shot__frame {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--mkt-rule);
+  border-radius: var(--mkt-radius-lg);
+  background: #fff;
+  box-shadow: var(--mkt-shadow-lg);
+  overflow: hidden;
+}
+
+.mkt-shot__chrome {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--mkt-rule-soft);
+  background: var(--mkt-paper-2);
+}
+.mkt-shot__dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: #dcd8d0;
+}
+.mkt-shot__url {
+  margin-left: 12px;
+  min-width: 0;
+  padding: 3px 12px;
+  border-radius: 6px;
+  background: #fff;
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  color: var(--mkt-ink-tint);
+  /* One line always: a wrapped address bar is a thing no browser does. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mkt-shot__body {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  min-height: 380px;
+  text-align: left;
+}
+/* The typed line is nowrap while animating, which would otherwise set this track's
+   min-content width to the full sentence and push the note out past the frame. */
+.mkt-shot__doc,
+.mkt-shot__sidebar {
+  min-width: 0;
+}
+
+.mkt-shot__sidebar {
+  padding: 14px 10px;
+  border-right: 1px solid var(--mkt-rule-soft);
+  background: var(--mkt-paper-2);
+  font-size: var(--t-sm);
+}
+.mkt-shot__brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 8px 12px;
+  font-size: var(--t-sm);
+  letter-spacing: -0.01em;
+}
+.mkt-shot__search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  padding: 7px 9px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--mkt-ink-tint);
+  font-size: var(--t-xs);
+}
+.mkt-shot__nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  color: var(--mkt-ink-2);
+}
+.mkt-shot__nav.is-active {
+  background: #fff;
+  color: var(--mkt-ink);
+  font-weight: 600;
+  box-shadow: var(--mkt-shadow-sm);
+}
+.mkt-shot__icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  opacity: 0.75;
+}
+/* Notebook colour swatches, replacing the book emoji the first draft used - those render
+   as three different objects per platform and bring their own palette with them. */
+.mkt-shot__swatch {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  margin: 0 2px;
+  border-radius: 2px;
+}
+.mkt-shot__swatch--a {
+  background: var(--mkt-hl-deep);
+}
+.mkt-shot__swatch--b {
+  background: #9aa5b5;
+}
+.mkt-shot__swatch--c {
+  background: #c3bfb6;
+}
+.mkt-shot__count {
+  margin-left: auto;
+  color: var(--mkt-ink-tint);
+  font-size: var(--t-xs);
+}
+.mkt-shot__label {
+  padding: 16px 9px 6px;
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mkt-ink-tint);
+}
+
+.mkt-shot__doc {
+  position: relative;
+  padding: 22px clamp(18px, 3vw, 34px) 28px;
+}
+.mkt-shot__crumbs {
+  font-size: var(--t-xs);
+  color: var(--mkt-ink-3);
+}
+.mkt-shot__title {
+  margin: 12px 0 0;
+  font-size: clamp(22px, 2.6vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.mkt-shot__tags {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+.mkt-shot__tag {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--mkt-paper-3);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--mkt-ink-tint);
+}
+
+.mkt-shot__para {
+  margin: 16px 0 0;
+  font-size: var(--t-base);
+  line-height: 1.65;
+  color: #2b3038;
+}
+/* The selection toolbar is positioned against this paragraph, so it tracks the passage at
+   every width instead of sitting at a hard-coded offset from the frame. */
+.mkt-shot__para--2 {
+  position: relative;
+  /* Clearance for the selection toolbar, which is anchored to this paragraph's top edge.
+     At 34px it floated over the line above and obscured it. */
+  margin-top: 62px;
+}
+.mkt-shot__typed {
+  display: inline;
+}
+
+/* the same highlighter as the headline, across the passage */
+.mkt-shot__hl {
+  padding: 1px 2px;
+  background-image: linear-gradient(var(--mkt-hl), var(--mkt-hl));
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  border-radius: 2px;
+}
+
+.mkt-shot__wikilink {
+  color: var(--mkt-accent);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.mkt-shot__toolbar {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+  padding: 7px 11px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: var(--mkt-shadow);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--mkt-ink-2);
+  white-space: nowrap;
+}
+.mkt-shot__toolbar-b {
+  font-weight: 800;
+}
+.mkt-shot__toolbar-i {
+  font-style: italic;
+}
+.mkt-shot__toolbar-pen {
+  display: inline-flex;
+  color: #a1730a;
+}
+.mkt-shot__toolbar-sep {
+  width: 1px;
+  height: 15px;
+  background: var(--mkt-rule);
+}
+.mkt-shot__toolbar-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--mkt-accent);
+}
+
+.mkt-shot__card {
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--mkt-rule);
+  border-left: 3px solid var(--mkt-hl-deep);
+  border-radius: 10px;
+  background: var(--mkt-paper);
+  box-shadow: var(--mkt-shadow-sm);
+}
+.mkt-shot__card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.mkt-shot__card-badge {
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--mkt-ink-tint);
+}
+.mkt-shot__card-due {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--mkt-hl);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--mkt-hl-ink);
+}
+.mkt-shot__card-q {
+  margin: 0;
+  font-size: var(--t-sm);
+  font-weight: 650;
+  line-height: 1.45;
+}
+.mkt-shot__card-a {
+  margin: 6px 0 0;
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  color: var(--mkt-ink-2);
+}
+
+/* The sequence. Layered on only where there is room to type a fixed-length line and the
+   visitor has not asked for less motion. Total run 3.0s, down from 5.8s: the payoff has
+   to arrive inside the window in which someone actually looks at a hero. */
+/* No entrance animation on .mkt-shot itself. It carried `animation: mkt-rise ... both`,
+   which means opacity 0 for the whole delay - so any render that did not run the timeline
+   to completion showed an empty hole where the product is. A full-page screenshot caught
+   exactly that. The page has motion enough without betting the hero on it. */
+@media (min-width: 761px) and (prefers-reduced-motion: no-preference) {
+  .mkt-shot__typed {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    vertical-align: bottom;
+    border-right: 1.5px solid transparent;
+    animation:
+      mkt-type 900ms steps(54, end) 900ms both,
+      mkt-caret 600ms steps(1, end) 900ms 3 forwards;
+  }
+  .mkt-shot__para--2 {
+    animation: mkt-fade 460ms var(--ease-out) 1900ms both;
+  }
+  .mkt-shot__hl {
+    background-size: 0% 100%;
+    animation: mkt-hl-sweep 480ms var(--ease-out) 2200ms forwards;
+  }
+  .mkt-shot__toolbar {
+    animation: mkt-pop 260ms var(--ease-out) 2600ms both;
+  }
+  .mkt-shot__card {
+    animation: mkt-card-in 440ms var(--ease-out) 3000ms both;
+  }
+}
+
+@keyframes mkt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mkt-type {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+@keyframes mkt-caret {
+  0%,
+  49% {
+    border-right-color: var(--mkt-accent);
+  }
+  50%,
+  100% {
+    border-right-color: transparent;
+  }
+}
+@keyframes mkt-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mkt-hl-sweep {
+  to {
+    background-size: 100% 100%;
+  }
+}
+@keyframes mkt-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mkt-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- capability strip ----------------------------------------------------- */
+
+.mkt-strip {
+  max-width: 820px;
+  margin: var(--sp-section) auto 0;
+  padding: 0 var(--sp-gutter);
+  text-align: center;
+}
+.mkt-strip__lead {
+  margin: 0 0 20px;
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mkt-ink-3);
+}
+/* Grid, not wrapping flex. Six pills of unequal width centre-wrapped to 5+1 at tablet
+   (an orphan) and to three independently-centred rows at phone (a staircase). */
+.mkt-strip__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mkt-strip__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 14px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 999px;
+  background: #fff;
+  font-size: var(--t-base);
+  font-weight: 500;
+  color: var(--mkt-ink-3);
+  /* Struck through, because the claim is that these get replaced. At 35% opacity and
+     1.5px it read as glitched text rather than as a deliberate mark. */
+  text-decoration: line-through;
+  text-decoration-color: rgba(78, 85, 96, 0.7);
+  text-decoration-thickness: 2px;
+}
+
+/* --- feature bento -------------------------------------------------------- */
+
+.mkt-features {
+  max-width: var(--mkt-max);
+  margin: 0 auto;
+  padding: var(--sp-section) var(--sp-gutter) 0;
+}
+
+.mkt-bento {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.mkt-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 24px 0;
+  border: 1px solid var(--mkt-rule);
+  border-radius: var(--mkt-radius-lg);
+  background: #fff;
+  overflow: hidden;
+  transition: border-color var(--dur-slow) var(--ease-out), box-shadow var(--dur-slow) var(--ease-out);
+}
+.mkt-card:hover {
+  border-color: var(--mkt-rule-strong);
+  box-shadow: var(--mkt-shadow);
+}
+.mkt-card--wide {
+  grid-column: span 2;
+}
+
+/* The margin label. A notebook's own structural device: the tag sits in the gutter, the
+   way a subject code sits in the margin of a page. Rule-coloured, not yellow - yellow is
+   reserved for highlighting and recall. */
+.mkt-card__tag {
+  display: inline-block;
+  margin-bottom: 14px;
+  padding-left: 11px;
+  border-left: 2px solid var(--mkt-rule-strong);
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mkt-ink-3);
+}
+.mkt-card__text {
+  max-width: 62ch;
+}
+.mkt-card__title {
+  margin: 0;
+  font-size: var(--t-lg);
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.mkt-card__body {
+  margin: 10px 0 0;
+  font-size: var(--t-base);
+  line-height: 1.6;
+  color: var(--mkt-ink-2);
+  text-wrap: pretty;
+}
+/* Fixed offset from the copy rather than margin-top:auto. Bottom-anchoring made the three
+   mocks in a row start at three different heights, and left a ~130px void inside any card
+   whose height was set by a taller neighbour. */
+.mkt-card__viz {
+  margin-top: 22px;
+  padding-bottom: 0;
+}
+
+/* --- feature visuals ------------------------------------------------------ */
+
+.mkt-viz {
+  position: relative;
+  padding: 16px;
+  border: 1px solid var(--mkt-rule-soft);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  background: var(--mkt-paper-2);
+  font-size: var(--t-sm);
+  color: var(--mkt-ink-2);
+  /* The mocks are deliberately bled off the bottom of the card. Faded rather than cut, so
+     it reads as "this continues" instead of "this got clipped". */
+  mask-image: linear-gradient(to bottom, #000 76%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 76%, transparent 100%);
+}
+
+.mkt-viz__line {
+  padding: 8px 11px;
+  border-radius: 7px;
+  background: #fff;
+  border: 1px solid var(--mkt-rule);
+  color: var(--mkt-ink);
+}
+.mkt-viz__caret {
+  color: var(--mkt-accent);
+  font-weight: 700;
+}
+.mkt-viz__menu {
+  margin-top: 8px;
+  padding: 5px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: var(--mkt-shadow-sm);
+}
+.mkt-viz__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 6px;
+}
+.mkt-viz__row.is-active {
+  background: var(--mkt-accent-soft);
+  color: var(--mkt-ink);
+}
+.mkt-viz__row-icon {
+  display: inline-flex;
+  width: 16px;
+  color: var(--mkt-ink-tint);
+}
+.mkt-viz__row-label {
+  font-weight: 550;
+}
+.mkt-viz__row-hint {
+  margin-left: auto;
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  color: var(--mkt-ink-tint);
+}
+.mkt-viz__icon {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.mkt-viz__note {
+  padding: 9px 11px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 7px;
+  background: #fff;
+}
+.mkt-viz__wiki {
+  color: var(--mkt-accent);
+  font-weight: 600;
+}
+/* fill lives on the endpoint dot only. Setting it on the <svg> overrode the path's own
+   fill="none" (CSS beats presentation attributes) and the open bezier rendered as a
+   filled smudge with the dash pattern swallowed. */
+.mkt-viz__wire {
+  display: block;
+  width: 100%;
+  height: 40px;
+  stroke: #b9b5ab;
+  fill: none;
+  stroke-width: 1.4;
+}
+.mkt-viz__wire-dot {
+  fill: #b9b5ab;
+  stroke: none;
+}
+.mkt-viz__backlinks {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 11px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 7px;
+  background: #fff;
+}
+.mkt-viz__backlinks-head {
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--mkt-ink-tint);
+}
+
+.mkt-viz--study {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.mkt-viz__deck {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  height: 92px;
+}
+.mkt-viz__card {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 9px;
+  background: #fff;
+}
+.mkt-viz__card--back {
+  transform: translateY(10px) scale(0.92);
+  opacity: 0.5;
+}
+.mkt-viz__card--mid {
+  transform: translateY(5px) scale(0.96);
+  opacity: 0.75;
+}
+.mkt-viz__card--front {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--mkt-hl-deep);
+  box-shadow: var(--mkt-shadow-sm);
+}
+.mkt-viz__card-q {
+  margin: 0;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--mkt-ink);
+}
+.mkt-viz__card-tag {
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--mkt-ink-tint);
+}
+.mkt-viz__grades {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+}
+.mkt-viz__grade {
+  padding: 6px 12px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 7px;
+  background: #fff;
+  font-size: var(--t-xs);
+  font-weight: 550;
+}
+.mkt-viz__grade.is-good {
+  border-color: var(--mkt-hl-deep);
+  background: var(--mkt-hl);
+  color: var(--mkt-hl-ink);
+}
+.mkt-viz__due {
+  margin: 10px 0 0;
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  color: var(--mkt-ink-tint);
+}
+
+.mkt-viz--capture {
+  text-align: center;
+}
+.mkt-viz__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 13px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 8px;
+  background: #fff;
+}
+.mkt-viz__file-kind {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--mkt-ink);
+  color: #fff;
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.06em;
+}
+.mkt-viz__file-name {
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+}
+.mkt-viz__arrow {
+  display: flex;
+  justify-content: center;
+  margin: 7px 0;
+  color: var(--mkt-ink-tint);
+}
+.mkt-viz__slides {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+/* Real miniature slides - a title rule, two bullet rules and a diagram block - rather
+   than the three empty boxes the first draft used, which read as loading skeletons
+   directly under the claim that a lecture becomes slides. */
+.mkt-viz__slide {
+  width: 54px;
+  height: 36px;
+  padding: 5px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 4px;
+  background: #fff;
+}
+.mkt-viz__slide svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  stroke: #c3bfb6;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  fill: none;
+}
+.mkt-viz__slide-fill {
+  fill: var(--mkt-paper-3);
+  stroke: none;
+}
+.mkt-viz__transcript {
+  margin-top: 11px;
+  padding: 8px 11px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 7px;
+  background: #fff;
+  text-align: left;
+  font-size: var(--t-xs);
+}
+.mkt-viz__stamp {
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  color: var(--mkt-accent);
+}
+
+.mkt-viz--canvas svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.mkt-viz__sticky {
+  fill: var(--mkt-hl);
+  stroke: var(--mkt-hl-deep);
+  stroke-width: 1;
+}
+.mkt-viz__sticky--2 {
+  fill: #fff;
+  stroke: var(--mkt-rule-strong);
+}
+.mkt-viz__shape {
+  fill: none;
+  stroke: #b9b5ab;
+  stroke-width: 1.4;
+}
+.mkt-viz__conn {
+  stroke: #b9b5ab;
+  stroke-width: 1.4;
+  fill: none;
+}
+/* Handwriting is a FILLED variable-width outline, not a constant-width stroke. A uniform
+   stroke is precisely the thing that proves there is no pressure sensitivity, directly
+   under a caption claiming pressure sensitivity. And it is ink, not SaaS indigo. */
+.mkt-viz__ink {
+  fill: var(--mkt-ink);
+  stroke: none;
+}
+.mkt-viz__caption {
+  margin: 8px 0 0;
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  color: var(--mkt-ink-tint);
+}
+
+/* --- the pencil -----------------------------------------------------------
+   The mark is a filled outline so it can vary in width like a real stylus stroke, which
+   means it cannot be revealed with stroke-dashoffset. A clip rect wipes across it
+   instead, and the pencil rides the same timeline along the centreline via offset-path,
+   so tip and mark stay together. Both start only once the card is scrolled into view -
+   .is-drawn is set by an IntersectionObserver in PencilSketch.tsx. */
+
+.mkt-sketch svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.mkt-sketch__sticky {
+  fill: var(--mkt-hl);
+  stroke: var(--mkt-hl-deep);
+  stroke-width: 1;
+}
+.mkt-sketch__sticky--2 {
+  fill: #fff;
+  stroke: var(--mkt-rule-strong);
+}
+.mkt-sketch__conn {
+  stroke: #b9b5ab;
+  stroke-width: 1.4;
+  fill: none;
+}
+.mkt-sketch__ink {
+  fill: var(--mkt-ink);
+  stroke: none;
+}
+
+/* The sketch is DRAWN by default. It is only emptied once JavaScript has committed to
+   animating it (.is-armed, set before first paint), so a browser that never fires the
+   observer - or a screenshot that never scrolls - gets a finished drawing rather than an
+   empty card. */
+.mkt-sketch__wipe {
+  width: 200px;
+}
+.mkt-sketch.is-armed .mkt-sketch__wipe {
+  width: 0;
+}
+.mkt-sketch.is-drawn .mkt-sketch__wipe {
+  animation: mkt-write 1900ms cubic-bezier(0.55, 0.06, 0.38, 0.97) 220ms forwards;
+}
+@keyframes mkt-write {
+  to {
+    width: 200px;
+  }
+}
+
+.mkt-sketch__pencil {
+  offset-path: var(--mkt-sketch-path);
+  offset-rotate: auto;
+  offset-distance: 0%;
+  opacity: 0;
+}
+.mkt-sketch.is-drawn .mkt-sketch__pencil {
+  animation:
+    mkt-pencil-move 1900ms cubic-bezier(0.55, 0.06, 0.38, 0.97) 220ms forwards,
+    mkt-pencil-show 1900ms linear 220ms forwards;
+}
+@keyframes mkt-pencil-move {
+  to {
+    offset-distance: 100%;
+  }
+}
+/* Lifts off the page at the end rather than stopping dead on the paper. */
+@keyframes mkt-pencil-show {
+  0% {
+    opacity: 0;
+  }
+  6%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.mkt-sketch__pencil-body {
+  fill: var(--mkt-hl-deep);
+}
+.mkt-sketch__pencil-tip {
+  fill: var(--mkt-ink);
+}
+.mkt-sketch__pencil-end {
+  fill: #d9534f;
+}
+
+/* Browsers without offset-path get the stroke and no pencil, which is a complete picture
+   rather than a broken one. */
+@supports not (offset-path: path('M0 0 L1 1')) {
+  .mkt-sketch__pencil {
+    display: none;
+  }
+}
+
+.mkt-viz__query {
+  padding: 9px 11px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 7px;
+  background: #fff;
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  line-height: 1.7;
+  color: var(--mkt-ink);
+}
+.mkt-viz__op {
+  color: var(--mkt-accent);
+  font-weight: 600;
+}
+.mkt-viz__hits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 9px;
+}
+.mkt-viz__hit {
+  padding: 7px 11px;
+  border: 1px solid var(--mkt-rule-soft);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.mkt-viz__tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mkt-viz__tile {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--mkt-rule);
+  border-radius: 8px;
+  background: #fff;
+  font-size: var(--t-xs);
+  font-weight: 550;
+}
+.mkt-viz__tile svg {
+  width: 26px;
+  height: 24px;
+  stroke: var(--mkt-ink-2);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  fill: none;
+}
+/* Set as real KaTeX-style markup rather than Unicode superscripts, which fell out of the
+   mono stack and rendered from a fallback at a different size and baseline. */
+.mkt-viz__math {
+  font-family: 'KaTeX_Math', 'Iowan Old Style', 'Times New Roman', serif;
+  font-size: var(--t-md);
+  font-style: italic;
+  color: var(--mkt-ink);
+}
+.mkt-viz__math sup,
+.mkt-viz__math sub {
+  font-size: 0.62em;
+  font-style: normal;
+}
+
+/* --- "and also" list ------------------------------------------------------ */
+
+.mkt-also-head {
+  margin: 44px 0 0;
+  padding-top: 26px;
+  border-top: 1px solid var(--mkt-rule);
+}
+.mkt-also {
+  /* Two columns for eight items, so the grid fills 4+4 with no hole. auto-fit resolved to
+     three columns here and left the bottom-right cell empty. */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 32px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mkt-also__item {
+  position: relative;
+  padding: 9px 0 9px 22px;
+  font-size: var(--t-base);
+  line-height: 1.5;
+  color: var(--mkt-ink-2);
+}
+.mkt-also__item::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 16px;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--mkt-rule-strong);
+}
+
+/* --- AI band -------------------------------------------------------------- */
+
+.mkt-ai {
+  margin-top: var(--sp-section);
+  padding: var(--sp-band) var(--sp-gutter);
+  background: var(--mkt-night);
+  color: var(--mkt-night-ink);
+}
+.mkt-ai__head {
+  max-width: var(--mkt-max);
+  margin: 0 auto 44px;
+}
+.mkt-ai__title {
+  margin: 0;
+  max-width: 16ch;
+  font-family: var(--mkt-display);
+  font-variation-settings: 'WONK' 1, 'SOFT' 0;
+  font-size: var(--t-h2);
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+.mkt-ai__lede {
+  margin: 20px 0 0;
+  max-width: 60ch;
+  font-size: var(--t-md);
+  line-height: 1.6;
+  color: var(--mkt-night-ink-2);
+  text-wrap: pretty;
+}
+.mkt-ai__inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(36px, 6vw, 72px);
+  /* Top-aligned. Centred, a 288px card beside a 668px column collected ~300px of void
+     above it and ~270px below. */
+  align-items: start;
+  max-width: var(--mkt-max);
+  margin: 0 auto;
+}
+.mkt-ai__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mkt-ai__item {
+  padding: 18px 0;
+  border-top: 1px solid var(--mkt-night-line);
+}
+.mkt-ai__item:last-child {
+  border-bottom: 1px solid var(--mkt-night-line);
+}
+.mkt-ai__item-title {
+  margin: 0;
+  font-size: var(--t-md);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.mkt-ai__item-body {
+  margin: 6px 0 0;
+  font-size: var(--t-base);
+  line-height: 1.55;
+  color: var(--mkt-night-ink-2);
+}
+.mkt-ai__note-wrap {
+  padding-top: 22px;
+}
+.mkt-ai__note {
+  margin: 0;
+  padding-left: 13px;
+  border-left: 2px solid var(--mkt-hl-deep);
+  font-size: var(--t-base);
+  line-height: 1.5;
+  color: var(--mkt-night-ink-2);
+}
+
+.mkt-ai__demo {
+  padding: 20px;
+  border: 1px solid var(--mkt-night-line);
+  border-radius: var(--mkt-radius-lg);
+  background: var(--mkt-night-2);
+}
+.mkt-ai__prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--mkt-night-line);
+  font-family: var(--mkt-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mkt-night-ink-2);
+}
+.mkt-ai__spark {
+  display: inline-flex;
+  color: var(--mkt-hl-deep);
+}
+.mkt-ai__spark svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+  fill: none;
+}
+.mkt-ai__scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 14px 0 0;
+}
+.mkt-ai__scope-note {
+  padding: 4px 10px;
+  border: 1px solid var(--mkt-night-line);
+  border-radius: 6px;
+  font-size: var(--t-xs);
+  color: var(--mkt-night-ink-2);
+}
+.mkt-ai__question {
+  padding: 14px 0;
+  font-size: var(--t-md);
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: -0.015em;
+}
+.mkt-ai__answer {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.mkt-ai__answer-text {
+  margin: 0;
+  font-size: var(--t-base);
+  line-height: 1.6;
+  color: var(--mkt-night-ink-2);
+}
+.mkt-ai__cite {
+  color: var(--mkt-night-ink);
+  font-weight: 600;
+  border-bottom: 1px solid var(--mkt-hl-deep);
+}
+.mkt-ai__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.mkt-ai__source {
+  padding: 4px 10px;
+  border: 1px solid var(--mkt-night-line);
+  border-radius: 999px;
+  font-size: var(--t-xs);
+  color: var(--mkt-night-ink-2);
+}
+.mkt-ai__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.mkt-ai__action {
+  padding: 9px 14px;
+  border-radius: 8px;
+  background: var(--mkt-night-ink);
+  color: var(--mkt-night);
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+.mkt-ai__action.is-quiet {
+  background: transparent;
+  border: 1px solid var(--mkt-night-line);
+  color: var(--mkt-night-ink-2);
+}
+
+/* --- maker note ----------------------------------------------------------- */
+
+.mkt-maker {
+  max-width: var(--mkt-max);
+  margin: 0 auto;
+  padding: var(--sp-section) var(--sp-gutter) 0;
+}
+.mkt-maker__inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(36px, 6vw, 72px);
+  align-items: start;
+}
+.mkt-maker__title {
+  max-width: 14ch;
+}
+.mkt-maker__body {
+  margin: 20px 0 0;
+  max-width: 52ch;
+  font-size: var(--t-md);
+  line-height: 1.6;
+  color: var(--mkt-ink-2);
+  text-wrap: pretty;
+}
+.mkt-maker__facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mkt-maker__fact {
+  padding: 20px 0;
+  border-top: 1px solid var(--mkt-rule);
+}
+.mkt-maker__fact:last-child {
+  border-bottom: 1px solid var(--mkt-rule);
+}
+.mkt-maker__fact-title {
+  margin: 0;
+  font-size: var(--t-md);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.mkt-maker__fact-body {
+  margin: 7px 0 0;
+  font-size: var(--t-base);
+  line-height: 1.55;
+  color: var(--mkt-ink-2);
+}
+
+/* --- closing -------------------------------------------------------------- */
+
+.mkt-close {
+  padding: var(--sp-section) var(--sp-gutter) var(--sp-band);
+  text-align: center;
+}
+.mkt-close__inner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+.mkt-close__title {
+  margin: 0;
+  font-family: var(--mkt-display);
+  font-variation-settings: 'WONK' 1, 'SOFT' 0;
+  font-size: var(--t-h2-sm);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+.mkt-close__lede {
+  margin: 20px auto 32px;
+  max-width: 520px;
+  font-size: var(--t-md);
+  line-height: 1.6;
+  color: var(--mkt-ink-2);
+  text-wrap: pretty;
+}
+.mkt-close__alt {
+  margin: 18px 0 0;
+  font-size: var(--t-base);
+  color: var(--mkt-ink-3);
+}
+.mkt-close__alt a {
+  color: var(--mkt-ink);
+  font-weight: 600;
+}
+
+/* Two columns for four items, so they fill 2+2. auto-fit resolved to three in this
+   720px container and orphaned the fourth on a row of its own. */
+.mkt-close__assurances {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 32px;
+  margin: 64px 0 0;
+  padding: 32px 0 0;
+  border-top: 1px solid var(--mkt-rule);
+  list-style: none;
+  text-align: left;
+}
+.mkt-close__assurance-title {
+  margin: 0;
+  font-size: var(--t-base);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.mkt-close__assurance-body {
+  margin: 7px 0 0;
+  font-size: var(--t-sm);
+  line-height: 1.55;
+  color: var(--mkt-ink-2);
+}
+
+/* --- footer --------------------------------------------------------------- */
+
+.mkt-foot {
+  border-top: 1px solid var(--mkt-rule);
+  background: var(--mkt-paper-2);
+}
+.mkt-foot__inner {
+  max-width: var(--mkt-max);
+  margin: 0 auto;
+  padding: 32px var(--sp-gutter);
+}
+.mkt-foot__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 28px;
+}
+.mkt-foot__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-md);
+  letter-spacing: -0.01em;
+}
+.mkt-foot__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 18px;
+  margin-left: auto;
+}
+.mkt-foot__links a {
+  display: inline-block;
+  padding: 10px 0;
+  font-size: var(--t-base);
+  color: var(--mkt-ink-2);
+  text-decoration: none;
+}
+.mkt-foot__links a:hover {
+  color: var(--mkt-ink);
+  text-decoration: underline;
+}
+.mkt-foot__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--mkt-rule);
+  font-size: var(--t-sm);
+  color: var(--mkt-ink-3);
+}
+.mkt-foot__bottom a {
+  color: var(--mkt-ink-3);
+  text-decoration: none;
+}
+.mkt-foot__bottom a:hover {
+  color: var(--mkt-ink);
+  text-decoration: underline;
+}
+.mkt-foot__note {
+  margin: 0 0 0 auto;
+}
+
+/* --- responsive ----------------------------------------------------------- */
+
+@media (max-width: 980px) {
+  .mkt-bento {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  /* The wide span at two columns made these cards full-width, running body copy to ~110
+     characters and stretching their mocks into 600px of white space. Equal cards
+     throughout instead - and the seventh takes the double so the last row is
+     deliberately full rather than half-empty. */
+  .mkt-card--wide {
+    grid-column: span 1;
+  }
+  .mkt-card--last {
+    grid-column: span 2;
+  }
+  .mkt-card__text {
+    max-width: 58ch;
+  }
+  .mkt-viz {
+    max-width: 540px;
+  }
+  .mkt-ai__inner,
+  .mkt-maker__inner {
+    grid-template-columns: 1fr;
+  }
+  .mkt-ai__title,
+  .mkt-maker__title {
+    max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .mkt-nav__links,
+  .mkt-nav__login {
+    display: none;
+  }
+  .mkt-nav__actions {
+    margin-left: auto;
+  }
+  .mkt-nav__burger {
+    display: flex;
+  }
+  .mkt-dock {
+    display: block;
+  }
+  .mkt-shot__body {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .mkt-shot__sidebar {
+    display: none;
+  }
+  .mkt-bento {
+    grid-template-columns: 1fr;
+  }
+  .mkt-card--wide,
+  .mkt-card--last {
+    grid-column: span 1;
+  }
+  .mkt-also {
+    grid-template-columns: 1fr;
+  }
+  .mkt-strip__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mkt-close__assurances {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .mkt-foot__links {
+    margin-left: 0;
+  }
+  .mkt-foot__note {
+    margin-left: 0;
+    width: 100%;
+  }
+  /* Clear the docked CTA so it never covers the footer's last line. */
+  .mkt-foot__inner {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 460px) {
+  /* Full-bleed primary action. Two centred buttons at their own intrinsic widths read as
+     accidental rather than composed. */
+  .mkt-hero__cta {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .mkt-hero__cta .mkt-btn,
+  .mkt-close .mkt-btn {
+    width: 100%;
+  }
+  .mkt-viz__grades {
+    flex-wrap: wrap;
+  }
+  .mkt-viz__tiles {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* --- reduced motion -------------------------------------------------------
+   Every animation on this page is an entrance, so the honest reduced-motion behaviour is
+   to start at the finished state rather than to replay anything faster. The product shot
+   needs no rule here: its finished state is already the default and the sequence is
+   scoped to a no-preference query. */
+
+@media (prefers-reduced-motion: reduce) {
+  .mkt-mark__ink {
+    animation: none;
+    clip-path: none;
+  }
+  .mkt-btn:hover {
+    transform: none;
+  }
+  .mkt-dock {
+    transition: none;
+  }
+  /* The ambient light stops moving but stays lit - it is atmosphere, not information. */
+  .mkt-hero__lamp {
+    animation: none;
+    opacity: 0.75;
+  }
+  /* The sketch is shown finished, with no pencil: a drawing that is already on the page.
+     PencilSketch also declines to arm under this preference, so this is belt and braces. */
+  .mkt-sketch__wipe,
+  .mkt-sketch.is-armed .mkt-sketch__wipe,
+  .mkt-sketch.is-drawn .mkt-sketch__wipe {
+    animation: none;
+    width: 200px;
+  }
+  .mkt-sketch__pencil {
+    display: none;
+  }
+}

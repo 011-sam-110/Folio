@@ -759,7 +759,7 @@
   flex: 1;
   min-width: 0;
 }
-/* Title/snippet are spans, which default to display:inline — nowrap+ellipsis have no effect
+/* Title/snippet are spans, which default to display:inline - nowrap+ellipsis have no effect
    on inline boxes, so long full-text results overflowed and collided with neighbours instead
    of eliding. display:block makes the truncation rules actually apply. */
 .folio-qs__row-title {

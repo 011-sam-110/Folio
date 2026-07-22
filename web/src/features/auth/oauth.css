@@ -1,10 +1,9 @@
-/* Social sign-in buttons, shown above the email form inside the parchment auth panel.
+/* Social sign-in buttons, shown above the email form on the auth card.
 
-   The panel (landing.css) commits to a light parchment surface in BOTH light and dark
-   app themes and re-tints the shared tokens to its parchment values, so these controls
-   read those tokens (--bg, --line, --ink, --bg-hover, --focus-ring) and need no dark
-   variant of their own. Border-led to match the panel's inputs; the brand marks are the
-   only colour, and the label always takes the high-contrast --ink (never --ink-3). */
+   These read the shared theme tokens (--bg, --line, --ink, --bg-hover, --focus-ring)
+   and so need no dark variant of their own. Border-led to match the card's inputs; the
+   brand marks are the only colour, and the label always takes the high-contrast --ink
+   (never --ink-3). */
 
 .oauth {
   display: flex;
@@ -41,7 +40,7 @@
 
 .oauth__btn:hover {
   background: var(--bg-hover);
-  border-color: var(--parchment-accent, var(--accent));
+  border-color: var(--accent);
 }
 
 .oauth__btn:focus-visible {
@@ -77,7 +76,7 @@
   align-items: center;
   gap: 12px;
   font-size: 12.5px;
-  color: var(--ink-2); /* meaningful text — deliberately not --ink-3 */
+  color: var(--ink-2); /* meaningful text - deliberately not --ink-3 */
 }
 
 .oauth__divider::before,

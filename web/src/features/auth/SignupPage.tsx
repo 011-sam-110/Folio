@@ -1,12 +1,11 @@
-// Account creation. Renders without the app shell (see main.tsx). The pre-submit state
-// is the warm hero landing (AuthLanding); the one-time recovery-key state keeps the
-// focused centred card (AuthShell), since that flow must not tempt anyone to wander off.
+// Account creation. Renders without the app shell (see main.tsx). Both states - the form
+// and the one-time recovery key that follows it - use the focused centred card, since
+// neither should tempt anyone to wander off mid-flow. The product is pitched at "/".
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Spinner from '../../components/Spinner';
 import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
-import { AuthLanding } from './AuthLanding';
 import { AuthAlert, AuthAltLink, AuthShell, Field } from './AuthShell';
 import OAuthButtons from './OAuthButtons';
 import RecoveryKeyPanel from './RecoveryKeyPanel';
@@ -34,7 +33,7 @@ export default function SignupPage() {
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
 
   // A successful signup sets `user`, which would normally satisfy the redirect
-  // below and navigate away instantly — skipping straight past the one and only
+  // below and navigate away instantly - skipping straight past the one and only
   // render of the recovery key. Holding the redirect while a key is pending is
   // what makes the panel reachable at all.
   if (user && !issuedKey) return <Navigate to={target} replace />;
@@ -102,16 +101,10 @@ export default function SignupPage() {
   }
 
   return (
-    <AuthLanding
-      getStarted={{ focusPanel: true }}
-      secondary={
-        <Link className="landing-cta__secondary" to="/login">
-          Log in
-        </Link>
-      }
-      panelTitle="Create your account"
-      panelSubtitle="Your notes, notebooks and flashcards, all in one place."
-      panelFooter={<AuthAltLink prompt="Already have an account?" to="/login" label="Sign in" />}
+    <AuthShell
+      title="Create your account"
+      subtitle="Your notes, notebooks and flashcards, all in one place."
+      footer={<AuthAltLink prompt="Already have an account?" to="/login" label="Sign in" />}
     >
       <OAuthButtons />
 
@@ -124,7 +117,7 @@ export default function SignupPage() {
           value={displayName}
           onChange={setDisplayName}
           autoComplete="name"
-          placeholder="Sam"
+          placeholder="Your name"
           optional
           disabled={submitting}
         />
@@ -161,7 +154,6 @@ export default function SignupPage() {
           }}
           // new-password is what tells a password manager to offer to generate one.
           autoComplete="new-password"
-          placeholder="At least 8 characters"
           error={errors.password}
           disabled={submitting}
           hint={<PasswordMeter value={password} strength={strength} />}
@@ -172,7 +164,7 @@ export default function SignupPage() {
           {submitting ? 'Creating account…' : 'Create account'}
         </button>
       </form>
-    </AuthLanding>
+    </AuthShell>
   );
 }
 
@@ -183,7 +175,7 @@ function PasswordMeter({
   value: string;
   strength: ReturnType<typeof passwordStrength>;
 }) {
-  // Before anything is typed there is nothing to rate — show the rule instead, so the
+  // Before anything is typed there is nothing to rate - show the rule instead, so the
   // requirement is known up front rather than discovered by failing.
   if (!value) return <span className="auth-meter__rule">Use at least 8 characters.</span>;
 

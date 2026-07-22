@@ -1,9 +1,10 @@
 // Shared chrome + form primitives for the two auth screens. These render outside the
-// app shell (no sidebar), so they carry their own wordmark and theme toggle.
+// app shell (no sidebar), so they carry their own wordmark and page chrome.
 import { useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/Icon';
-import { useTheme } from '../../lib/theme';
+import Wordmark from '../marketing/Wordmark';
+import '../marketing/marketing.css';
 import './auth.css';
 
 export function AuthShell({
@@ -19,31 +20,30 @@ export function AuthShell({
   // away, since leaving loses the key permanently.
   footer?: ReactNode;
 }) {
-  const [theme, , toggleTheme] = useTheme();
-
   return (
-    <div className="auth-page">
-      <button
-        type="button"
-        className="icon-btn auth-page__theme"
-        aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-        onClick={toggleTheme}
-      >
-        <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
-      </button>
-
+    // .mkt carries the marketing page's paper-and-ink palette. These screens are where a
+    // visitor arrives straight off the landing page, and a design review was blunt about
+    // the handoff: warm paper and a black button became cool blue-white and a saturated
+    // indigo one, at the exact moment of commitment. They are the same product, so they
+    // now read as the same product. There is deliberately NO theme toggle here - the
+    // landing does not offer one, and offering one says "you are already in the app".
+    <div className="auth-page mkt">
       <main className="auth-card">
-        <div className="auth-card__brand">
-          <span className="auth-card__mark" aria-hidden="true">
-            📓
-          </span>
+        {/* The wordmark is the way back to the marketing page. These screens are reachable
+            from a link in an email or a bookmark, so they need an exit that isn't Back. */}
+        <Link className="auth-card__brand" to="/">
+          <Wordmark size={20} />
           <span className="auth-card__wordmark">Unote</span>
-        </div>
+        </Link>
 
         <h1 className="auth-card__title">{title}</h1>
         <p className="auth-card__subtitle">{subtitle}</p>
 
         {children}
+
+        {/* The strongest objection-killer on the site, restored to the moment the
+            objection is strongest. It was on the landing page and dropped here. */}
+        <p className="auth-card__trust">Free to use. No card. Your notes stay yours.</p>
       </main>
 
       {footer ? <p className="auth-alt">{footer}</p> : null}
