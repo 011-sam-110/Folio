@@ -1,9 +1,12 @@
-// Account creation. Renders without the app shell (see main.tsx).
+// Account creation. Renders without the app shell (see main.tsx). The pre-submit state
+// is the warm hero landing (AuthLanding); the one-time recovery-key state keeps the
+// focused centred card (AuthShell), since that flow must not tempt anyone to wander off.
 import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Spinner from '../../components/Spinner';
 import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
+import { AuthLanding } from './AuthLanding';
 import { AuthAlert, AuthAltLink, AuthShell, Field } from './AuthShell';
 import RecoveryKeyPanel from './RecoveryKeyPanel';
 import { emailError, newPasswordError, passwordStrength } from './validation';
@@ -37,10 +40,7 @@ export default function SignupPage() {
 
   if (issuedKey) {
     return (
-      <AuthShell
-        title="You’re all set"
-        subtitle="One last thing before you start."
-      >
+      <AuthShell title="You’re all set" subtitle="One last thing before you start.">
         <RecoveryKeyPanel
           recoveryKey={issuedKey}
           email={email.trim()}
@@ -101,10 +101,16 @@ export default function SignupPage() {
   }
 
   return (
-    <AuthShell
-      title="Create your account"
-      subtitle="Your notes, notebooks and flashcards, all in one place."
-      footer={<AuthAltLink prompt="Already have an account?" to="/login" label="Sign in" />}
+    <AuthLanding
+      getStarted={{ focusPanel: true }}
+      secondary={
+        <Link className="landing-cta__secondary" to="/login">
+          Log in
+        </Link>
+      }
+      panelTitle="Create your account"
+      panelSubtitle="Your notes, notebooks and flashcards, all in one place."
+      panelFooter={<AuthAltLink prompt="Already have an account?" to="/login" label="Sign in" />}
     >
       <form className="auth-form" onSubmit={onSubmit} noValidate>
         {formError && <AuthAlert message={formError} />}
@@ -118,7 +124,6 @@ export default function SignupPage() {
           placeholder="Sam"
           optional
           disabled={submitting}
-          autoFocus
         />
 
         <Field
@@ -164,7 +169,7 @@ export default function SignupPage() {
           {submitting ? 'Creating account…' : 'Create account'}
         </button>
       </form>
-    </AuthShell>
+    </AuthLanding>
   );
 }
 

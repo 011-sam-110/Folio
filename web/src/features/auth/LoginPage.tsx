@@ -1,11 +1,12 @@
-// Sign-in screen. Renders without the app shell (see main.tsx) — it is the first thing
-// a signed-out visitor sees.
+// Sign-in screen. Renders without the app shell (see main.tsx) - it is the first thing
+// a signed-out visitor sees, so it doubles as the marketing landing (AuthLanding).
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Spinner from '../../components/Spinner';
 import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
-import { AuthAlert, AuthAltLink, AuthShell, Field } from './AuthShell';
+import { AuthLanding } from './AuthLanding';
+import { AuthAlert, AuthAltLink, Field } from './AuthShell';
 import { emailError, loginPasswordError } from './validation';
 
 /** Bouncing back to an auth page after signing in would be a loop, so those are
@@ -68,10 +69,11 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthShell
-      title="Welcome back"
-      subtitle="Sign in to pick up where you left off."
-      footer={<AuthAltLink prompt="New to Unote?" to="/signup" label="Create an account" />}
+    <AuthLanding
+      getStarted={{ to: '/signup' }}
+      panelTitle="Welcome back"
+      panelSubtitle="Sign in to pick up where you left off."
+      panelFooter={<AuthAltLink prompt="New to Unote?" to="/signup" label="Create an account" />}
     >
       <form className="auth-form" onSubmit={onSubmit} noValidate>
         {formError && <AuthAlert message={formError} />}
@@ -92,7 +94,6 @@ export default function LoginPage() {
           placeholder="you@university.ac.uk"
           error={errors.email}
           disabled={submitting}
-          autoFocus
         />
 
         <Field
@@ -122,6 +123,6 @@ export default function LoginPage() {
           Forgot your password?
         </Link>
       </form>
-    </AuthShell>
+    </AuthLanding>
   );
 }
