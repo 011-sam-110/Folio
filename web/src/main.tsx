@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createBrowserRouter, Outlet, RouterProvider, useLocation } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation } from 'react-router-dom'
 // The /react entry point, not /next: this is a Vite SPA, and the Next.js build of this
 // package imports next/navigation, which does not resolve here. Route changes are picked
 // up from the History API, so one mount at the root covers every page.
@@ -11,7 +11,7 @@ import NotebookPage from './pages/NotebookPage'
 import NotePage from './features/editor/NotePage'
 import StudyPage from './features/study/StudyPage'
 import AskPage from './features/ask/AskPage'
-import CapturePage from './features/import/CapturePage'
+import CaptureRoute from './features/import/CaptureRoute'
 import SearchPage from './pages/SearchPage'
 import TagsPage from './pages/TagsPage'
 import { AuthProvider, useAuth } from './features/auth/AuthContext'
@@ -44,9 +44,13 @@ function AuthRoot() {
 // No loading branch is needed: AuthProvider withholds render entirely until the first /me
 // settles, so `user` is already decided by the time this runs.
 function RootRoute() {
-  const { user } = useAuth()
+  const { user, scope } = useAuth()
   const { pathname } = useLocation()
   if (!user && pathname === '/') return <LandingPage />
+  // A QR-paired phone is signed in as the user but authorised for capture only, so the
+  // desktop shell would render and then 403 on every fetch it makes. Send it where its
+  // session actually works. The server enforces the same boundary independently.
+  if (user && scope === 'capture') return <Navigate to="/capture" replace />
   return (
     <RequireAuth>
       <App />
@@ -70,9 +74,13 @@ const router = createBrowserRouter([
       // the note's OWNER when they open their own link.
       { path: '/join/:token', element: <JoinPage /> },
 
-      // Phone capture flow renders without the desktop shell, but still needs a session:
-      // it writes notes into the signed-in user's notebooks.
-      { path: '/capture', element: <RequireAuth><CapturePage /></RequireAuth> },
+      // Phone capture renders without the desktop shell, and is the one guarded page a
+      // brand-new device is expected to open. It is deliberately NOT wrapped in
+      // <RequireAuth> here: the QR carries a single-use pairing code that CaptureRoute
+      // exchanges for a capture-scoped session first, then applies RequireAuth itself for
+      // anyone arriving without one. Wrapping it here would send every scanning phone to
+      // /login before the code was ever read.
+      { path: '/capture', element: <CaptureRoute /> },
       {
         path: '/',
         element: <RootRoute />,

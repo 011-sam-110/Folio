@@ -441,6 +441,33 @@
   background: var(--ink-3);
 }
 
+/* The unavailable state is a labelled button, not a dot. A colour-only signal was all
+   there was to explain why every AI control in the app had disappeared, which in practice
+   explained nothing - the text and the click target are the whole point. */
+.sidebar__ai-alert {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--danger);
+  border-radius: 999px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-chrome);
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sidebar__ai-alert:hover {
+  background: var(--danger);
+  color: var(--danger-ink);
+}
+.sidebar__ai-alert:hover .sidebar__ai-dot.bad {
+  background: var(--danger-ink);
+  box-shadow: none;
+}
+
 /* Touch/stylus sizing for the sidebar. This matters most at iPad landscape (1024px),
    where the sidebar is PERMANENT rather than a drawer, so every row here is a real
    touch target on a device with no mouse. The rows keep their compact desktop

@@ -2,11 +2,18 @@
 // public or guarded, reads the same user.
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { api, ApiError, setUnauthorizedHandler } from '../../lib/api';
-import type { User } from '../../lib/types';
+import type { SessionScope, User } from '../../lib/types';
 import './auth.css';
 
 export interface AuthState {
   user: User | null;
+  /**
+   * What this device's session may do. 'capture' is a phone paired by scanning the QR:
+   * signed in as the user, but the server only admits it to the capture flow. The UI reads
+   * this to avoid rendering a shell whose every fetch would come back 403 - it is not the
+   * enforcement point, which is auth/middleware.ts on the server.
+   */
+  scope: SessionScope;
   /** True only until the first /me settles. Guards and pages must wait on it. */
   loading: boolean;
   signup: (b: {
@@ -17,26 +24,31 @@ export interface AuthState {
   login: (b: { email: string; password: string }) => Promise<User>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** Redeem a QR pairing code, opening a capture-scoped session on this device. */
+  pair: (token: string) => Promise<void>;
 }
 
 const AuthCtx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [scope, setScope] = useState<SessionScope>('full');
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      const { user: me } = await api.me();
+      const { user: me, scope: s } = await api.me();
       setUser(me);
+      setScope(s ?? 'full');
     } catch (e) {
       // A 401 here is the normal "not signed in" answer, not a failure. Anything else
-      // (server down, network) also leaves us signed out — the guard will route to
+      // (server down, network) also leaves us signed out - the guard will route to
       // /login, where the real error becomes visible on the next attempt.
       if (!(e instanceof ApiError) || e.status !== 401) {
         console.warn('Could not establish session', e);
       }
       setUser(null);
+      setScope('full');
     }
   }, []);
 
@@ -72,22 +84,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (b: { email: string; password: string }) => {
     const { user: signedIn } = await api.login(b);
     setUser(signedIn);
+    // A real sign-in on this device replaces any capture-scoped session it was holding.
+    setScope('full');
     return signedIn;
+  }, []);
+
+  const pair = useCallback(async (token: string) => {
+    const { user: paired, scope: s } = await api.pair(token);
+    setUser(paired);
+    setScope(s);
   }, []);
 
   const logout = useCallback(async () => {
     try {
       await api.logout();
     } finally {
-      // Clear locally even if the request failed — the user asked to be signed out, and
+      // Clear locally even if the request failed - the user asked to be signed out, and
       // a stale-looking signed-in UI is worse than a cookie the server prunes later.
       setUser(null);
+      setScope('full');
     }
   }, []);
 
   if (loading) return <AuthSplash />;
 
-  return <AuthCtx.Provider value={{ user, loading, signup, login, logout, refresh }}>{children}</AuthCtx.Provider>;
+  return (
+    <AuthCtx.Provider value={{ user, scope, loading, signup, login, logout, refresh, pair }}>
+      {children}
+    </AuthCtx.Provider>
+  );
 }
 
 export function useAuth(): AuthState {

@@ -23,11 +23,11 @@ const MIN_PASSWORD = 8;
  * Upper bound on any password this server will hash.
  *
  * scrypt's initial PBKDF2 pass is linear in the length of its input, and `express.json`
- * accepts bodies up to 20mb (app.ts — a photo import posts its image inline, so it cannot
+ * accepts bodies up to 20mb (app.ts - a photo import posts its image inline, so it cannot
  * simply be lowered). Without a cap, a single unauthenticated request carrying a
  * multi-megabyte `password` makes the server burn CPU proportional to it, and the login
  * and recovery routes deliberately run a full hash even for unknown accounts to keep their
- * timing flat — so the cost is paid whether or not the address exists. 128 characters is
+ * timing flat - so the cost is paid whether or not the address exists. 128 characters is
  * far above any real passphrase and turns that into a constant.
  *
  * Checked before the hash on EVERY route that accepts a password, including the ones that
@@ -83,7 +83,7 @@ router.post('/signup', rateLimit({ limit: 12, windowMs: 15 * 60_000 }), async (r
 
   // Unote sends no email, so a forgotten password would otherwise be an
   // unrecoverable account. The key is shown exactly once in the signup response
-  // and only its hash is kept, so nobody — including us — can reproduce it later.
+  // and only its hash is kept, so nobody - including us - can reproduce it later.
   const recoveryKey = generateRecoveryKey();
   const recovery = await hashRecoveryKey(recoveryKey);
 
@@ -122,7 +122,7 @@ router.post('/login', rateLimit({ limit: 12, windowMs: 5 * 60_000, message: 'Too
   const email = String(b.email ?? '').trim().toLowerCase();
   const password = String(b.password ?? '');
 
-  // Length only — no minimum here, since an account may predate any change to that rule and
+  // Length only - no minimum here, since an account may predate any change to that rule and
   // telling someone their correct password is "too short" would be a dead end. The maximum
   // is different: it is a cost bound, and it is applied before the hash below runs.
   if (password.length > MAX_PASSWORD) {
@@ -160,21 +160,73 @@ router.post('/logout', async (req, res) => {
 });
 
 router.get('/me', async (req, res) => {
-  const { resolveSession } = await import('../auth/session.js');
-  const id = await resolveSession(readCookie(req, COOKIE_NAME));
-  if (!id) {
+  const { resolveSessionRecord } = await import('../auth/session.js');
+  const session = await resolveSessionRecord(readCookie(req, COOKIE_NAME));
+  if (!session) {
     res.status(401).json({ error: 'Not signed in' });
     return;
   }
   const row = await db
     .prepare('SELECT id, email, display_name FROM users WHERE id = ?')
-    .get<UserRow>(id);
+    .get<UserRow>(session.userId);
   if (!row) {
     res.status(401).json({ error: 'Not signed in' });
     return;
   }
-  res.json({ user: publicUser(row) });
+  // The scope is reported so the SPA can confine a QR-paired phone to /capture instead of
+  // rendering a full app shell whose every fetch would come back 403. The server does not
+  // rely on the client honouring it - see requireAuth.
+  res.json({ user: publicUser(row), scope: session.scope });
 });
+
+/**
+ * Exchange a QR pairing code for a capture-scoped session. UNAUTHENTICATED by necessity:
+ * this is how a phone that has never signed in obtains a credential at all.
+ *
+ * The code is single-use and short-lived (auth/pairing.ts). What it grants is deliberately
+ * not a sign-in: the session it opens carries scope 'capture', which auth/middleware.ts
+ * admits only to listing notebooks and running one import. It cannot read notes, change
+ * the password, or reach anything else.
+ *
+ * Rate-limited because the endpoint is a public oracle over a token space - not because
+ * the token is guessable (256 random bits), but because an unlimited endpoint that does a
+ * database write per call is a free amplifier.
+ */
+router.post(
+  '/pair',
+  rateLimit({
+    limit: 20,
+    windowMs: 5 * 60_000,
+    message: 'Too many pairing attempts. Please wait a few minutes and try again.',
+  }),
+  async (req, res) => {
+    const { redeemPairing, CAPTURE_SESSION_TTL_MS } = await import('../auth/pairing.js');
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const token = typeof body.token === 'string' ? body.token : '';
+
+    const uid = await redeemPairing(token);
+    if (!uid) {
+      // One message for unknown, expired and already-used. Distinguishing them would
+      // confirm which codes ever existed, and the user-facing remedy is the same.
+      res.status(401).json({
+        error: 'This capture code has expired or has already been used. Generate a new one on your computer.',
+      });
+      return;
+    }
+
+    const row = await db
+      .prepare('SELECT id, email, display_name FROM users WHERE id = ?')
+      .get<UserRow>(uid);
+    if (!row) {
+      res.status(401).json({ error: 'This capture code is no longer valid.' });
+      return;
+    }
+
+    const token2 = await createSession(uid, { scope: 'capture', ttlMs: CAPTURE_SESSION_TTL_MS });
+    setSessionCookie(res, token2, CAPTURE_SESSION_TTL_MS);
+    res.json({ user: publicUser(row), scope: 'capture' });
+  },
+);
 
 router.post('/password', requireAuth, async (req, res) => {
   const b = (req.body ?? {}) as Record<string, unknown>;
@@ -184,8 +236,8 @@ router.post('/password', requireAuth, async (req, res) => {
     res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD} characters` });
     return;
   }
-  // Both values reach scrypt on this route — `current` through verifyPassword and `next`
-  // through hashPassword — so both are bounded.
+  // Both values reach scrypt on this route - `current` through verifyPassword and `next`
+  // through hashPassword - so both are bounded.
   if (next.length > MAX_PASSWORD || current.length > MAX_PASSWORD) {
     res.status(400).json({ error: TOO_LONG });
     return;
@@ -230,7 +282,7 @@ router.post('/recover', rateLimit({ limit: 8, windowMs: 15 * 60_000, message: 'T
     return;
   }
   // Unauthenticated, and it always spends scrypt time even for an unknown account, so the
-  // bound has to be here — before the deliberate constant-time work below.
+  // bound has to be here - before the deliberate constant-time work below.
   if (newPassword.length > MAX_PASSWORD) {
     res.status(400).json({ error: TOO_LONG });
     return;
@@ -262,7 +314,7 @@ router.post('/recover', rateLimit({ limit: 8, windowMs: 15 * 60_000, message: 'T
       recovery_key_used: number;
     }>(email);
 
-  // One message for every failure mode — wrong email, wrong key, already-used key —
+  // One message for every failure mode - wrong email, wrong key, already-used key -
   // so this endpoint cannot be used to enumerate accounts or probe key validity.
   const reject = () => res.status(401).json({ error: 'That recovery key is not valid for this account' });
 
@@ -297,7 +349,7 @@ router.post('/recover', rateLimit({ limit: 8, windowMs: 15 * 60_000, message: 'T
     )
     .run(hash, salt, nextRecovery.hash, nextRecovery.salt, user.id);
 
-  // Anyone holding a stolen session is evicted — recovery implies the account may
+  // Anyone holding a stolen session is evicted - recovery implies the account may
   // already be compromised.
   await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
 

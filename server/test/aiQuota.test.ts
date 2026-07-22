@@ -430,12 +430,16 @@ async function tamperColumn(uid: string, column: 'ciphertext' | 'iv' | 'auth_tag
 describe('bring your own key', () => {
   it('round-trips a key through encryption', async () => {
     await setUserKey(alice.id, KEY, 'https://gw.example.com/v1');
-    await expect(getUserKey(alice.id)).resolves.toEqual({ apiKey: KEY, baseUrl: 'https://gw.example.com/v1' });
+    await expect(getUserKey(alice.id)).resolves.toEqual({
+      apiKey: KEY,
+      baseUrl: 'https://gw.example.com/v1',
+      models: [],
+    });
   });
 
   it('returns null for a user with no key saved', async () => {
     await expect(getUserKey(alice.id)).resolves.toBeNull();
-    await expect(getKeyHint(alice.id)).resolves.toEqual({ present: false, hint: '', baseUrl: null });
+    await expect(getKeyHint(alice.id)).resolves.toEqual({ present: false, hint: '', baseUrl: null, models: [] });
   });
 
   // The row is the thing that leaks in a database compromise, so no column in it may carry
@@ -482,7 +486,7 @@ describe('bring your own key', () => {
     await setUserKey(alice.id, KEY);
     const hint = await getKeyHint(alice.id);
 
-    expect(hint).toEqual({ present: true, hint: KEY.slice(-4), baseUrl: null });
+    expect(hint).toEqual({ present: true, hint: KEY.slice(-4), baseUrl: null, models: [] });
     expect(hint.hint.length).toBe(4);
     // A short key would otherwise be published in full by its own hint.
     expect(hintFor('abc')).toBe('****');

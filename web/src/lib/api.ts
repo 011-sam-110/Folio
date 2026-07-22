@@ -1,8 +1,8 @@
 import type {
-  AiKeyInfo, AiUsage, AuthProviderInfo,
+  AiHealthInfo, AiKeyInfo, AiUsage, AuthProviderInfo,
   CanvasEdge, CanvasItem, CanvasItemData, CanvasItemKind,
   DashboardData, Flashcard, ImportJob, InkStroke, MetaInfo, Note, NoteKind, NoteLite, NotebookLite, Notebook,
-  NoteComment, NoteVersion, NoteVersionMeta, SearchParsed, SearchResult, StudyStats,
+  NoteComment, NoteVersion, NoteVersionMeta, QrCode, SearchParsed, SearchResult, SessionScope, StudyStats,
   ShareCreated, ShareEvents, ShareGuest, ShareLink, SharePeek, SharePermission, SharedNote,
   Template, TitleResult, User,
 } from './types';
@@ -35,8 +35,8 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
   const isJson = res.headers.get('content-type')?.includes('application/json');
   if (!res.ok) {
-    // The auth endpoints own their 401s — a wrong password and the signed-out /me
-    // probe are both expected answers, not expired sessions — so they must not
+    // The auth endpoints own their 401s - a wrong password and the signed-out /me
+    // probe are both expected answers, not expired sessions - so they must not
     // trip the global handler and bounce the user mid-login.
     //
     // /api/share/* is exempt for the same reason from the other direction: a guest
@@ -63,15 +63,18 @@ const json = (method: string, body: unknown): RequestInit => ({
 });
 
 export const api = {
-  // auth — no tokens are passed or returned: the session is an httpOnly cookie the
+  // auth - no tokens are passed or returned: the session is an httpOnly cookie the
   // browser attaches automatically on these same-origin requests.
-  // Signup is the only time the recovery key is ever transmitted — the server keeps
+  // Signup is the only time the recovery key is ever transmitted - the server keeps
   // just its hash, so if it isn't shown to the user here it is gone for good.
   signup: (b: { email: string; password: string; displayName?: string }) =>
     http<{ user: User; recoveryKey: string }>('/api/auth/signup', json('POST', b)),
   login: (b: { email: string; password: string }) => http<{ user: User }>('/api/auth/login', json('POST', b)),
   logout: () => http<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
-  me: () => http<{ user: User }>('/api/auth/me'),
+  me: () => http<{ user: User; scope?: SessionScope }>('/api/auth/me'),
+  /** Exchange a QR pairing code for a capture-scoped session on this device. */
+  pair: (token: string) =>
+    http<{ user: User; scope: SessionScope }>('/api/auth/pair', json('POST', { token })),
   changePassword: (b: { currentPassword: string; newPassword: string }) =>
     http<{ ok: true }>('/api/auth/password', json('POST', b)),
   // Redeeming signs the user straight in and returns a replacement key, so the
@@ -142,10 +145,12 @@ export const api = {
   aiClean: (noteId: string) => http<{ markdown: string; model: string }>('/api/ai/clean', json('POST', { noteId })),
   aiGaps: (noteId: string) =>
     http<{ markdown: string; model: string; sources: Array<{ name: string; kind: string }> }>('/api/ai/gaps', json('POST', { noteId })),
-  aiHealth: () => http<{ ok: boolean; model?: string; error?: string }>('/api/meta/ai-health'),
+  /** Per-user: answers for the caller's own key when they have saved one. */
+  aiHealth: () => http<AiHealthInfo>('/api/meta/ai-health'),
   aiUsage: () => http<AiUsage>('/api/ai/usage'),
-  aiSaveKey: (apiKey: string, baseUrl?: string) =>
-    http<AiKeyInfo>('/api/ai/key', json('PUT', { apiKey, baseUrl: baseUrl || undefined })),
+  /** Saves the credential AND returns a live verdict on it (AiKeyInfo.health). */
+  aiSaveKey: (apiKey: string, baseUrl?: string, models?: string) =>
+    http<AiKeyInfo>('/api/ai/key', json('PUT', { apiKey, baseUrl: baseUrl || undefined, models: models || undefined })),
   aiDeleteKey: () => http<AiKeyInfo>('/api/ai/key', { method: 'DELETE' }),
 
   // import
@@ -183,16 +188,16 @@ export const api = {
   createCard: (b: { noteId?: string; question: string; answer: string }) =>
     http<{ card: Flashcard }>('/api/study/cards', json('POST', b)),
 
-  // full search page (iteration 2) — same endpoint, optional parsed echo
+  // full search page (iteration 2) - same endpoint, optional parsed echo
   searchFull: (q: string, limit = 50) =>
     http<{ results: SearchResult[]; parsed?: SearchParsed }>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`),
 
-  // canvas boards — spatial children of a note with kind='canvas'.
+  // canvas boards - spatial children of a note with kind='canvas'.
   canvas: (noteId: string) => http<{ items: CanvasItem[]; edges: CanvasEdge[] }>(`/api/canvas/${noteId}`),
   createCanvasItem: (noteId: string, b: { kind: CanvasItemKind; x: number; y: number; width: number; height: number; data?: CanvasItemData }) =>
     http<{ item: CanvasItem }>(`/api/canvas/${noteId}/items`, json('POST', b)),
   /** BULK and atomic. Every drag/resize/z-order commit goes through here as ONE
-   *  request — never one per item and never one per pointermove frame. */
+   *  request - never one per item and never one per pointermove frame. */
   updateCanvasItems: (noteId: string, items: Array<{ id: string } & Partial<Omit<CanvasItem, 'id' | 'createdAt' | 'updatedAt'>>>) =>
     http<{ items: CanvasItem[] }>(`/api/canvas/${noteId}/items`, json('PATCH', { items })),
   deleteCanvasItem: (noteId: string, itemId: string) =>
@@ -202,7 +207,7 @@ export const api = {
   deleteCanvasEdge: (noteId: string, edgeId: string) =>
     http<{ ok: true }>(`/api/canvas/${noteId}/edges/${edgeId}`, { method: 'DELETE' }),
 
-  // ink — works on ANY note id, not just canvases, which is what lets the same
+  // ink - works on ANY note id, not just canvases, which is what lets the same
   // layer annotate a normal document note.
   ink: (noteId: string) => http<{ strokes: InkStroke[] }>(`/api/canvas/${noteId}/ink`),
   /** Append-only, and batched: one request per stroke-flush, never per point. */
@@ -213,17 +218,17 @@ export const api = {
   clearInk: (noteId: string) =>
     http<{ ok: true; removed: number }>(`/api/canvas/${noteId}/ink`, { method: 'DELETE' }),
 
-  // sharing — owner side. Requires an account and ownership of the note.
+  // sharing - owner side. Requires an account and ownership of the note.
   shares: (noteId: string) => http<{ shares: ShareLink[] }>(`/api/notes/${noteId}/shares`),
   /** Mints a link. The `token` in the response is the ONLY time the raw token
-   *  exists on this side of the wire — the server keeps a hash, so nothing can
+   *  exists on this side of the wire - the server keeps a hash, so nothing can
    *  recover it later. Callers must show it before dropping it (see ShareDialog,
    *  and RecoveryKeyPanel for the same contract on recovery keys). */
   createShare: (noteId: string, b: { permission: SharePermission; password?: string; expiresAt?: string }) =>
     http<ShareCreated>(`/api/notes/${noteId}/shares`, json('POST', b)),
   revokeShare: (shareId: string) => http<{ ok: true }>(`/api/shares/${shareId}`, { method: 'DELETE' }),
 
-  // sharing — guest side. No account: access is a per-share httpOnly cookie the
+  // sharing - guest side. No account: access is a per-share httpOnly cookie the
   // join call sets, so as with sessions no token is ever held in JS.
   sharePeek: (token: string) => http<SharePeek>(`/api/share/${token}`),
   shareJoin: (token: string, b: { password?: string; displayName?: string }) =>
@@ -243,7 +248,21 @@ export const api = {
 
   // meta
   meta: () => http<MetaInfo>('/api/meta'),
-  qr: (url?: string) => http<{ url: string; all: string[]; dataUrl: string }>(`/api/meta/qr${url ? `?url=${encodeURIComponent(url)}` : ''}`),
+  /**
+   * A QR encoding an absolute, externally reachable `<base>/capture?pair=<code>` URL.
+   * `lan` optionally asks for one of the server's other LAN addresses (local dev, where
+   * the best guess may be the wrong adapter); it is validated server-side.
+   */
+  qr: (lan?: string) => {
+    const p = new URLSearchParams();
+    if (lan) p.set('lan', lan);
+    // Which port is serving THIS page. Only the browser knows it under `npm run dev`,
+    // where Vite serves the SPA and rewrites Host on the /api proxy, so the server would
+    // otherwise build the QR on the API port. Ignored on a hosted deployment.
+    if (window.location.port) p.set('port', window.location.port);
+    const q = p.toString();
+    return http<QrCode>(`/api/meta/qr${q ? `?${q}` : ''}`);
+  },
   // import old notes wizard (bulk staging -> review -> commit). Not AI-gated: the default
   // path uses no model, so these work with the gateway offline.
   createImportBatch: (source: string) => http<{ batchId: string }>('/api/import/batches', json('POST', { source })),

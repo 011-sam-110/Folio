@@ -1,4 +1,4 @@
-// Mobile-first standalone capture page — rendered outside the App shell
+// Mobile-first standalone capture page - rendered outside the App shell
 // (see main.tsx). Full-viewport, no sidebar. Downscales photos client-side
 // before handing off to the same import job pipeline as ImportModal.
 import { useEffect, useRef, useState } from 'react';
@@ -6,6 +6,7 @@ import type { ChangeEvent, DragEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
 import type { Notebook } from '../../lib/types';
+import { useAuth } from '../auth/AuthContext';
 import Icon from '../../components/Icon';
 import { IMPORT_KINDS, findKind, formatBytes, validateFile, type ImportKind } from './kinds';
 import { downscaleImage } from './downscale';
@@ -17,6 +18,7 @@ import './CapturePage.css';
 type Phase = 'pick' | 'ready' | 'uploading' | 'done' | 'error';
 
 export default function CapturePage() {
+  const { scope } = useAuth();
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [notebooksLoading, setNotebooksLoading] = useState(true);
   const [notebooksFailed, setNotebooksFailed] = useState(false);
@@ -113,14 +115,11 @@ export default function CapturePage() {
         return;
       }
       setResultNoteId(result.noteId ?? null);
-      if (result.noteId) {
-        try {
-          const noteRes = await api.note(result.noteId);
-          setResultTitle(noteRes.note.title || 'Untitled note');
-        } catch {
-          setResultTitle(null);
-        }
-      }
+      // The title comes back ON the job. It used to be fetched with GET /api/notes/:id
+      // purely to display one string, which would have forced the QR-paired phone's
+      // session to carry note-read access - a scanned code could then have read the
+      // account's notes, not just added to them.
+      setResultTitle(result.noteId ? result.noteTitle || 'Untitled note' : null);
       setPhase('done');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Upload failed. Check your connection and try again');
@@ -167,7 +166,12 @@ export default function CapturePage() {
             <div className="cp-success__actions">
               <button type="button" className="im-btn im-btn--primary" onClick={addAnotherPage}>Add another page</button>
               <button type="button" className="im-btn" onClick={captureAnother}>Start a new note</button>
-              {resultNoteId && <Link className="im-link-btn" to={`/note/${resultNoteId}`}>Open note</Link>}
+              {/* A QR-paired phone cannot open the note - its session is scoped to capture,
+                  so /note/:id would 403. Offering the link anyway would look like a bug.
+                  The note is already waiting on the desktop, which the copy above says. */}
+              {resultNoteId && scope === 'full' && (
+                <Link className="im-link-btn" to={`/note/${resultNoteId}`}>Open note</Link>
+              )}
             </div>
           </div>
         ) : phase === 'uploading' ? (

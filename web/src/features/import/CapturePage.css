@@ -315,3 +315,38 @@
     padding-top: 24px;
   }
 }
+
+/* Pairing states (CaptureRoute): shown full-screen on the phone before CapturePage
+   itself mounts, so they carry their own centring rather than relying on .cp-body. */
+.cp-page--message {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.cp-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 34ch;
+}
+
+.cp-message h2 {
+  font-size: 18px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.cp-message p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.cp-message__hint {
+  font-size: 13px;
+  color: var(--ink-3);
+}

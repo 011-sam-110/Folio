@@ -4,10 +4,52 @@ How the deployed site gets working AI, and what has to be true for it to stay wo
 
 ## The problem this solves
 
-`FOLIO_AI_BASE_URL` defaulted to `http://localhost:3001/v1`. That is correct for local
+`FOLIO_AI_BASE_URL` defaults to `http://localhost:3001/v1`. That is correct for local
 development and meaningless in production: a Vercel function has no localhost:3001, so
-every AI call on the live site failed at connect time. Fixing it means the gateway needs
+every AI call on the live site fails at connect time. Fixing it means the gateway needs
 a public address.
+
+**Until `FOLIO_AI_BASE_URL` points at a publicly reachable gateway, the shared pool cannot
+work in production at all.** No amount of application code changes that; it is a setting.
+What the app now does instead of failing silently:
+
+- `GET /api/meta/ai-health` answers **per user**, probing the caller's own key when they
+  have saved one. A user with a working personal key gets AI even while the shared
+  gateway is dead. (Before, everyone got the shared verdict, so bringing your own key
+  changed nothing visible - the reported bug.)
+- A loopback base URL on a serverless host is reported as `reason: "not_configured"` with
+  the variable name in the message, without spending a call to discover it.
+- The sidebar shows a visible **"AI unavailable"** button that opens AI settings, and the
+  settings dialog leads with the live verdict. AI features no longer just disappear.
+
+## Minimum production configuration
+
+| Variable | Required | Value |
+| --- | --- | --- |
+| `FOLIO_AI_BASE_URL` | yes, for the shared pool | Public `https://.../v1` of an OpenAI-compatible gateway. A localhost/private address is rejected as unconfigured on Vercel. |
+| `FOLIO_AI_KEY` | yes, for the shared pool | The gateway's unified key. Empty means "not configured". |
+| `FOLIO_AI_KEK` | strongly recommended | `openssl rand -base64 32`. Encrypts users' own saved keys. Unset, it derives from `SESSION_SECRET`, so rotating that key silently destroys every stored key. |
+| `SESSION_SECRET` | yes | Already required for the app to boot in production. |
+| `FOLIO_AI_TEXT_MODELS` / `FOLIO_AI_VISION_MODELS` | optional | Only if the gateway serves different model names from the defaults. |
+| `FOLIO_AI_HEALTH_TIMEOUT_MS` | optional | Per-model budget for the health probe (default 20000). |
+
+Without the first two, AI is unavailable for every user who has not brought their own key
+and endpoint - which the app will now say, on screen, with the variable named.
+
+## Bring-your-own-key: the contract
+
+Stated explicitly because it is the part that silently does not work:
+
+- **A key on its own** inherits this deployment's `FOLIO_AI_BASE_URL` *and* its model
+  chain. That is right for a key belonging to the same gateway, and useless in production
+  while that base URL is the localhost default.
+- **A key from another provider** (OpenAI, Groq, OpenRouter, a personal gateway) needs the
+  endpoint *and* the model names. The operator's chain is `gemini-2.5-flash,
+  llama-3.3-70b-versatile, ...`; sending those to `api.openai.com` 404s on every model.
+  The settings dialog has an "Endpoint" and a "Models to try" field for exactly this, and
+  the models are stored in `ai_keys.models`.
+- Saving a key runs one live probe against it and the dialog reports the result, so
+  "saved" and "working" are never confused again.
 
 ## Architecture
 
@@ -106,7 +148,13 @@ Vercel's egress, so from the gateway's side the whole user base is one client. T
 why `PROXY_RATE_LIMIT_RPM` is raised to 600 in `fly.toml`. The real per-user control is
 the monthly quota, not this.
 
-**Health probes used to cost real completions.** `/api/meta/ai-health` runs an actual
-model call, and the client probes it on first paint, so before caching it every page load
-anyone made spent one call from the shared pool. It is now cached per instance for 60s on
-success and 10s on failure. If you change that, remember what it is spending.
+**Health probes cost real completions.** `/api/meta/ai-health` runs an actual model call,
+and the client probes it on first paint, so without caching every page load anyone makes
+spends one call from the shared pool. It is cached per credential per instance for 60s on
+success and 10s on failure. If you change that, remember what it is spending. A user on
+their own key spends their own key on their own probe, which is the right budget.
+
+**The health verdict is per credential, not per deployment.** The cache is keyed by a hash
+of (base URL, API key, model chain), so two users on the shared pool share one probe while
+a user on a personal endpoint gets their own. Reverting that to a single cached verdict
+would both hide working personal keys and leak one user's verdict to another.

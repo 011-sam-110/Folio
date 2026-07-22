@@ -1,4 +1,6 @@
-import { config } from '../config.js';
+import crypto from 'node:crypto';
+import { config, IS_SERVERLESS } from '../config.js';
+import { checkUserSuppliedUrl } from '../lib/publicHost.js';
 
 export type ChatMessage = {
   role: 'system' | 'user' | 'assistant';
@@ -39,17 +41,25 @@ export function sharedPoolCreds(): AiCreds {
 /**
  * Credentials for a user-supplied key.
  *
- * The model chains stay the operator's defaults unless the user also overrode the base URL.
- * A bare key almost always belongs to the same gateway the app already targets, so reusing
- * the tuned fallback chain is what the user expects. A custom endpoint is a different
- * service whose model names we cannot guess, so the caller supplies those.
+ * The contract, stated plainly because it is easy to get wrong: a BARE key is assumed to
+ * belong to the same gateway this deployment already targets, so it inherits both the
+ * operator's base URL and the operator's tuned model chain. A user bringing a key from a
+ * DIFFERENT provider must also give the endpoint, and usually the model names too - a
+ * personal OpenAI key called with `gemini-2.5-flash` is a 404 every time.
+ *
+ * `models` used to be described here and not implemented: the chains were always the
+ * operator's. That made "any OpenAI-compatible provider" true only for providers that
+ * happen to serve the operator's model names.
  */
-export function userKeyCreds(apiKey: string, baseUrl?: string | null): AiCreds {
+export function userKeyCreds(apiKey: string, baseUrl?: string | null, models?: string[] | null): AiCreds {
+  const pinned = (models ?? []).map(m => m.trim()).filter(Boolean);
   return {
     baseUrl: (baseUrl ?? config.ai.baseUrl).replace(/\/$/, ''),
     apiKey,
-    textModels: config.ai.textModels,
-    visionModels: config.ai.visionModels,
+    textModels: pinned.length ? pinned : config.ai.textModels,
+    // One list covers both chains: a user who names their models is naming what their
+    // provider serves, and we have no way to know which of them can see an image.
+    visionModels: pinned.length ? pinned : config.ai.visionModels,
   };
 }
 
@@ -65,9 +75,9 @@ export function capForAi(text: string, max = AI_MAX_CHARS): string {
   return `${text.slice(0, max)}\n\n[truncated]`;
 }
 
-async function callOnce(model: string, messages: ChatMessage[], opts: { maxTokens?: number; temperature?: number; json?: boolean }, creds: AiCreds): Promise<string> {
+async function callOnce(model: string, messages: ChatMessage[], opts: { maxTokens?: number; temperature?: number; json?: boolean; timeoutMs?: number }, creds: AiCreds): Promise<string> {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), config.ai.timeoutMs);
+  const t = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? config.ai.timeoutMs);
   try {
     const res = await fetch(`${creds.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -103,9 +113,13 @@ const RATE_LIMIT_RETRY_DELAY_MS = Number(process.env.FOLIO_AI_RATELIMIT_RETRY_MS
  * Chat with model fallback: tries each pinned model in order until one succeeds.
  * The gateway's 'auto' router can pick dead/weak providers, so we never use it.
  * If EVERY model failed with a rate-limit-class error (free-tier providers throttle in
- * bursts), wait once and re-run the whole chain — per-minute limits usually clear.
+ * bursts), wait once and re-run the whole chain - per-minute limits usually clear.
+ *
+ * `retryOnRateLimit: false` opts out of that wait. The health probe uses it: a probe that
+ * sleeps 25s and re-runs the chain turns "is AI available?" into a minutes-long question,
+ * and the honest answer for a throttled pool is "not right now" anyway.
  */
-export async function chat(messages: ChatMessage[], opts: { vision?: boolean; maxTokens?: number; temperature?: number; json?: boolean; creds?: AiCreds } = {}): Promise<{ text: string; model: string }> {
+export async function chat(messages: ChatMessage[], opts: { vision?: boolean; maxTokens?: number; temperature?: number; json?: boolean; creds?: AiCreds; timeoutMs?: number; retryOnRateLimit?: boolean } = {}): Promise<{ text: string; model: string }> {
   const creds = opts.creds ?? sharedPoolCreds();
   const models = opts.vision ? creds.visionModels : creds.textModels;
 
@@ -125,7 +139,7 @@ export async function chat(messages: ChatMessage[], opts: { vision?: boolean; ma
   let result = await runChain();
   if (Array.isArray(result)) {
     const allRateLimited = result.every(a => RATE_LIMIT_RE.test(a.error));
-    if (allRateLimited && RATE_LIMIT_RETRY_DELAY_MS > 0) {
+    if (opts.retryOnRateLimit !== false && allRateLimited && RATE_LIMIT_RETRY_DELAY_MS > 0) {
       await new Promise(r => setTimeout(r, RATE_LIMIT_RETRY_DELAY_MS));
       result = await runChain();
     }
@@ -151,47 +165,197 @@ export function extractJson<T>(text: string): T {
   return JSON.parse(candidate.slice(s, e + 1)) as T;
 }
 
-export type AiHealthResult = { ok: boolean; model?: string; error?: string };
+/** Whose credential a health answer describes. */
+export type AiCredSource = 'shared-pool' | 'own-key';
 
 /**
- * Cached health, shared by every caller on this instance.
+ * Why AI is unavailable, when it is.
  *
- * The probe is a real completion, and the client probes on first paint, so without a cache
- * every page load anyone makes spends one call from the shared free-tier pool. At that
- * point the pool is mostly funding a status light. The answer is also the same for all
- * users — it describes the gateway, not the caller — so one probe per instance per minute
- * is all the information there is to have.
- *
- * A failure is cached far more briefly than a success: when the gateway is down the
- * useful behaviour is to notice it coming back quickly, and a failed probe costs nothing
- * on the provider side anyway.
+ * `not_configured` means no call was made because none could have worked - a missing or
+ * unreachable-by-construction setting. `unreachable` means the gateway was actually asked
+ * and did not answer usefully. Keeping them apart matters: the first is fixed by editing
+ * an environment variable, the second by waiting or by looking upstream, and a UI that
+ * says "try again" for the first sends the reader in a circle forever.
  */
-let healthCache: { at: number; result: AiHealthResult } | null = null;
-let healthInFlight: Promise<AiHealthResult> | null = null;
-const HEALTH_TTL_OK_MS = 60_000;
-const HEALTH_TTL_BAD_MS = 10_000;
+export type AiUnavailableReason = 'not_configured' | 'unreachable';
 
-export async function aiHealth(): Promise<AiHealthResult> {
-  const now = Date.now();
-  if (healthCache) {
-    const ttl = healthCache.result.ok ? HEALTH_TTL_OK_MS : HEALTH_TTL_BAD_MS;
-    if (now - healthCache.at < ttl) return healthCache.result;
+export type AiHealthResult = {
+  ok: boolean;
+  model?: string;
+  error?: string;
+  source?: AiCredSource;
+  reason?: AiUnavailableReason;
+  /** One sentence naming what would fix it. Safe to render verbatim - never contains a key. */
+  hint?: string;
+};
+
+/**
+ * Can this credential set work at all, before a call is spent finding out?
+ *
+ * Two conditions are configuration rather than outage, and both produce a connect-time
+ * error whose text ("fetch failed") reads like an upstream problem. That mis-diagnosis is
+ * what kept the production breakage invisible: the deployed default base URL is
+ * `http://localhost:3001/v1`, which a serverless function can never reach, and every AI
+ * affordance simply vanished rather than saying so.
+ *
+ * `serverless` is a parameter rather than a direct read of IS_SERVERLESS so the rule can be
+ * tested both ways: a loopback gateway is the intended setup for local and self-hosted runs
+ * and a guaranteed failure on a platform host.
+ */
+export function credentialProblem(
+  creds: AiCreds,
+  source: AiCredSource,
+  serverless: boolean = IS_SERVERLESS,
+): { reason: AiUnavailableReason; error: string; hint: string } | null {
+  if (!creds.apiKey) {
+    return {
+      reason: 'not_configured',
+      error: 'This deployment has no AI gateway key configured.',
+      hint: 'The operator needs to set FOLIO_AI_KEY. You can use AI straight away by adding your own API key and endpoint in AI settings.',
+    };
   }
 
-  // De-duplicate concurrent probes. A cold instance can take several simultaneous requests
-  // before the first result lands, and without this each one starts its own completion.
-  healthInFlight ??= (async (): Promise<AiHealthResult> => {
-    try {
-      const { model } = await chat([{ role: 'user', content: 'Reply with exactly: OK' }], { maxTokens: 5, temperature: 0 });
-      return { ok: true, model };
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) };
-    }
-  })().then((result) => {
-    healthCache = { at: Date.now(), result };
-    healthInFlight = null;
-    return result;
-  });
+  // checkUserSuppliedUrl is the same public-address rule applied to a user's saved
+  // endpoint. Reused here rather than duplicated: "an address only this machine can reach"
+  // is exactly the question, and it already handles loopback, private ranges, link-local
+  // and .local/.internal names.
+  if (serverless && !checkUserSuppliedUrl(creds.baseUrl).ok) {
+    const operatorDefault = creds.baseUrl === config.ai.baseUrl;
+    return {
+      reason: 'not_configured',
+      error: `The AI gateway address (${creds.baseUrl}) cannot be reached from this deployment.`,
+      hint:
+        source === 'own-key' && operatorDefault
+          ? 'Your key has no endpoint saved, so it falls back to this deployment gateway address, which is not reachable. Add a Custom endpoint in AI settings.'
+          : source === 'own-key'
+            ? 'The Custom endpoint saved in AI settings must be a public address.'
+            : 'The operator needs to point FOLIO_AI_BASE_URL at a publicly reachable gateway. You can use AI straight away by adding your own API key and endpoint in AI settings.',
+    };
+  }
 
-  return healthInFlight;
+  return null;
+}
+
+/**
+ * Cached health, keyed by the credential it describes.
+ *
+ * The probe is a real completion and the client probes on first paint, so without a cache
+ * every page load anyone makes spends one call. The cache used to be a single slot, which
+ * was correct only while the answer was the same for everyone. It is not: a user on their
+ * own key is asking about their own endpoint, and a shared slot would both hand them the
+ * operator's verdict and leak theirs to the next caller. The fingerprint below is the
+ * credential, so two users on the same credential still share one probe.
+ *
+ * A failure is cached far more briefly than a success: when a gateway is down the useful
+ * behaviour is to notice it coming back quickly, and a failed probe costs nothing upstream.
+ */
+const HEALTH_TTL_OK_MS = 60_000;
+const HEALTH_TTL_BAD_MS = 10_000;
+/** Bounded so a stream of one-off user endpoints cannot grow the map without limit. */
+const HEALTH_CACHE_MAX = 500;
+/**
+ * Shorter than a real completion's budget. A probe is one five-token reply, and the client
+ * blocks its AI controls on the answer - waiting the full 90s per model to learn that a
+ * gateway is dead is the same as no answer at all.
+ */
+const HEALTH_TIMEOUT_MS = Number(process.env.FOLIO_AI_HEALTH_TIMEOUT_MS ?? 20_000);
+
+const healthCache = new Map<string, { at: number; result: AiHealthResult }>();
+const healthInFlight = new Map<string, Promise<AiHealthResult>>();
+
+/** Hashed, not stored raw: this key lives in a long-lived map and includes an API key. */
+function credsFingerprint(creds: AiCreds): string {
+  return crypto
+    .createHash('sha256')
+    .update([creds.baseUrl, creds.apiKey, creds.textModels.join(',')].join('\u0000'))
+    .digest('base64url');
+}
+
+/**
+ * Forget the cached verdict for one credential.
+ *
+ * Called when a user changes or removes their key, so the app does not keep reporting a
+ * verdict about a credential that no longer exists. Scoped to the one entry rather than
+ * clearing the map, so one person editing their settings does not make every other user on
+ * the instance re-probe (which, for the shared pool, costs a real call).
+ */
+export function forgetAiHealth(creds: AiCreds): void {
+  const key = credsFingerprint(creds);
+  healthCache.delete(key);
+  healthInFlight.delete(key);
+}
+
+/** Drop every cached verdict. Test helper. */
+export function _resetAiHealthCache(): void {
+  healthCache.clear();
+  healthInFlight.clear();
+}
+
+/**
+ * Is AI available for THIS credential?
+ *
+ * Defaults to the shared pool so existing callers are unchanged, but the caller that
+ * matters passes the requesting user's own credential. Answering only for the shared pool
+ * is the bug this signature exists to make impossible: a user with a working personal key
+ * was told AI was offline because the operator's gateway was unreachable, and every AI
+ * control in the app hid itself on that answer.
+ */
+export async function aiHealth(
+  creds: AiCreds = sharedPoolCreds(),
+  source: AiCredSource = 'shared-pool',
+  opts: { force?: boolean } = {},
+): Promise<AiHealthResult> {
+  const problem = credentialProblem(creds, source);
+  if (problem) return { ok: false, source, ...problem };
+
+  const key = credsFingerprint(creds);
+
+  if (!opts.force) {
+    const hit = healthCache.get(key);
+    if (hit && Date.now() - hit.at < (hit.result.ok ? HEALTH_TTL_OK_MS : HEALTH_TTL_BAD_MS)) {
+      return hit.result;
+    }
+    // De-duplicate concurrent probes. A cold instance can take several simultaneous
+    // requests before the first result lands, and without this each starts its own call.
+    const running = healthInFlight.get(key);
+    if (running) return running;
+  }
+
+  const run = (async (): Promise<AiHealthResult> => {
+    try {
+      const { model } = await chat([{ role: 'user', content: 'Reply with exactly: OK' }], {
+        maxTokens: 5,
+        temperature: 0,
+        creds,
+        timeoutMs: HEALTH_TIMEOUT_MS,
+        retryOnRateLimit: false,
+      });
+      return { ok: true, model, source };
+    } catch (e) {
+      return {
+        ok: false,
+        source,
+        reason: 'unreachable',
+        error: e instanceof Error ? e.message : String(e),
+        hint:
+          source === 'own-key'
+            ? 'Check the API key, Custom endpoint and Models saved in AI settings - the endpoint answered with an error or not at all.'
+            : 'The shared AI gateway is not answering. Add your own API key in AI settings to keep using AI in the meantime.',
+      };
+    }
+  })().then(
+    (result) => {
+      if (healthCache.size >= HEALTH_CACHE_MAX) healthCache.clear();
+      healthCache.set(key, { at: Date.now(), result });
+      healthInFlight.delete(key);
+      return result;
+    },
+    (err: unknown) => {
+      healthInFlight.delete(key);
+      throw err;
+    },
+  );
+
+  healthInFlight.set(key, run);
+  return run;
 }

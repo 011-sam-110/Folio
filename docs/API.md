@@ -61,6 +61,10 @@ Size guard: note content sent to the model is capped at ~24k chars (8k for /titl
 - `POST /api/ai/clean` `{ noteId }` → `{ markdown, model }`. FORMATTING-ONLY beautification: structure (headings/lists/tables/code fences), punctuation, capitalisation and obvious typos improve; the student's wording is preserved (no paraphrasing, no added/dropped content). Client previews + applies; the server never writes the note.
 - `POST /api/ai/gaps` `{ noteId }` → `{ markdown, model, sources: [{ name, kind }] }`. Study-assistant gap analysis. Compares the note against its own attachments' extracted text (transcripts/slides/photos, capped 8k chars each) plus standard topic coverage, and returns advisory markdown ("Missing from your notes" / "Worth double-checking" / "Next steps"). NEVER rewrites the note; the client's Assistant panel renders it, and any insertion into the note is an explicit user action.
 - Prompts live in `ai/prompts.ts`, exported as functions.
+- `GET /api/ai/usage` → `{ usingOwnKey, keyHint, baseUrl, models, user, ip, resetAt }`.
+- `PUT /api/ai/key` `{ apiKey, baseUrl?, models? }` → `{ present, hint, baseUrl, models, health }`. `models` is a comma-separated string or an array (max 6). The response's `health` is a LIVE probe of the credential just saved, so the settings dialog can say whether it actually works rather than only that it was stored.
+- `DELETE /api/ai/key` → same shape with `present: false` and `health` describing the shared pool the user has returned to.
+- BYOK contract: a bare key inherits this deployment's `FOLIO_AI_BASE_URL` **and** its model chain. A key from a different provider needs `baseUrl` and `models` too - the operator's chain (`gemini-2.5-flash`, ...) 404s at `api.openai.com`. See docs/AI-DEPLOYMENT.md.
 - CLIENT AI KILL-SWITCH: the web app has a user toggle (sidebar footer) that removes every AI affordance (AI menu, selection AI, Assistant, Ask AI, flashcard generation). It is a client-side preference (`localStorage folio:aiEnabled`); the endpoints above remain available.
 
 ## Import (routes/imports.ts; multer; 25MB limit; async jobs)
@@ -110,12 +114,14 @@ Size guard: note content sent to the model is capped at ~24k chars (8k for /titl
 
 ## Dashboard v2 (iteration 2, routes/dashboard.ts)
 `GET /api/dashboard` response adds:
-- `weekGrid`: 7 entries Mon–Sun of the CURRENT week `{ date, dayLabel ('Mon'..), total, byNotebook: [{ id, emoji, color, count }] }` (activity = notes created/updated + versions that local-tz day).
+- `weekGrid`: 7 entries Mon-Sun of the CURRENT week `{ date, dayLabel ('Mon'..), total, byNotebook: [{ id, emoji, color, count }] }` (activity = notes created/updated + versions that local-tz day).
 - `weeklyReview`: `{ notesEditedThisWeek, flashcardsDue, notesWithoutSummary (no h2 'Summary'/callout and >200 words), unresolvedComments, suggestions: string[] (max 4 short actionable lines derived from the numbers) }`.
 - `recall`: per non-archived notebook `{ notebook: NotebookLite, lastNote: NoteLite|null, daysSince, quiz: { cardId, question, answer } | null }` (quiz = oldest-due or random card from that notebook's notes), ordered by daysSince desc, max 6.
 
-## Meta (routes/meta.ts, DONE: do not touch)
-- `GET /api/meta`, `GET /api/meta/ai-health`, `GET /api/meta/qr`
+## Meta (routes/meta.ts)
+- `GET /api/meta` → includes `ai.configured` (means "could actually work", not "a key string exists") and `ai.problem`.
+- `GET /api/meta/ai-health` → `{ ok, model?, error?, source: 'shared-pool'|'own-key', reason?: 'not_configured'|'unreachable', hint? }`. **Per user**: probes the caller's own saved key when they have one, so bringing a working key enables AI even while the operator's shared gateway is down. Every AI affordance in the web client is gated on this (`web/src/lib/aiStatus.ts`).
+- `GET /api/meta/qr`
 
 ## Seed (src/seed.ts, `npm run seed -w server`)
 Idempotent-ish (safe to rerun: wipes and recreates seed data only when DB empty OR `--force`).

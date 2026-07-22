@@ -555,6 +555,51 @@
 }
 
 /* AI settings dialog: allowance readout and personal-key form. */
+/* The live AI verdict, first thing in the dialog. Both states are shown, not just the
+   bad one: after saving a key the confirmation is the whole point, and before the fix a
+   completely dead AI setup rendered as a perfectly calm screen. */
+.ai-settings__verdict {
+  display: block;
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  font-size: var(--fs-chrome);
+  line-height: 1.5;
+  border: 1px solid transparent;
+}
+
+.ai-settings__verdict--ok {
+  background: var(--ok-soft);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.ai-settings__verdict--bad {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+/* The transport detail sits under the headline rather than replacing it: "fetch failed"
+   is what a developer needs and never what a student needs to read first. */
+.ai-settings__verdict-detail {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-2);
+}
+
+.ai-settings__replace {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.ai-settings__replace > summary {
+  cursor: pointer;
+  font-size: var(--fs-chrome);
+  color: var(--ink-2);
+}
+
 .ai-settings__status {
   margin: 0 0 10px;
   font-size: var(--fs-chrome);

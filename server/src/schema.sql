@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL DEFAULT '',
-  -- scrypt(password, salt) — salt is per-user and random; see server/src/auth/password.ts
+  -- scrypt(password, salt) - salt is per-user and random; see server/src/auth/password.ts
   password_hash TEXT NOT NULL,
   password_salt TEXT NOT NULL,
   -- One-time recovery key, hashed exactly like a password. The app sends no email,
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
--- Social (OAuth) identities linked to a local account. One user may have several — one
+-- Social (OAuth) identities linked to a local account. One user may have several - one
 -- per provider they have signed in with. The account itself is still a `users` row; an
 -- OAuth-only account simply has a password nobody holds (see routes/oauth.ts).
 --
@@ -344,6 +344,12 @@ CREATE TABLE IF NOT EXISTS ai_keys (
   created_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
 );
 
+-- Comma-separated model names to try, in order, for this user's key. Only meaningful
+-- alongside base_url: a key at a different provider is called with that provider's model
+-- names, and the operator's chain (gemini-*/llama-*) is a 404 there every time. NULL keeps
+-- the operator's chain, which is right for a key belonging to the same gateway.
+ALTER TABLE ai_keys ADD COLUMN IF NOT EXISTS models TEXT;
+
 -- ---------------------------------------------------------------------------
 -- Import old notes: bulk staging.
 --
@@ -351,7 +357,7 @@ CREATE TABLE IF NOT EXISTS ai_keys (
 -- calls the AI gateway. The bulk "Import old notes" wizard is different: it stages a
 -- whole pile of documents/photos, auto-sorts them into notebooks + tags with a
 -- zero-AI heuristic, and lets the student review and correct the sort BEFORE anything
--- is written into a real notebook. Staging is the whole point — content lives here,
+-- is written into a real notebook. Staging is the whole point - content lives here,
 -- not in `notes`, until the user commits, so discarding a batch touches no notebook.
 --
 -- `attachments` and `import_jobs` are reused as-is. These two tables are the only new
@@ -386,7 +392,7 @@ CREATE TABLE IF NOT EXISTS import_items (
 
   -- Raw extracted markdown/text. The note body is built from this at COMMIT time (via
   -- markdownToTipTap with a fresh wikilink resolver), rather than storing a frozen
-  -- content_json at stage time — so wikilinks resolve against the user's notes as they
+  -- content_json at stage time - so wikilinks resolve against the user's notes as they
   -- exist at commit, and a re-run cannot leave a stale document behind.
   source_text TEXT NOT NULL DEFAULT '',
   content_text TEXT NOT NULL DEFAULT '',  -- plain-text mirror; feeds the categoriser + review preview
@@ -413,3 +419,36 @@ CREATE TABLE IF NOT EXISTS import_items (
   created_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
 );
 CREATE INDEX IF NOT EXISTS idx_import_items_batch ON import_items(batch_id, created_at);
+
+-- ---------------------------------------------------------------------------
+-- Phone capture pairing
+--
+-- Scanning the QR on the desktop opens /capture on a phone that has NEVER signed
+-- in, so it carries no session cookie. The QR therefore has to hand the phone a
+-- credential, and the one it hands over must not be the account.
+--
+-- A pairing row is a one-shot bearer token: minted by an authenticated desktop
+-- session, embedded in the QR, and exchanged exactly once for a CAPTURE-SCOPED
+-- session (see sessions.scope below). Stored hashed, like note_shares.token_hash,
+-- so a database leak yields no usable codes.
+--
+-- consumed_at rather than DELETE: the row is the record that a code was already
+-- spent, which is what makes a second scan of a photographed QR fail closed.
+CREATE TABLE IF NOT EXISTS capture_pairings (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,                  -- set on redemption; a second attempt finds it non-null
+  created_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+);
+CREATE INDEX IF NOT EXISTS idx_capture_pairings_user ON capture_pairings(user_id);
+CREATE INDEX IF NOT EXISTS idx_capture_pairings_expiry ON capture_pairings(expires_at);
+
+-- What a session is allowed to do. 'full' is a normal sign-in and is the default,
+-- so every existing row keeps exactly the authority it had. 'capture' is the paired
+-- phone: same user_id, but auth/middleware.ts admits it to a small allowlist of
+-- routes (list notebooks, start an import, poll that import) and refuses everything
+-- else - so a scanned code cannot read notes, change the password, or spend AI quota
+-- beyond the import it was scanned for.
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'full';

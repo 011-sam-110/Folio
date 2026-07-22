@@ -7,7 +7,7 @@ import { config } from '../config.js';
  *
  * Saving one takes the user off the shared free-tier pool: their calls authenticate with
  * their credential and skip the monthly quota entirely. That is the escape hatch for the
- * two cases the pool cannot serve — someone who needs more than the monthly allowance, and
+ * two cases the pool cannot serve - someone who needs more than the monthly allowance, and
  * someone behind a campus NAT whose shared IP ceiling is already spent.
  *
  * Encrypted, not hashed. A password only ever needs to be compared, so a one-way digest is
@@ -34,6 +34,13 @@ function derivedKey(): Buffer {
 export interface StoredKey {
   apiKey: string;
   baseUrl: string | null;
+  /** Model names to try in order at that endpoint. Empty means "use the operator's chain". */
+  models: string[];
+}
+
+/** Stored as one comma-separated column; the app only ever wants the list. */
+function splitModels(raw: string | null | undefined): string[] {
+  return (raw ?? '').split(',').map(s => s.trim()).filter(Boolean);
 }
 
 function encrypt(plaintext: string): { ciphertext: string; iv: string; authTag: string } {
@@ -63,20 +70,27 @@ export function hintFor(apiKey: string): string {
   return apiKey.length <= 4 ? '****' : apiKey.slice(-4);
 }
 
-export async function setUserKey(uid: string, apiKey: string, baseUrl?: string | null): Promise<void> {
+export async function setUserKey(
+  uid: string,
+  apiKey: string,
+  baseUrl?: string | null,
+  models?: string[] | null,
+): Promise<void> {
   const { ciphertext, iv, authTag } = encrypt(apiKey);
+  const modelList = (models ?? []).map(m => m.trim()).filter(Boolean);
   await db
     .prepare(
-      `INSERT INTO ai_keys (user_id, base_url, ciphertext, iv, auth_tag, hint)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO ai_keys (user_id, base_url, models, ciphertext, iv, auth_tag, hint)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (user_id) DO UPDATE
          SET base_url = EXCLUDED.base_url,
+             models = EXCLUDED.models,
              ciphertext = EXCLUDED.ciphertext,
              iv = EXCLUDED.iv,
              auth_tag = EXCLUDED.auth_tag,
              hint = EXCLUDED.hint`,
     )
-    .run(uid, baseUrl ?? null, ciphertext, iv, authTag, hintFor(apiKey));
+    .run(uid, baseUrl ?? null, modelList.length ? modelList.join(',') : null, ciphertext, iv, authTag, hintFor(apiKey));
 }
 
 export async function deleteUserKey(uid: string): Promise<void> {
@@ -93,11 +107,15 @@ export async function deleteUserKey(uid: string): Promise<void> {
  */
 export async function getUserKey(uid: string): Promise<StoredKey | null> {
   const row = await db
-    .prepare('SELECT base_url, ciphertext, iv, auth_tag FROM ai_keys WHERE user_id = ?')
-    .get<{ base_url: string | null; ciphertext: string; iv: string; auth_tag: string }>(uid);
+    .prepare('SELECT base_url, models, ciphertext, iv, auth_tag FROM ai_keys WHERE user_id = ?')
+    .get<{ base_url: string | null; models: string | null; ciphertext: string; iv: string; auth_tag: string }>(uid);
   if (!row) return null;
   try {
-    return { apiKey: decrypt(row.ciphertext, row.iv, row.auth_tag), baseUrl: row.base_url };
+    return {
+      apiKey: decrypt(row.ciphertext, row.iv, row.auth_tag),
+      baseUrl: row.base_url,
+      models: splitModels(row.models),
+    };
   } catch {
     console.error('[ai] stored key for user could not be decrypted; falling back to shared pool');
     return null;
@@ -105,9 +123,16 @@ export async function getUserKey(uid: string): Promise<StoredKey | null> {
 }
 
 /** What the settings UI needs: whether a key exists and its last four characters. */
-export async function getKeyHint(uid: string): Promise<{ present: boolean; hint: string; baseUrl: string | null }> {
+export async function getKeyHint(
+  uid: string,
+): Promise<{ present: boolean; hint: string; baseUrl: string | null; models: string[] }> {
   const row = await db
-    .prepare('SELECT hint, base_url FROM ai_keys WHERE user_id = ?')
-    .get<{ hint: string; base_url: string | null }>(uid);
-  return { present: Boolean(row), hint: row?.hint ?? '', baseUrl: row?.base_url ?? null };
+    .prepare('SELECT hint, base_url, models FROM ai_keys WHERE user_id = ?')
+    .get<{ hint: string; base_url: string | null; models: string | null }>(uid);
+  return {
+    present: Boolean(row),
+    hint: row?.hint ?? '',
+    baseUrl: row?.base_url ?? null,
+    models: splitModels(row?.models),
+  };
 }

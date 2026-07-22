@@ -1,17 +1,18 @@
-// web-shell — app sidebar: wordmark, search trigger, nav, notebook list with
+// web-shell - app sidebar: wordmark, search trigger, nav, notebook list with
 // inline rename/emoji/color/archive/delete, new-notebook form, footer
 // (theme toggle, phone capture, AI status).
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import HashGlyph from './HashGlyph';
 import { api } from '../lib/api';
-import type { Notebook } from '../lib/types';
+import type { Notebook, QrCode } from '../lib/types';
 import { errorMessage } from '../lib/format';
 import { useNotebooks } from './NotebooksContext';
 import { toast } from './Toast';
 import { useTheme } from '../lib/theme';
 import { useAiEnabled } from '../lib/aiPrefs';
-import { useAiHealth } from '../lib/aiStatus';
+import { aiUnavailableMessage, useAiHealth } from '../lib/aiStatus';
+import { openAiSettings } from '../features/auth/aiSettingsBus';
 import Icon from './Icon';
 import Tooltip from './Tooltip';
 import EmojiPicker from './EmojiPicker';
@@ -41,10 +42,10 @@ export interface SidebarProps {
   onCloseMobile: () => void;
   onOpenSearch: () => void;
   onNewNote: () => void;
-  /** Creates a note with kind='canvas' — an infinite board rather than a document. */
+  /** Creates a note with kind='canvas' - an infinite board rather than a document. */
   onNewCanvas: () => void;
   currentNotebookId?: string;
-  /** Phone-capture QR modal — state lives in App.tsx so the command
+  /** Phone-capture QR modal - state lives in App.tsx so the command
    *  palette's "Open phone capture QR" command can trigger the same modal. */
   qrOpen: boolean;
   onOpenQr: () => void;
@@ -85,6 +86,7 @@ export default function Sidebar({
   // Shared probe (lib/aiStatus) rather than a local one, so the status dot here and
   // the gating of every AI affordance elsewhere always agree and cost one request.
   const aiHealth = useAiHealth();
+  const aiUnavailable = aiUnavailableMessage(aiHealth);
 
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const newNameRef = useRef<HTMLInputElement | null>(null);
@@ -289,7 +291,7 @@ export default function Sidebar({
                   ref={renameInputRef}
                   className="notebook-row__rename-input"
                   // No label, no placeholder, and the only adjacent context is an
-                  // aria-hidden emoji — this field was entirely unnamed.
+                  // aria-hidden emoji - this field was entirely unnamed.
                   aria-label={`Rename notebook ${nb.name}`}
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
@@ -413,25 +415,50 @@ export default function Sidebar({
           </button>
         </Tooltip>
         {aiOn && (
-          <Tooltip
-            content={
-              aiHealth.status === 'ok'
-                ? `AI online${aiHealth.model ? ` · ${aiHealth.model}` : ''}`
+          <>
+            {/* Always mounted, so a CHANGE of state is announced rather than only rendered.
+                The dot conveyed AI reachability by colour alone (WCAG 1.4.1) and the only
+                description lived in a Tooltip; this is the text half of that fix, and it
+                has to exist before the state changes for a live region to fire at all. */}
+            <span className="folio-visually-hidden" role="status">
+              {aiHealth.status === 'ok'
+                ? 'AI online'
                 : aiHealth.status === 'bad'
-                  ? `AI offline${aiHealth.error ? ` · ${aiHealth.error}` : ''}`
-                  : 'Checking AI status…'
-            }
-          >
-            {/* The dot conveyed AI reachability by colour alone (WCAG 1.4.1) and the
-                only description lived in a Tooltip. role="status" + text makes the
-                state audible and announces it when it changes. */}
-            <span className="sidebar__ai-status" role="status">
-              <span className={`sidebar__ai-dot ${aiHealth.status}`} aria-hidden="true" />
-              <span className="folio-visually-hidden">
-                {aiHealth.status === 'ok' ? 'AI online' : aiHealth.status === 'bad' ? 'AI offline' : 'Checking AI status'}
-              </span>
+                  ? `AI unavailable. ${aiUnavailable?.title ?? ''}`
+                  : 'Checking AI status'}
             </span>
-          </Tooltip>
+
+            {/* When AI is unavailable every AI control in the app removes itself. That was
+                silent: nothing on screen said the features were gone, let alone why, so a
+                deployment with an unreachable gateway looked like an app that had simply
+                never had AI. This is what is left behind - visible, labelled, and a route
+                to the settings dialog that can actually fix it. */}
+            {aiHealth.status === 'bad' ? (
+              <Tooltip content={aiUnavailable ? `${aiUnavailable.title}. ${aiUnavailable.detail}` : 'AI unavailable'}>
+                <button
+                  type="button"
+                  className="sidebar__ai-alert"
+                  data-testid="ai-unavailable"
+                  onClick={() => openAiSettings()}
+                >
+                  <span className="sidebar__ai-dot bad" aria-hidden="true" />
+                  AI unavailable
+                </button>
+              </Tooltip>
+            ) : (
+              <Tooltip
+                content={
+                  aiHealth.status === 'ok'
+                    ? `AI online${aiHealth.model ? ` · ${aiHealth.model}` : ''}`
+                    : 'Checking AI status…'
+                }
+              >
+                <span className="sidebar__ai-status">
+                  <span className={`sidebar__ai-dot ${aiHealth.status}`} aria-hidden="true" />
+                </span>
+              </Tooltip>
+            )}
+          </>
         )}
       </div>
 
@@ -457,21 +484,69 @@ export default function Sidebar({
   );
 }
 
+/**
+ * The QR a phone scans to start capturing.
+ *
+ * The code inside it is single-use and expires in minutes (auth/pairing.ts), so this is a
+ * live thing rather than a static image: it is minted when the modal opens, counts itself
+ * down, and offers a fresh one when it lapses. A modal left open on a second monitor
+ * showing a dead QR is the failure this avoids.
+ *
+ * It also no longer appends '/capture' to what the server returned. That mismatch - the QR
+ * encoding the bare origin while this line displayed the origin PLUS the path - meant the
+ * displayed URL and the scanned URL were different, and only the displayed one was right.
+ */
 function PhoneCaptureModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [data, setData] = useState<{ url: string; dataUrl: string } | null>(null);
+  const [data, setData] = useState<QrCode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [expired, setExpired] = useState(false);
+  const [nonce, setNonce] = useState(0);
+  const [lan, setLan] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
+    setExpired(false);
     api
-      .qr()
-      .then((res) => setData({ url: res.url, dataUrl: res.dataUrl }))
-      .catch((e) => setError(errorMessage(e, "Couldn't generate a QR code")))
-      .finally(() => setLoading(false));
+      .qr(lan ?? undefined)
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(errorMessage(e, "Couldn't generate a QR code"));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, nonce, lan]);
+
+  // Nothing is minted while the modal is shut, and a stale code must not be shown the next
+  // time it opens.
+  useEffect(() => {
+    if (!open) {
+      setData(null);
+      setExpired(false);
+    }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !data) return;
+    const remaining = new Date(data.expiresAt).getTime() - Date.now();
+    if (remaining <= 0) {
+      setExpired(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setExpired(true), remaining);
+    return () => window.clearTimeout(timer);
+  }, [open, data]);
+
+  const others = (data?.lanAddresses ?? []).filter((a) => !data?.base.includes(a));
 
   return (
     <Modal open={open} onClose={onClose} title="Phone capture" width={360}>
@@ -482,24 +557,77 @@ function PhoneCaptureModal({ open, onClose }: { open: boolean; onClose: () => vo
           </div>
         )}
         {!loading && error && (
-          <div style={{ padding: '16px 0', fontSize: 13, color: 'var(--ink-2)' }}>{error}</div>
+          <div style={{ padding: '16px 0', fontSize: 13, color: 'var(--ink-2)' }} role="alert">{error}</div>
         )}
         {!loading && data && (
           <>
-            <img
-              src={data.dataUrl}
-              alt={`QR code linking to ${data.url}`}
-              width={220}
-              height={220}
-              style={{ margin: '0 auto', borderRadius: 8, border: '1px solid var(--line)' }}
-            />
+            <div style={{ position: 'relative', width: 220, margin: '0 auto' }}>
+              <img
+                src={data.dataUrl}
+                alt={`QR code linking to ${data.base}/capture`}
+                width={220}
+                height={220}
+                style={{
+                  display: 'block',
+                  borderRadius: 8,
+                  border: '1px solid var(--line)',
+                  filter: expired ? 'blur(4px)' : undefined,
+                  opacity: expired ? 0.4 : 1,
+                }}
+              />
+              {expired && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                >
+                  <button type="button" className="im-btn im-btn--primary" onClick={() => setNonce((n) => n + 1)}>
+                    New code
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* The pairing code itself is deliberately NOT printed. It is a credential, and
+                a URL on screen is the one part of this a bystander can copy by hand. */}
             <div style={{ marginTop: 12, fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', wordBreak: 'break-all' }}>
-              {data.url}/capture
+              {data.base}/capture
             </div>
+
             <div style={{ marginTop: 10, fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5 }}>
-              Scan with your phone's camera on the same Wi-Fi. If it can't connect, check that Mullvad
-              (or any VPN) is off. VPNs block traffic to your LAN.
+              {expired ? (
+                <>This code has expired. Tap “New code” to get another.</>
+              ) : (
+                <>
+                  Scan with your phone's camera. The code works once and expires in{' '}
+                  {Math.round((data.ttlMs ?? 0) / 60_000)} minutes — it lets that phone add notes,
+                  not read the ones you already have.
+                </>
+              )}
             </div>
+
+            {others.length > 0 && (
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.6 }}>
+                Phone can't connect? This computer also answers on{' '}
+                {others.map((addr, i) => (
+                  <span key={addr}>
+                    {i > 0 && ', '}
+                    <button
+                      type="button"
+                      className="im-link-btn"
+                      onClick={() => setLan(addr)}
+                      style={{ fontFamily: 'var(--font-mono)' }}
+                    >
+                      {addr}
+                    </button>
+                  </span>
+                ))}
+                . Check any VPN is off — most block traffic to your own network.
+              </div>
+            )}
           </>
         )}
       </div>

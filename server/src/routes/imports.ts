@@ -19,7 +19,7 @@ import * as bulk from '../lib/importBatch.js';
 const router = Router();
 
 // Auth is mounted once, in app.ts (`app.use('/api/import', requireAuth, ...)`), so this
-// router does not add its own guard — one layer means one place to audit and one session
+// router does not add its own guard - one layer means one place to audit and one session
 // lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
 // failure mode is a loud 500, never an unscoped query.
 
@@ -27,7 +27,7 @@ const router = Router();
  * Upload ceiling.
  *
  * Vercel rejects a request whose body exceeds ~4.5MB before it ever reaches this handler,
- * so advertising the old 25MB in production was a promise the platform overrules — the
+ * so advertising the old 25MB in production was a promise the platform overrules - the
  * user got an opaque platform error instead of our message. Cap below that ourselves and
  * multipart framing overhead still fits, so anything we accept genuinely uploads.
  *
@@ -65,7 +65,7 @@ function fileFilter(_req: Request, file: Express.Multer.File, cb: multer.FileFil
 
 // Uploads are held in memory and persisted into attachments.bytes; nothing touches the
 // local filesystem. diskStorage used to write into data/uploads/, which is read-only on
-// a serverless host — every import in production died with EROFS. Memory storage is the
+// a serverless host - every import in production died with EROFS. Memory storage is the
 // one path that behaves identically in both places.
 //
 // Bounded by MAX_SIZE above, so "in memory" is at most a few MB per in-flight request.
@@ -99,7 +99,7 @@ type ImportMode = 'new' | 'append' | 'improve';
 const KINDS: ImportKind[] = ['photo', 'slides', 'transcript'];
 const MODES: ImportMode[] = ['new', 'append', 'improve'];
 
-// PPTX/DOCX are handled by officeparser (see lib/extract.ts) — the slides/transcript
+// PPTX/DOCX are handled by officeparser (see lib/extract.ts) - the slides/transcript
 // kinds accept them too, matching the client's advertised accept lists (import/kinds.ts).
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -161,7 +161,7 @@ async function resolveTitle(ctx: AiContext, markdown: string, contentText: strin
     const cleaned = cleanTitle(text);
     if (cleaned) return cleaned;
   } catch {
-    // AI title generation failing shouldn't fail the whole import — fall back below.
+    // AI title generation failing shouldn't fail the whole import - fall back below.
   }
   return firstHeading(markdown) || titleFromFilename(originalName);
 }
@@ -192,7 +192,7 @@ export async function appendMarkdownToNote(noteId: string, markdown: string, uid
   const appendText = markdownToPlainText(markdown);
   const mergedText = await tx(async (t) => {
     // FOR UPDATE is what makes the re-read meaningful under Postgres: at READ COMMITTED a plain
-    // SELECT takes no lock, so another writer could commit between this read and the UPDATE —
+    // SELECT takes no lock, so another writer could commit between this read and the UPDATE -
     // exactly the clobber this transaction exists to prevent.
     // `user_id = ?` is the ownership check: noteId arrives from the request, so without it any
     // signed-in user could append into someone else's note.
@@ -220,7 +220,7 @@ export async function appendMarkdownToNote(noteId: string, markdown: string, uid
 }
 
 async function mergeMarkdownIntoNote(ctx: AiContext, noteId: string, markdown: string, uid: string): Promise<string> {
-  // Read a snapshot for the AI prompt (this is the only async step — it happens BEFORE the
+  // Read a snapshot for the AI prompt (this is the only async step - it happens BEFORE the
   // write transaction re-reads, so the transaction can detect a concurrent change).
   const snapshot = await db
     .prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?')
@@ -231,14 +231,14 @@ async function mergeMarkdownIntoNote(ctx: AiContext, noteId: string, markdown: s
     `EXISTING NOTES:\n\n${snapshot.content_text || '(empty)'}\n\n---\n\nNEW MATERIAL TO INTEGRATE:\n\n${markdown}`,
   );
   const instruction =
-    'Merge the NEW MATERIAL into the EXISTING NOTES into one coherent, deduplicated set of notes. Preserve every fact from both — do not drop anything. ' +
+    'Merge the NEW MATERIAL into the EXISTING NOTES into one coherent, deduplicated set of notes. Preserve every fact from both - do not drop anything. ' +
     'Where they overlap, keep the clearer/more complete version. Add new sections for genuinely new topics. Keep the existing structure where it still fits.';
   const { text } = await complete(ctx, improvePrompt(combined, instruction));
   const mergedMarkdown = text.trim();
 
   // Both branches below convert markdown to TipTap, and the resolver has to be built before the
   // transaction opens (its lookups are async and belong on the pool, not the transaction's
-  // connection) — so resolve the titles of both candidate bodies in one pass.
+  // connection) - so resolve the titles of both candidate bodies in one pass.
   const resolve = await createTitleResolver(uid, `${mergedMarkdown}\n${markdown}`);
 
   const mergedText = await tx(async (t) => {
@@ -263,7 +263,7 @@ async function mergeMarkdownIntoNote(ctx: AiContext, noteId: string, markdown: s
       merged = markdownToPlainText(mergedMarkdown);
       mergedJsonStr = JSON.stringify(markdownToTipTap(mergedMarkdown, resolve));
     } else {
-      // The note changed during the AI call — the blended result is stale. Degrade to a
+      // The note changed during the AI call - the blended result is stale. Degrade to a
       // non-destructive append of the extracted material so nothing the other writer added
       // is lost (better a slightly-less-tidy merge than silent data loss).
       const existingJson = JSON.parse(fresh.content_json) as { type: 'doc'; content?: unknown[] };
@@ -288,7 +288,7 @@ async function mergeMarkdownIntoNote(ctx: AiContext, noteId: string, markdown: s
 
 /**
  * Only .pptx carries an unpackable media folder, so it is the only format the figure pass
- * runs against. A PDF import skips it entirely rather than trying and reporting nothing —
+ * runs against. A PDF import skips it entirely rather than trying and reporting nothing -
  * embedded-image extraction from PDF is a different problem and is not implemented.
  */
 export function isPptx(mime: string, originalName: string): boolean {
@@ -306,7 +306,7 @@ const MAX_FIGURE_TOTAL_BYTES = 24 * 1024 * 1024;
  * Deliberately appended as its own section rather than interleaved with the prose. The
  * slide text is restructured by the model before the note is written, so nothing reliable
  * survives linking a finished paragraph back to the slide a picture sat on. Guessing at
- * placement would drop diagrams beside text they do not illustrate — confidently wrong,
+ * placement would drop diagrams beside text they do not illustrate - confidently wrong,
  * and harder to spot than an honest gallery the reader can match up by slide number.
  */
 export function figuresMarkdown(figures: Array<{ slide: number; url: string }>): string {
@@ -348,13 +348,13 @@ async function storeFigures(
 interface ProcessArgs {
   jobId: string;
   attachmentId: string;
-  /** The upload itself. Held in memory — there is no durable disk on a serverless host. */
+  /** The upload itself. Held in memory - there is no durable disk on a serverless host. */
   bytes: Buffer;
   mime: string;
   originalName: string;
   kind: ImportKind;
   mode: ImportMode;
-  /** Owner of the import — taken from the session, never from the request body. */
+  /** Owner of the import - taken from the session, never from the request body. */
   uid: string;
   /**
    * Whose AI budget this job spends, resolved from the request before it was queued.
@@ -395,7 +395,7 @@ async function processImport(args: ProcessArgs): Promise<void> {
         const { text } = await extractFromUpload(filePath, mime, originalName);
         if (pptx) {
           // A failed figure pass must never take down an import whose text extracted
-          // fine — the pictures are a bonus, the notes are the point.
+          // fine - the pictures are a bonus, the notes are the point.
           try {
             figures = await extractPptxImages(filePath);
           } catch (err) {
@@ -434,7 +434,7 @@ async function processImport(args: ProcessArgs): Promise<void> {
       resultNoteId = await withNoteLock(noteId!, () => mergeMarkdownIntoNote(ctx, noteId!, extractedMarkdown, uid));
     }
 
-    // Figures go in after the note exists, so they can be filed against it — that note_id
+    // Figures go in after the note exists, so they can be filed against it - that note_id
     // is what lets a share-link guest load them. Same non-fatal treatment as extraction:
     // the note is already saved, and losing the gallery is not worth failing the import.
     if (figures.length) {
@@ -465,10 +465,10 @@ async function processImport(args: ProcessArgs): Promise<void> {
   }
 }
 
-// POST /api/import — multipart: file, kind, notebookId?, noteId?, mode?
+// POST /api/import - multipart: file, kind, notebookId?, noteId?, mode?
 //
 // The quota gate runs BEFORE multer deliberately. Every import kind ends in at least one
-// model call, so a caller who is out of allowance is going to be refused either way — and
+// model call, so a caller who is out of allowance is going to be refused either way - and
 // checking first means we answer the 429 without first buffering their upload (up to
 // MAX_SIZE) into this process's memory.
 router.post('/', aiQuotaGate, handleUpload(upload.single('file')), async (req, res) => {
@@ -480,7 +480,7 @@ router.post('/', aiQuotaGate, handleUpload(upload.single('file')), async (req, r
   const notebookId = body.notebookId?.trim() || undefined;
   const noteId = body.noteId?.trim() || undefined;
 
-  // Nothing to unlink any more — a rejected upload is just a buffer that goes out of scope.
+  // Nothing to unlink any more - a rejected upload is just a buffer that goes out of scope.
   const fail = (status: number, error: string) => {
     res.status(status).json({ error });
   };
@@ -523,7 +523,7 @@ router.post('/', aiQuotaGate, handleUpload(upload.single('file')), async (req, r
   const jobId = newId();
   await createJob(jobId, uid, { status: 'queued', attachmentId });
 
-  // Read the context while the request is still alive — the job below runs after the
+  // Read the context while the request is still alive - the job below runs after the
   // response has been sent, and `req` is not something to reach into from there.
   const ctx = aiCtx(req);
 
@@ -545,7 +545,7 @@ router.post('/', aiQuotaGate, handleUpload(upload.single('file')), async (req, r
     }).catch(async err => {
       console.error('[folio] import job crashed', jobId, err);
       // Recording the failure is itself a DB write now, and it must not throw out of
-      // a catch handler — a job stuck at "running" forever is worse than a lost log.
+      // a catch handler - a job stuck at "running" forever is worse than a lost log.
       await updateJob(jobId, {
         status: 'failed',
         error: err instanceof Error ? err.message : 'Import failed',
@@ -561,7 +561,7 @@ router.get('/jobs/:id', async (req, res) => {
   // another user's import progress and the note id it produced.
   const job = await getJob(String(req.params.id), userId(req));
   // Jobs live in memory and carry no user_id, so ownership is checked through the attachment
-  // the job was created for — otherwise any signed-in user could poll a stranger's import and
+  // the job was created for - otherwise any signed-in user could poll a stranger's import and
   // read its resulting noteId and error text. Every job this router creates has an
   // attachmentId; one without is not answerable and is treated as not found.
   if (!job || !job.attachmentId) {
@@ -575,12 +575,24 @@ router.get('/jobs/:id', async (req, res) => {
     res.status(404).json({ error: 'job not found' });
     return;
   }
+
+  // The title of the note this job produced, so a caller that only holds a capture-scoped
+  // session (a QR-paired phone) can show "Note ready: <title>" without being granted read
+  // access to notes. It previously fetched GET /api/notes/:id purely for this string,
+  // which would have meant handing a scanned QR the ability to read note content.
+  // Owner-scoped, and only once the job has actually produced a note.
+  if (job.noteId) {
+    const note = await db
+      .prepare('SELECT title FROM notes WHERE id = ? AND user_id = ?')
+      .get<{ title: string }>(job.noteId, uid);
+    if (note) return res.json({ ...job, noteTitle: note.title });
+  }
   res.json(job);
 });
 
-// POST /api/import/image — plain image upload for embedding in the editor.
+// POST /api/import/image - plain image upload for embedding in the editor.
 //
-// This now writes an attachments row, because the row IS the storage — the returned URL is
+// This now writes an attachments row, because the row IS the storage - the returned URL is
 // only resolvable if the bytes are in the database. The row also carries the owner, which
 // is what /uploads/:name scopes reads against. note_id stays null: the editor uploads
 // before the image is placed, so the note it lands in is not known yet, and reads fall back
@@ -606,7 +618,7 @@ router.post('/image', handleUpload(uploadImage.single('file')), async (req, res)
   res.json({ url: attachmentUrl(storedName) });
 });
 
-// POST /api/import/file — plain binary upload for non-image files embedded in the editor
+// POST /api/import/file - plain binary upload for non-image files embedded in the editor
 // (e.g. 3D models: .glb/.gltf/.stl/.obj). Same storage model as /image (bytes live in the
 // attachments row, served via /uploads/:name), but with no image-mimetype gate and kind='file'.
 // Returns the attachmentId too, so the embedding node can reference the row directly.
@@ -633,7 +645,7 @@ router.post('/file', handleUpload(uploadImage.single('file')), async (req, res) 
 //
 // Staging + client-orchestrated commit for the multi-file import wizard. Deliberately NOT
 // behind aiQuotaGate (unlike POST / above): the default path uses no AI at all, so a student
-// with no allowance — or one importing while the gateway is offline — can still bring their
+// with no allowance - or one importing while the gateway is offline - can still bring their
 // notes in. The categoriser runs client-side; these endpoints stage, persist its suggestions,
 // record the user's review decisions, and commit into real notebooks. All logic lives in
 // lib/importBatch.ts; these handlers are the thin HTTP surface. Auth is the /api/import mount.

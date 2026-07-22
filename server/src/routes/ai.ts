@@ -1,16 +1,16 @@
 import { Router, type Response } from 'express';
 import { db, tx, newId, nowIso } from '../db.js';
 // Auth is mounted once, in app.ts (`app.use('/api/ai', requireAuth, ...)`), so this
-// router does not add its own guard — one layer means one place to audit and one session
+// router does not add its own guard - one layer means one place to audit and one session
 // lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
 // failure mode is a loud 500, never an unscoped query.
 import { userId } from '../auth/middleware.js';
-import { extractJson, AiError, capForAi } from '../ai/client.js';
+import { extractJson, AiError, capForAi, aiHealth, userKeyCreds, sharedPoolCreds, forgetAiHealth } from '../ai/client.js';
 import { aiQuotaGate, aiCtx, complete } from '../ai/gate.js';
 import { checkQuota } from '../ai/usage.js';
 import { clientIp } from '../lib/clientIp.js';
 import { checkUserSuppliedUrl } from '../lib/publicHost.js';
-import { getKeyHint, setUserKey, deleteUserKey } from '../ai/keys.js';
+import { getKeyHint, getUserKey, setUserKey, deleteUserKey } from '../ai/keys.js';
 import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt } from '../ai/prompts.js';
 import type { NoteRow } from '../lib/serialize.js';
 
@@ -30,7 +30,7 @@ function sendAiError(res: Response, e: unknown): void {
  * Ownership is enforced here rather than at each call site: every AI endpoint reaches a
  * note through this helper, so a single missing `user_id` predicate would hand another
  * user's content (and its attachments, via /gaps) straight to the gateway. `uid` must
- * come from `userId(req)` — never from the request body.
+ * come from `userId(req)` - never from the request body.
  *
  * Someone else's note is reported as "not found" rather than "forbidden", so the
  * endpoints never confirm that a guessed id exists.
@@ -51,7 +51,7 @@ async function getNote(noteId: string, uid: string): Promise<NoteRow | undefined
  * operator-ish punctuation, caps the term count, and quotes each token so a term that
  * happens to be `or` or `-foo` is treated as a literal word rather than as an operator.
  *
- * (Duplicated deliberately — routes/search.ts owns the search-as-you-type sanitizer.)
+ * (Duplicated deliberately - routes/search.ts owns the search-as-you-type sanitizer.)
  */
 function sanitizeAskQuery(raw: string): string {
   const tokens = raw
@@ -71,7 +71,7 @@ function sanitizeAskQuery(raw: string): string {
 // save a key that lifts it. Gating these would lock the door and hide the handle.
 // ---------------------------------------------------------------------------
 
-/** GET /api/ai/usage — what the settings screen and the AI menu footer display. */
+/** GET /api/ai/usage - what the settings screen and the AI menu footer display. */
 router.get('/usage', async (req, res) => {
   const uid = userId(req);
   const [verdict, key] = await Promise.all([
@@ -84,16 +84,42 @@ router.get('/usage', async (req, res) => {
     usingOwnKey: key.present,
     keyHint: key.hint,
     baseUrl: key.baseUrl,
+    models: key.models,
     user: verdict.user,
     ip: verdict.ip,
     resetAt: verdict.resetAt,
   });
 });
 
-/** PUT /api/ai/key { apiKey, baseUrl? } — save a personal provider key. */
+/**
+ * Model names for a personal key, as a comma-separated string or an array.
+ *
+ * Bounded on both count and length for the same reason the key is: this is a free-text
+ * field that ends up in a database column and then in a request body sent upstream.
+ */
+const MAX_MODELS = 6;
+function parseModels(raw: unknown): { models: string[] } | { error: string } {
+  if (raw === undefined || raw === null || raw === '') return { models: [] };
+  const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split(',') : null;
+  if (!list) return { error: 'Models must be a comma-separated list of model names.' };
+  const cleaned = list.map(m => String(m).trim()).filter(Boolean);
+  if (cleaned.length > MAX_MODELS) return { error: `Name at most ${MAX_MODELS} models.` };
+  if (cleaned.some(m => m.length > 120)) return { error: 'That does not look like a model name.' };
+  return { models: cleaned };
+}
+
+/**
+ * PUT /api/ai/key { apiKey, baseUrl?, models? } - save a personal provider key.
+ *
+ * Saves, then immediately probes with the credential it just saved and returns the verdict.
+ * Saving silently is what made the original report ("I entered a key and AI stayed off")
+ * unexplainable from the user's side: nothing in the product ever told them whether the
+ * credential worked. The probe spends one call on THEIR key, which is the right budget for
+ * checking their key, and it is the only place the app can honestly say "this works".
+ */
 router.put('/key', async (req, res) => {
   const uid = userId(req);
-  const { apiKey, baseUrl } = (req.body ?? {}) as { apiKey?: unknown; baseUrl?: unknown };
+  const { apiKey, baseUrl, models } = (req.body ?? {}) as { apiKey?: unknown; baseUrl?: unknown; models?: unknown };
 
   if (typeof apiKey !== 'string' || !apiKey.trim()) {
     res.status(400).json({ error: 'An API key is required.' });
@@ -119,14 +145,38 @@ router.put('/key', async (req, res) => {
     cleanBaseUrl = new URL(baseUrl.trim()).toString().replace(/\/$/, '');
   }
 
-  await setUserKey(uid, apiKey.trim(), cleanBaseUrl);
-  res.json(await getKeyHint(uid));
+  const parsed = parseModels(models);
+  if ('error' in parsed) {
+    res.status(400).json({ error: parsed.error });
+    return;
+  }
+
+  // Read before overwriting so the verdict cached against the OUTGOING credential can be
+  // dropped; otherwise a user who fixes a bad endpoint keeps being told it is broken.
+  const previous = await getUserKey(uid);
+  if (previous) forgetAiHealth(userKeyCreds(previous.apiKey, previous.baseUrl, previous.models));
+
+  await setUserKey(uid, apiKey.trim(), cleanBaseUrl, parsed.models);
+
+  const creds = userKeyCreds(apiKey.trim(), cleanBaseUrl, parsed.models);
+  // `force` because the point of this probe is to test the credential just entered, not to
+  // report a 60-second-old answer about a different one.
+  const health = await aiHealth(creds, 'own-key', { force: true });
+
+  res.json({ ...(await getKeyHint(uid)), health });
 });
 
-/** DELETE /api/ai/key — go back to the shared pool. */
+/** DELETE /api/ai/key - go back to the shared pool. */
 router.delete('/key', async (req, res) => {
-  await deleteUserKey(userId(req));
-  res.json({ present: false, hint: '', baseUrl: null });
+  const uid = userId(req);
+  const previous = await getUserKey(uid);
+  await deleteUserKey(uid);
+  if (previous) forgetAiHealth(userKeyCreds(previous.apiKey, previous.baseUrl, previous.models));
+
+  // The user is back on the pool, so tell them what the pool's state is - the settings
+  // dialog would otherwise still be showing the verdict for the key they just removed.
+  const health = await aiHealth(sharedPoolCreds(), 'shared-pool');
+  res.json({ present: false, hint: '', baseUrl: null, models: [], health });
 });
 
 // ---------------------------------------------------------------------------
@@ -235,14 +285,14 @@ router.post('/flashcards', async (req, res) => {
     // The generated set is written in one transaction: each card is now a separate
     // round trip (the driver is async), so without it a failure part-way through would
     // leave the user with a truncated deck and no error trail. Note the callback uses
-    // the scoped `t` — the module-level `db` draws a different pooled connection and
+    // the scoped `t` - the module-level `db` draws a different pooled connection and
     // would run outside the transaction.
     await tx(async t => {
       const insert = t.prepare(
         'INSERT INTO flashcards (id, user_id, note_id, question, answer, due_at) VALUES (?, ?, ?, ?, ?, ?)',
       );
       for (const c of cardSet) {
-        // The owner comes from the session, not the request — and `noteId` was proven to
+        // The owner comes from the session, not the request - and `noteId` was proven to
         // belong to `uid` by getNote() above, so card and note can never diverge.
         await insert.run(c.id, uid, noteId, c.question, c.answer, now);
       }
@@ -274,7 +324,7 @@ router.post('/ask', async (req, res) => {
 
   // notebook_id is never trusted on its own: notes.user_id is denormalised, so filtering
   // on both means another user's notebook id simply matches zero notes and falls through
-  // to the empty-scope reply below — it cannot widen the RAG context, and it does not
+  // to the empty-scope reply below - it cannot widen the RAG context, and it does not
   // reveal whether that notebook exists.
   const scopeCount = nbId
     ? (
@@ -291,8 +341,8 @@ router.post('/ask', async (req, res) => {
   if (scopeCount === 0) {
     res.json({
       answer: nbId
-        ? "This notebook doesn't have any notes yet — add some notes before asking questions about it."
-        : "You don't have any notes yet — add some notes and I'll be able to answer questions from them.",
+        ? "This notebook doesn't have any notes yet - add some notes before asking questions about it."
+        : "You don't have any notes yet - add some notes and I'll be able to answer questions from them.",
       sources: [],
       model: '',
     });
@@ -305,8 +355,8 @@ router.post('/ask', async (req, res) => {
 
   if (matchQuery) {
     // FTS5's virtual table is gone: notes.fts is a generated tsvector column (schema.sql),
-    // so the match is a plain predicate on notes — no rowid join, which Postgres has no
-    // equivalent for — and ts_rank replaces bm25(). websearch_to_tsquery cannot throw on
+    // so the match is a plain predicate on notes - no rowid join, which Postgres has no
+    // equivalent for - and ts_rank replaces bm25(). websearch_to_tsquery cannot throw on
     // malformed input, so the old catch-and-fall-back guard around this query is gone; a
     // real database error should now surface rather than be silently downgraded to a
     // recency listing. Zero matches still fall through to the fallback below.
@@ -345,7 +395,7 @@ router.post('/ask', async (req, res) => {
   }
 });
 
-// POST /api/ai/clean { noteId } — formatting-only beautification: structure improves,
+// POST /api/ai/clean { noteId } - formatting-only beautification: structure improves,
 // wording stays. The client previews + applies; the server never writes the note.
 router.post('/clean', async (req, res) => {
   const uid = userId(req);
@@ -362,9 +412,9 @@ router.post('/clean', async (req, res) => {
   }
 });
 
-// POST /api/ai/gaps { noteId } — study-assistant gap analysis. Compares the note against
+// POST /api/ai/gaps { noteId } - study-assistant gap analysis. Compares the note against
 // its own uploaded source material (attachments' extracted text: transcripts, slides,
-// photos) plus standard topic coverage. NEVER rewrites the note — output is advisory
+// photos) plus standard topic coverage. NEVER rewrites the note - output is advisory
 // markdown the client renders in the Assistant panel.
 const GAP_SOURCE_CHARS = 8_000; // per source
 router.post('/gaps', async (req, res) => {
@@ -375,7 +425,7 @@ router.post('/gaps', async (req, res) => {
   if (!note) return res.status(404).json({ error: 'note not found' });
 
   // getNote() already proved the note belongs to `uid`, but attachments carry their own
-  // user_id — filtering on it too keeps the ownership check local to the query that
+  // user_id - filtering on it too keeps the ownership check local to the query that
   // actually reads the text, so this stays correct if the note lookup ever moves.
   const attRows = await db
     .prepare(

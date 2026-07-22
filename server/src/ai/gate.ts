@@ -3,7 +3,7 @@ import { userId } from '../auth/middleware.js';
 import { clientIp } from '../lib/clientIp.js';
 import { getUserKey } from './keys.js';
 import { checkQuota, recordUsage, type QuotaVerdict } from './usage.js';
-import { chat, sharedPoolCreds, userKeyCreds, type AiCreds, type ChatMessage } from './client.js';
+import { chat, sharedPoolCreds, userKeyCreds, type AiCreds, type AiCredSource, type ChatMessage } from './client.js';
 
 /**
  * Decides, once per request, whose budget an AI call spends and whether it is allowed.
@@ -50,13 +50,29 @@ export async function resolveAiContext(req: Request): Promise<AiContext> {
 
   const own = await getUserKey(uid);
   if (own) {
-    return { creds: userKeyCreds(own.apiKey, own.baseUrl), shared: false, uid, ip };
+    return { creds: userKeyCreds(own.apiKey, own.baseUrl, own.models), shared: false, uid, ip };
   }
 
   const verdict = await checkQuota(uid, ip);
   if (!verdict.allowed) throw new QuotaExceededError(verdict);
 
   return { creds: sharedPoolCreds(), shared: true, uid, ip };
+}
+
+/**
+ * Which credential a health probe should describe for this user.
+ *
+ * Same resolution as `resolveAiContext` minus the quota check, because a probe is a
+ * question about reachability, not a request to spend. Sharing the resolution is the
+ * point: if health answered for a different credential than the one the next AI call
+ * would use, it would be confidently wrong - which is exactly the bug that hid every AI
+ * control from users who had brought their own key.
+ */
+export async function resolveHealthCreds(uid: string): Promise<{ creds: AiCreds; source: AiCredSource }> {
+  const own = await getUserKey(uid);
+  return own
+    ? { creds: userKeyCreds(own.apiKey, own.baseUrl, own.models), source: 'own-key' }
+    : { creds: sharedPoolCreds(), source: 'shared-pool' };
 }
 
 /** The 429 body. Says which ceiling was hit, when it lifts, and how to get past it now. */

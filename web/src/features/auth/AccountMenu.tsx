@@ -1,5 +1,5 @@
 // Signed-in identity + account actions, rendered in the sidebar footer area.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ContextMenu, { menuDivider, menuItem, menuLabel } from '../../components/ContextMenu';
 import Icon from '../../components/Icon';
@@ -8,10 +8,11 @@ import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
 import ChangePasswordModal from './ChangePasswordModal';
 import AiSettingsModal from './AiSettingsModal';
+import { _subscribeAiSettings } from './aiSettingsBus';
 import { openShortcuts, startTour } from '../onboarding/onboardingBus';
 import './auth.css';
 
-/** First letter of the display name, falling back to the email — a name is optional
+/** First letter of the display name, falling back to the email - a name is optional
  *  at signup, but there is always an email. */
 function initial(displayName: string, email: string): string {
   const source = displayName.trim() || email;
@@ -23,6 +24,11 @@ export default function AccountMenu() {
   const navigate = useNavigate();
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+
+  // The sidebar's "AI unavailable" control opens this dialog through the bus, since the
+  // dialog's state lives here. Subscribed before the early return so the hook order is
+  // stable whether or not a user is present.
+  useEffect(() => _subscribeAiSettings(() => setAiOpen(true)), []);
 
   if (!user) return null;
 

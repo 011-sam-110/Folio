@@ -1,4 +1,4 @@
-// Shared API types — mirror of docs/API.md. Do not drift from the contract.
+// Shared API types - mirror of docs/API.md. Do not drift from the contract.
 
 /** The signed-in account, as returned by every /api/auth endpoint that yields a user.
  *  Deliberately has no token field: the session lives in an httpOnly cookie the
@@ -108,7 +108,7 @@ export interface DashboardData {
   stats: { notes: number; notebooks: number; words: number; flashcardsDue: number };
   weekActivity: Array<{ date: string; count: number }>;
   notebooks: Array<{ id: string; name: string; emoji: string; color: string; noteCount: number; lastNoteAt: string | null }>;
-  /** Iteration 2: Mon–Sun grid of this week's activity per notebook. */
+  /** Iteration 2: Mon-Sun grid of this week's activity per notebook. */
   weekGrid: Array<{ date: string; dayLabel: string; total: number; byNotebook: Array<{ id: string; emoji: string; color: string; count: number }> }>;
   /** Iteration 2: computed weekly review checklist. */
   weeklyReview: {
@@ -151,10 +151,10 @@ export interface SearchParsed {
   terms: string[];
   phrases: string[];
   excluded: string[];
-  /** Every `tag:` in the query — all must match. Was a single `tag` that ignored
+  /** Every `tag:` in the query - all must match. Was a single `tag` that ignored
    *  the second onwards, which contradicted what the Tags page promises. */
   tags: string[];
-  /** Every `-tag:` — none may match. */
+  /** Every `-tag:` - none may match. */
   excludedTags: string[];
   notebook: string | null;
 }
@@ -184,15 +184,39 @@ export interface ImportJob {
   status: 'queued' | 'running' | 'done' | 'failed';
   step?: string;
   noteId?: string;
+  /** Title of the note produced. Carried on the job so /capture never has to read the note
+   *  itself - a QR-paired phone is not granted note-read access. */
+  noteTitle?: string;
   error?: string;
   attachmentId?: string;
+}
+
+/**
+ * What the current session may do. 'capture' is a phone paired by scanning the QR: same
+ * account, but the server admits it only to listing notebooks and running one import.
+ */
+export type SessionScope = 'full' | 'capture';
+
+/** Response of GET /api/meta/qr. `url` is the exact string encoded in `dataUrl`. */
+export interface QrCode {
+  /** Absolute `<base>/capture?pair=<code>` URL - what the QR encodes and what is displayed. */
+  url: string;
+  /** The origin `url` was built on, without the path or code. Safe to show. */
+  base: string;
+  /** ISO timestamp after which the embedded pairing code stops working. */
+  expiresAt: string;
+  ttlMs: number;
+  /** Other LAN addresses this server has, for local dev when the first guess is wrong. */
+  lanAddresses: string[];
+  all: string[];
+  dataUrl: string;
 }
 
 // --- Canvas boards + stylus ink -------------------------------------------------
 
 /** Only these five are authored by the UI. The server's column also allows
  *  'ink' and 'embed'; we deliberately do not create them (see canvas/README note
- *  in CanvasBoard.tsx) — ink lives in note_ink so it can also overlay doc notes. */
+ *  in CanvasBoard.tsx) - ink lives in note_ink so it can also overlay doc notes. */
 export type CanvasItemKind = 'sticky' | 'text' | 'image' | 'shape' | 'link';
 
 /** Kind-specific payload stored in canvas_items.data (an opaque JSON blob to the
@@ -206,7 +230,7 @@ export interface CanvasItemData {
   shape?: 'rect' | 'ellipse' | 'arrow';
   /** image */
   url?: string;
-  /** link — the referenced note, plus a cached title so the card renders before
+  /** link - the referenced note, plus a cached title so the card renders before
    *  (or without) a fetch. The title is refreshed opportunistically on load. */
   noteId?: string;
   title?: string;
@@ -236,7 +260,7 @@ export interface CanvasEdge {
 
 export type InkTool = 'pen' | 'highlighter' | 'eraser';
 
-/** A point as persisted: [x, y, pressure] in the layer's own coordinate space —
+/** A point as persisted: [x, y, pressure] in the layer's own coordinate space -
  *  world coordinates on a board, document coordinates on a doc-note overlay.
  *  A tuple (not an object) because a long stroke is thousands of these and the
  *  JSON size difference is roughly 3x. */
@@ -263,7 +287,7 @@ export interface MetaInfo {
 export type SharePermission = 'view' | 'edit';
 
 /** A share link as the OWNER sees it. Deliberately has no token field: the raw
- *  token is returned exactly once, by createShare, and only its hash is stored —
+ *  token is returned exactly once, by createShare, and only its hash is stored -
  *  so a link listed here can be revoked but never re-read. */
 export interface ShareLink {
   id: string;
@@ -281,7 +305,7 @@ export interface ShareCreated {
   url: string;
 }
 
-/** What a visitor is told BEFORE they clear the gate — title only, no content. */
+/** What a visitor is told BEFORE they clear the gate - title only, no content. */
 export interface SharePeek {
   title: string;
   kind: NoteKind;
@@ -297,7 +321,7 @@ export interface ShareGuest {
 export interface SharedNote {
   note: { id: string; title: string; contentJson: Record<string, unknown>; kind: NoteKind; updatedAt: string };
   canEdit: boolean;
-  /** Display name of whoever is asking — not an id, so it cannot identify actors. */
+  /** Display name of whoever is asking - not an id, so it cannot identify actors. */
   you: string;
   revision: number;
 }
@@ -333,15 +357,37 @@ export interface AiUsage {
   usingOwnKey: boolean;
   keyHint: string;
   baseUrl: string | null;
+  /** Model names pinned for a personal key. Empty means the app's default chain. */
+  models: string[];
   user: AiQuotaState;
   ip: AiQuotaState;
   resetAt: string;
+}
+
+/**
+ * Whether AI would actually work for THIS user, and why not when it would not.
+ *
+ * `source` says which credential the answer describes - the shared pool the operator funds,
+ * or the user's own saved key. `reason` separates "nothing is configured" (someone has to
+ * change a setting) from "the gateway did not answer" (retrying is reasonable), because a
+ * single "AI is offline" collapses two problems with opposite fixes.
+ */
+export interface AiHealthInfo {
+  ok: boolean;
+  model?: string;
+  error?: string;
+  source?: 'shared-pool' | 'own-key';
+  reason?: 'not_configured' | 'unreachable';
+  hint?: string;
 }
 
 export interface AiKeyInfo {
   present: boolean;
   hint: string;
   baseUrl: string | null;
+  models: string[];
+  /** Live verdict for the credential that was just saved or removed. */
+  health?: AiHealthInfo;
 }
 
 // --- Import old notes wizard (bulk staging) ------------------------------------
