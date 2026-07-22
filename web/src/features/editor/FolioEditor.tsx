@@ -2,7 +2,7 @@
 // the gutter "+" insert menu, image paste/drop, and outline reporting. Content is only
 // used to seed the editor — callers should `key={note.id}` this component to fully
 // reinitialize on note switch.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor, type Editor, type JSONContent } from '@tiptap/react';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import DragHandle from '@tiptap/extension-drag-handle-react';
@@ -36,6 +36,15 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
   const pendingBlock = useRef<{ node: PMNode | null; pos: number }>({ node: null, pos: -1 });
   const plusRef = useRef<HTMLButtonElement>(null);
   const [insertOpen, setInsertOpen] = useState(false);
+
+  // MUST be stable: @tiptap's <DragHandle> lists onNodeChange in the deps of the effect
+  // that registers/unregisters its ProseMirror plugin. An inline handler is a new
+  // reference every render, so on each keystroke DragHandle would re-register its plugin,
+  // reconfiguring the editor and destroying any open suggestion popup (the "/" and
+  // wikilink menus) the instant it appeared. It only writes a ref, so deps are [].
+  const handleNodeChange = useCallback(({ node, pos }: { node: PMNode | null; pos: number }) => {
+    hoveredBlock.current = { node, pos };
+  }, []);
 
   // Stable for this component's lifetime — remount (key={note.id}) to rebuild for a new note.
   const extensions = useMemo(
@@ -152,12 +161,7 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
     <div className="folio-editor">
       <SelectionToolbar editor={editor} />
       <TableToolbar editor={editor} />
-      <DragHandle
-        editor={editor}
-        onNodeChange={({ node, pos }) => {
-          hoveredBlock.current = { node, pos };
-        }}
-      >
+      <DragHandle editor={editor} onNodeChange={handleNodeChange}>
         <div className="folio-block-gutter">
           <button
             ref={plusRef}
