@@ -10,6 +10,7 @@ import { useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/Icon';
 import { useTheme } from '../../lib/theme';
+import HeroBook from './HeroBook';
 import { testimonials } from './testimonials';
 import './landing.css';
 
@@ -79,6 +80,7 @@ export function AuthLanding({
 
       <section className="landing-hero">
         <div className="landing-hero__glow" aria-hidden="true" />
+        <HeroBook />
         <div className="landing-hero__sparks" aria-hidden="true">
           <span />
           <span />

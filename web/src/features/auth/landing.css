@@ -185,6 +185,27 @@
   animation-delay: 4.3s;
 }
 
+/* 3D book accent (three.js, mounted lazily by HeroBook). The canvas is transparent and
+   sits LOW and to the left so the book's warm body never rises behind the headline - the
+   upper part of the canvas is empty, so the copy still lands on plain espresso and keeps
+   its AA contrast. It is a desktop/large-tablet enhancement only: below the 920px grid
+   collapse it is hidden and the CSS glow + sparks carry the hero on their own. */
+.landing-hero__book {
+  position: absolute;
+  z-index: 1;
+  left: clamp(-96px, -5vw, -40px);
+  bottom: -8%;
+  width: min(320px, 29%);
+  height: 54%;
+  pointer-events: none;
+  contain: strict;
+}
+@media (max-width: 920px) {
+  .landing-hero__book {
+    display: none;
+  }
+}
+
 .landing-hero__inner {
   position: relative;
   z-index: 2;
