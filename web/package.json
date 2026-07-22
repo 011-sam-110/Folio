@@ -38,11 +38,13 @@
     "lowlight": "^3.3.0",
     "marked": "^18.0.6",
     "officeparser": "^7.3.0",
+    "pdfjs-dist": "^4.10.38",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
     "smiles-drawer": "^2.4.1",
     "supertest": "^7.2.2",
+    "tesseract.js": "^5.1.1",
     "three": "^0.183.2"
   },
   "devDependencies": {

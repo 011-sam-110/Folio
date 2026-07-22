@@ -14,6 +14,7 @@ import { resolveFilingNotebook, setActiveNotebook } from './lib/notebookContext'
 import ImportModal from './features/import/ImportModal';
 import { _subscribeImportModal, type OpenImportModalArgs } from './components/importModalBus';
 import OnboardingHost from './features/onboarding/OnboardingHost';
+import ImportWizardHost from './features/import/wizard/ImportWizardHost';
 
 const COLLAPSE_KEY = 'folio:sidebarCollapsed';
 
@@ -269,6 +270,7 @@ function AppShell() {
         onOpenPhoneCapture={() => setQrOpen(true)}
       />
       <ImportModalHost />
+      <ImportWizardHost />
       <OnboardingHost shortcutsOpen={shortcutsOpen} onShortcutsChange={setShortcutsOpen} />
     </>
   );

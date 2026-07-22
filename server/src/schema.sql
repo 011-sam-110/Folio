@@ -343,3 +343,73 @@ CREATE TABLE IF NOT EXISTS ai_keys (
   hint TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
 );
+
+-- ---------------------------------------------------------------------------
+-- Import old notes: bulk staging.
+--
+-- The single-file /api/import path (above) creates one note per upload and always
+-- calls the AI gateway. The bulk "Import old notes" wizard is different: it stages a
+-- whole pile of documents/photos, auto-sorts them into notebooks + tags with a
+-- zero-AI heuristic, and lets the student review and correct the sort BEFORE anything
+-- is written into a real notebook. Staging is the whole point — content lives here,
+-- not in `notes`, until the user commits, so discarding a batch touches no notebook.
+--
+-- `attachments` and `import_jobs` are reused as-is. These two tables are the only new
+-- storage. A staged photo/office file is an `attachments` row (bytes in-row, note_id
+-- NULL) referenced by attachment_id; client-extracted text (md/txt/pdf) needs no
+-- attachment at all, only its text staged below.
+-- ---------------------------------------------------------------------------
+
+-- One "Import old notes" session.
+CREATE TABLE IF NOT EXISTS import_batches (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source TEXT NOT NULL,                 -- connector id: files | photos | markdown | ...
+  status TEXT NOT NULL DEFAULT 'open',  -- open | categorised | committing | committed | discarded
+  categoriser TEXT,                     -- which strategy produced the suggestions: heuristic | llm | browser-embed
+  item_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+  updated_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+);
+CREATE INDEX IF NOT EXISTS idx_import_batches_user ON import_batches(user_id, created_at DESC);
+
+-- One staged document/photo awaiting review. Content lives here, NOT in notes, until commit.
+CREATE TABLE IF NOT EXISTS import_items (
+  id TEXT PRIMARY KEY,
+  batch_id TEXT NOT NULL REFERENCES import_batches(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,       -- denormalised, like notes
+  attachment_id TEXT REFERENCES attachments(id) ON DELETE SET NULL,   -- photos + office files
+  source_path TEXT,                      -- 'databases/indexing.md' -> the strongest sort signal
+  original_name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'doc',      -- doc | photo
+  title TEXT NOT NULL DEFAULT '',         -- derived, user-editable
+
+  -- Raw extracted markdown/text. The note body is built from this at COMMIT time (via
+  -- markdownToTipTap with a fresh wikilink resolver), rather than storing a frozen
+  -- content_json at stage time — so wikilinks resolve against the user's notes as they
+  -- exist at commit, and a re-run cannot leave a stale document behind.
+  source_text TEXT NOT NULL DEFAULT '',
+  content_text TEXT NOT NULL DEFAULT '',  -- plain-text mirror; feeds the categoriser + review preview
+  word_count INTEGER NOT NULL DEFAULT 0,
+  source_tags TEXT NOT NULL DEFAULT '[]', -- tags found in the source (frontmatter, #hashtags)
+
+  -- Suggestion (what the categoriser proposed)
+  suggested_notebook_id TEXT,             -- an existing notebook, or NULL when proposing a new one
+  suggested_notebook_name TEXT,           -- for a proposed NEW notebook not yet created
+  suggested_tags TEXT NOT NULL DEFAULT '[]',
+  confidence REAL NOT NULL DEFAULT 0,
+  rationale TEXT,                         -- 'matched folder "databases"' - shown on hover, aids trust
+
+  -- Decision (what the user chose; defaults mirror the suggestion)
+  decided_notebook_id TEXT,
+  decided_notebook_name TEXT,
+  decided_tags TEXT,
+  decided_mode TEXT NOT NULL DEFAULT 'new', -- new | append (merge into an existing note)
+  decided_target_note_id TEXT,            -- for append
+
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | ready | categorised | accepted | rejected | committed | failed
+  note_id TEXT,                           -- set once committed
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+);
+CREATE INDEX IF NOT EXISTS idx_import_items_batch ON import_items(batch_id, created_at);

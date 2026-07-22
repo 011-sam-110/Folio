@@ -13,6 +13,7 @@ import { api } from '../lib/api';
 import { errorMessage, plural } from '../lib/format';
 import { resolveFilingNotebook } from '../lib/notebookContext';
 import { openImportModal } from './importModalBus';
+import { openImportWizard } from '../features/import/importWizardBus';
 import { flushActiveNote } from '../features/editor/autosaveBus';
 import { toast } from './Toast';
 import Icon from './Icon';
@@ -174,6 +175,15 @@ export default function CommandPalette({
         keywords: ['transcript', 'docx', 'essay'],
         icon: 'file-text',
         run: () => openImportModal({ notebookId: filingNotebookId, defaultKind: 'transcript' }),
+      },
+      {
+        id: 'import-old-notes',
+        title: 'Import old notes',
+        section: 'Create',
+        hint: 'Bulk import documents, photos or a folder',
+        keywords: ['import', 'bulk', 'folder', 'obsidian', 'notion', 'migrate'],
+        icon: 'upload',
+        run: () => openImportWizard(),
       },
       {
         id: 'create-phone-capture',

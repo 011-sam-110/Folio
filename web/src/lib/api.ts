@@ -6,6 +6,9 @@ import type {
   ShareCreated, ShareEvents, ShareGuest, ShareLink, SharePeek, SharePermission, SharedNote,
   Template, TitleResult, User,
 } from './types';
+import type {
+  ImportBatch, ImportItem, ImportSource, ImportLabelSpace, ImportSuggestionInput, ImportCommitResult,
+} from './types';
 
 export class ApiError extends Error {
   status: number;
@@ -241,6 +244,21 @@ export const api = {
   // meta
   meta: () => http<MetaInfo>('/api/meta'),
   qr: (url?: string) => http<{ url: string; all: string[]; dataUrl: string }>(`/api/meta/qr${url ? `?url=${encodeURIComponent(url)}` : ''}`),
+  // import old notes wizard (bulk staging -> review -> commit). Not AI-gated: the default
+  // path uses no model, so these work with the gateway offline.
+  createImportBatch: (source: string) => http<{ batchId: string }>('/api/import/batches', json('POST', { source })),
+  importSources: () => http<{ sources: ImportSource[] }>('/api/import/sources'),
+  importLabelSpace: () => http<ImportLabelSpace>('/api/import/label-space'),
+  getImportBatch: (batchId: string) => http<{ batch: ImportBatch; items: ImportItem[] }>(`/api/import/batches/${batchId}`),
+  addImportItems: (batchId: string, items: Array<{ originalName: string; sourcePath?: string; title?: string; text: string; sourceTags?: string[] }>) =>
+    http<{ items: ImportItem[] }>(`/api/import/batches/${batchId}/items`, json('POST', { items })),
+  uploadImportFile: (batchId: string, form: FormData) => http<{ item: ImportItem }>(`/api/import/batches/${batchId}/items`, { method: 'POST', body: form }),
+  categoriseImport: (batchId: string, b: { categoriser: string; suggestions: ImportSuggestionInput[] }) =>
+    http<{ categoriser: string; items: ImportItem[] }>(`/api/import/batches/${batchId}/categorise`, json('POST', b)),
+  decideImportItem: (batchId: string, itemId: string, b: Partial<{ decidedNotebookId: string | null; decidedNotebookName: string | null; decidedTags: string[]; title: string; status: 'accepted' | 'rejected'; decidedMode: 'new' | 'append'; decidedTargetNoteId: string | null }>) =>
+    http<{ item: ImportItem }>(`/api/import/batches/${batchId}/items/${itemId}`, json('PATCH', b)),
+  commitImport: (batchId: string, itemIds: string[]) => http<ImportCommitResult>(`/api/import/batches/${batchId}/commit`, json('POST', { itemIds })),
+  discardImportBatch: (batchId: string) => http<{ ok: true }>(`/api/import/batches/${batchId}`, { method: 'DELETE' }),
 };
 
 export type Api = typeof api;

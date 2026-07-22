@@ -12,6 +12,7 @@ import EmojiPicker from '../components/EmojiPicker';
 import { useNotebooks } from '../components/NotebooksContext';
 import { toast } from '../components/Toast';
 import { openImportModal } from '../components/importModalBus';
+import { openImportWizard } from '../features/import/importWizardBus';
 import { resolveFilingNotebook } from '../lib/notebookContext';
 import { startTour } from '../features/onboarding/onboardingBus';
 
@@ -161,6 +162,9 @@ export default function DashboardPage() {
                     onClick={() => openImportModal({ notebookId: firstNotebookId ?? undefined, defaultKind: 'slides' })}
                   >
                     <Icon name="upload" size={14} /> Import slides or a PDF
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => openImportWizard()}>
+                    <Icon name="upload" size={14} /> Import old notes
                   </button>
                   <button type="button" className="btn btn-secondary" onClick={() => startTour()}>
                     <Icon name="sparkles" size={14} /> Show me around

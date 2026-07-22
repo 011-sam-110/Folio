@@ -14,6 +14,7 @@ import { markdownToTipTap, markdownToPlainText, stripLeadingTitleHeading } from 
 import { syncLinksForNote, createTitleResolver } from '../lib/links.js';
 import { createJob, updateJob, getJob } from '../lib/jobs.js';
 import type { NoteRow } from '../lib/serialize.js';
+import * as bulk from '../lib/importBatch.js';
 
 const router = Router();
 
@@ -626,5 +627,107 @@ router.post('/file', handleUpload(uploadImage.single('file')), async (req, res) 
   });
   res.json({ url: attachmentUrl(storedName), attachmentId });
 });
+
+
+// --- Bulk "Import old notes" wizard --------------------------------------------------------
+//
+// Staging + client-orchestrated commit for the multi-file import wizard. Deliberately NOT
+// behind aiQuotaGate (unlike POST / above): the default path uses no AI at all, so a student
+// with no allowance — or one importing while the gateway is offline — can still bring their
+// notes in. The categoriser runs client-side; these endpoints stage, persist its suggestions,
+// record the user's review decisions, and commit into real notebooks. All logic lives in
+// lib/importBatch.ts; these handlers are the thin HTTP surface. Auth is the /api/import mount.
+
+// One docx/pptx or one downscaled photo per request (both < MAX_SIZE). Text docs arrive as
+// JSON and never reach multer, which is a no-op on a non-multipart body.
+const bulkUpload = multer({ storage, limits: { fileSize: MAX_SIZE } });
+const DOC_EXT = new Set(['.docx', '.pptx']);
+const IMG_MIME = /^image\//;
+
+router.post('/batches', async (req, res) => {
+  const uid = userId(req);
+  const source = ((req.body ?? {}) as { source?: unknown }).source;
+  const batchId = await bulk.createBatch(uid, source);
+  res.status(201).json({ batchId });
+});
+
+router.get('/sources', (_req, res) => {
+  res.json({ sources: bulk.sourcesRegistry() });
+});
+
+router.get('/label-space', async (req, res) => {
+  res.json(await bulk.labelSpace(userId(req)));
+});
+
+router.get('/batches/:id', async (req, res) => {
+  const result = await bulk.getBatch(userId(req), String(req.params.id));
+  if (!result) return res.status(404).json({ error: 'import not found' });
+  res.json(result);
+});
+
+router.delete('/batches/:id', async (req, res) => {
+  const ok = await bulk.discardBatch(userId(req), String(req.params.id));
+  if (!ok) return res.status(404).json({ error: 'import not found' });
+  res.json({ ok: true });
+});
+
+// Add staged items. JSON body {items:[...]} for pre-extracted docs, OR multipart (field
+// `file`) for a docx/pptx that needs server extraction or a photo whose bytes are stored.
+router.post('/batches/:id/items', handleUpload(bulkUpload.single('file')), async (req, res) => {
+  const uid = userId(req);
+  const batchId = String(req.params.id);
+  try {
+    if (req.file) {
+      const body = (req.body ?? {}) as { sourcePath?: string; title?: string; ocrText?: string; kind?: string };
+      const file = { buffer: req.file.buffer, mimetype: req.file.mimetype, originalname: req.file.originalname };
+      const ext = path.extname(file.originalname).toLowerCase();
+      const isPhoto = body.kind === 'photo' || (IMG_MIME.test(file.mimetype) && !DOC_EXT.has(ext));
+      const item = isPhoto
+        ? await bulk.stagePhoto(uid, batchId, file, { sourcePath: body.sourcePath ?? null, title: body.title ?? null, ocrText: body.ocrText ?? null })
+        : await bulk.stageUploadedFile(uid, batchId, file, { sourcePath: body.sourcePath ?? null, title: body.title ?? null });
+      if (!item) return res.status(404).json({ error: 'import not found' });
+      return res.status(201).json({ item });
+    }
+    const items = Array.isArray((req.body ?? {}).items) ? ((req.body as { items: bulk.RawStageItem[] }).items) : null;
+    if (!items) return res.status(400).json({ error: 'an items array or a file is required' });
+    const owned = await bulk.getBatch(uid, batchId);
+    if (!owned) return res.status(404).json({ error: 'import not found' });
+    const staged = await bulk.stageJsonItems(uid, batchId, items);
+    return res.status(201).json({ items: staged });
+  } catch (err) {
+    return res.status(400).json({ error: err instanceof Error ? err.message : 'could not stage items' });
+  }
+});
+
+router.post('/batches/:id/categorise', async (req, res) => {
+  const uid = userId(req);
+  const body = (req.body ?? {}) as { categoriser?: unknown; suggestions?: unknown };
+  const suggestions = Array.isArray(body.suggestions) ? (body.suggestions as bulk.RawSuggestion[]) : [];
+  const result = await bulk.saveSuggestions(uid, String(req.params.id), body.categoriser, suggestions);
+  if (!result) return res.status(404).json({ error: 'import not found' });
+  res.json(result);
+});
+
+router.patch('/batches/:id/items/:itemId', async (req, res) => {
+  const uid = userId(req);
+  try {
+    const item = await bulk.decideItem(uid, String(req.params.id), String(req.params.itemId), (req.body ?? {}) as bulk.DecisionPatch);
+    if (!item) return res.status(404).json({ error: 'item not found' });
+    return res.json({ item });
+  } catch (err) {
+    return res.status(400).json({ error: err instanceof Error ? err.message : 'could not update item' });
+  }
+});
+
+router.post('/batches/:id/commit', async (req, res) => {
+  const uid = userId(req);
+  const body = (req.body ?? {}) as { itemIds?: unknown };
+  const itemIds = Array.isArray(body.itemIds) ? body.itemIds.map((x) => String(x)) : [];
+  if (!itemIds.length) return res.status(400).json({ error: 'itemIds is required' });
+  const result = await bulk.commitBatch(uid, String(req.params.id), itemIds);
+  if (!result) return res.status(404).json({ error: 'import not found' });
+  res.json(result);
+});
+
 
 export default router;

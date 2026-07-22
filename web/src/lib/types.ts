@@ -343,3 +343,85 @@ export interface AiKeyInfo {
   hint: string;
   baseUrl: string | null;
 }
+
+// --- Import old notes wizard (bulk staging) ------------------------------------
+// Staging DTOs for the multi-file "Import old notes" flow. Nothing here is written into a real
+// notebook until commit; see server/src/lib/importBatch.ts.
+
+export interface ImportBatch {
+  id: string;
+  source: string;
+  /** open | categorised | committing | committed | discarded */
+  status: string;
+  categoriser: string | null;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImportItem {
+  id: string;
+  batchId: string;
+  attachmentId: string | null;
+  sourcePath: string | null;
+  originalName: string;
+  /** doc | photo */
+  kind: string;
+  title: string;
+  /** First 2KB of the extracted plain text, for the read-only review preview. */
+  preview: string;
+  wordCount: number;
+  sourceTags: string[];
+  suggestedNotebookId: string | null;
+  suggestedNotebookName: string | null;
+  suggestedTags: string[];
+  confidence: number;
+  rationale: string | null;
+  decidedNotebookId: string | null;
+  decidedNotebookName: string | null;
+  decidedTags: string[] | null;
+  /** new | append */
+  decidedMode: string;
+  decidedTargetNoteId: string | null;
+  /** pending | ready | categorised | accepted | rejected | committed | failed */
+  status: string;
+  noteId: string | null;
+  error: string | null;
+  imageUrl: string | null;
+  createdAt: string;
+}
+
+export interface ImportSource {
+  id: string;
+  label: string;
+  setup: 'none' | 'oauth' | 'coming-soon';
+  available: boolean;
+}
+
+export interface ImportLabelSpace {
+  notebooks: Array<{ id: string; name: string; emoji: string }>;
+  tags: string[];
+  /** notebookId -> term -> tf weight; feeds the client heuristic's similarity signal. */
+  profiles: Record<string, Record<string, number>>;
+  docFreq: Record<string, number>;
+  notebookCount: number;
+}
+
+export interface ImportSuggestionInput {
+  itemId: string;
+  notebook: { kind: 'existing'; id: string } | { kind: 'new'; name: string; emoji?: string };
+  tags: string[];
+  title?: string;
+  confidence: number;
+  rationale?: string;
+}
+
+export interface ImportCommitResult {
+  created: number;
+  skipped: number;
+  failed: number;
+  createdNotebooks: Array<{ id: string; name: string }>;
+  items: ImportItem[];
+  /** committed once nothing is left to file; else back to categorised (resume the rest). */
+  batchStatus: string;
+}
