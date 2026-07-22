@@ -8,9 +8,9 @@
 // one character at a time. An atom node would break all three. A decoration paints
 // the same affordance over text that is still just text.
 //
-// Registration follows FindReplace.ts's precedent — NotePage calls
+// Registration follows FindReplace.ts's precedent - NotePage calls
 // `editor.registerPlugin(createHashtagPlugin(...))` once the editor is ready,
-// rather than adding to buildExtensions.ts's shared array — because the click
+// rather than adding to buildExtensions.ts's shared array - because the click
 // handler needs this page's router `navigate`.
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -23,7 +23,7 @@ export const HashtagPluginKey = new PluginKey<DecorationSet>('folioHashtag');
  * Paint every #hashtag in the document.
  *
  * Scans text nodes rather than the flattened document string so the offsets are
- * real ProseMirror positions. Recomputed on every doc change — note bodies are
+ * real ProseMirror positions. Recomputed on every doc change - note bodies are
  * small (the AI size guard caps them near 24k chars) so this costs far less than
  * a keystroke's own re-render, the same trade FindReplace.ts already makes.
  */
@@ -56,8 +56,8 @@ function buildDecorations(doc: PMNode): DecorationSet {
  * Navigation is bound to Ctrl/Cmd+click, NOT a plain click, on purpose: this is an
  * editable surface, and a plain click on a hashtag has to keep placing the caret or
  * the tag becomes impossible to correct once typed. The chip row above the editor
- * is the plain-click affordance — it shows the same tags and opens on a single
- * click — so nothing is unreachable, and the decoration's tooltip states the
+ * is the plain-click affordance - it shows the same tags and opens on a single
+ * click - so nothing is unreachable, and the decoration's tooltip states the
  * modifier.
  */
 export function createHashtagPlugin(onOpenTag: (tag: string) => void): Plugin<DecorationSet> {
@@ -79,7 +79,7 @@ export function createHashtagPlugin(onOpenTag: (tag: string) => void): Plugin<De
         if (!tag) return false;
         event.preventDefault();
         onOpenTag(tag);
-        return true; // handled — don't also move the caret
+        return true; // handled - don't also move the caret
       },
     },
   });

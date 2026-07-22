@@ -18,7 +18,7 @@ export default function CodeBlockView({ node, updateAttributes }: NodeViewProps)
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1400);
     } catch {
-      // clipboard API unavailable — silently ignore
+      // clipboard API unavailable - silently ignore
     }
   }
 

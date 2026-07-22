@@ -1,9 +1,9 @@
-/* Margin comments — right drawer + inline mark highlight + composer popover.
+/* Margin comments - right drawer + inline mark highlight + composer popover.
    Own classnames throughout (folio-comment- and folio-comments- prefixes) so this stays independent
    of editor.css / notePage.css, which other agents' files also touch this wave. */
 
 /* ---------- Inline mark (rendered inside .folio-prosemirror, styling lives here since
-   editor.css is not ours to edit — CSS is global regardless of which file loads it) ---------- */
+   editor.css is not ours to edit - CSS is global regardless of which file loads it) ---------- */
 .folio-prosemirror .folio-comment-mark {
   background: rgba(154, 103, 0, 0.16);
   border-bottom: 2px solid var(--warn);

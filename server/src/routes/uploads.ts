@@ -17,7 +17,7 @@ const CACHE_CONTROL = 'private, max-age=31536000, immutable';
 /**
  * Reject anything that is not a bare filename before it reaches the database.
  * The value is only ever used as a lookup key, never as a path, so this is belt-and-braces
- * rather than the traversal defence — but it also keeps junk out of the query.
+ * rather than the traversal defence - but it also keeps junk out of the query.
  */
 function isPlainName(name: string): boolean {
   return Boolean(name) && name.length <= 128 && !name.includes('/') && !name.includes('\\') && !name.includes('\0');

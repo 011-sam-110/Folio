@@ -4,12 +4,12 @@ Authoritative for the web/ workspace. React 18 + Vite + TS + react-router-dom v7
 
 ## Design direction (light, Notion-like, premium)
 - **Feel:** calm, paper-like, precise. Generous whitespace, small type scale, subtle borders (not shadows) for structure. Nothing bootstrap-y. Dark mode via `[data-theme="dark"]` on `<html>`, toggle persisted in localStorage (`folio:theme`), respects `prefers-color-scheme` on first run.
-- **Type:** `Inter Variable` (install `@fontsource-variable/inter`) with system-ui fallback; editor body 16px/1.7; UI chrome 13–14px; note title 40px/700 borderless input. Code: `ui-monospace, 'Cascadia Code', Consolas`.
+- **Type:** `Inter Variable` (install `@fontsource-variable/inter`) with system-ui fallback; editor body 16px/1.7; UI chrome 13-14px; note title 40px/700 borderless input. Code: `ui-monospace, 'Cascadia Code', Consolas`.
 - **Tokens** live in `src/styles/tokens.css` as CSS variables. ALL components use them, zero hard-coded colors elsewhere:
   - Light: `--bg: #ffffff; --bg-sidebar: #f7f7f5; --bg-hover: #f1f1ef; --bg-active: #eaeae8; --ink: #1f2328; --ink-2: #57606a; --ink-3: #8b949e; --line: #e8e8e6; --accent: #4f46e5; --accent-soft: #eef2ff; --danger: #d1242f; --ok: #1a7f37; --warn: #9a6700; --radius: 8px; --radius-lg: 12px; --shadow-pop: 0 8px 30px rgba(0,0,0,.12);`
   - Dark equivalents: bg #191919, sidebar #202020, ink #e6e6e4, line #303030, hover #252525, accent #818cf8, accent-soft rgba(129,140,248,.14).
 - Notebook colors come from the notebook record (`notebook.color`); use for dots/accents, never for large fills.
-- Micro-interactions: 120–160ms ease-out transitions on hover/open; skeleton shimmer for loading; every async action has a pending state; toasts bottom-right (`components/Toast.tsx` exposes `toast(msg, kind)`).
+- Micro-interactions: 120-160ms ease-out transitions on hover/open; skeleton shimmer for loading; every async action has a pending state; toasts bottom-right (`components/Toast.tsx` exposes `toast(msg, kind)`).
 - Empty states: friendly, specific, with a primary action (e.g. "No notes in this notebook yet. ⌘ New note or 📷 Import from photo").
 
 ## Layout

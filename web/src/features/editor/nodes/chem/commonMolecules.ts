@@ -2,7 +2,7 @@
 // Name-to-structure resolution is genuinely hard offline, so this is best-effort: it
 // covers the molecules a school / first-year chemistry student actually types. Anything
 // outside the map falls back to the optional online PubChem lookup, which degrades
-// silently when the network (or the whole AI gateway) is unreachable — the norm in prod.
+// silently when the network (or the whole AI gateway) is unreachable - the norm in prod.
 
 export interface CommonMolecule {
   name: string;
@@ -110,7 +110,7 @@ export async function resolveNameOnline(name: string, timeoutMs = 4000): Promise
       ?.PropertyTable?.Properties?.[0]?.CanonicalSMILES;
     return typeof smiles === 'string' && smiles.length > 0 ? smiles : null;
   } catch {
-    // Offline, aborted, blocked, or malformed — all silent by design.
+    // Offline, aborted, blocked, or malformed - all silent by design.
     return null;
   } finally {
     clearTimeout(timer);

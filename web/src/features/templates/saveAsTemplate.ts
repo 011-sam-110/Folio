@@ -1,4 +1,4 @@
-// templates-nb — cross-feature integration point. NotePage.tsx (owned by notepage-tools)
+// templates-nb - cross-feature integration point. NotePage.tsx (owned by notepage-tools)
 // is not ours to edit this wave, so instead of a shared modal-host + event-bus pair
 // (like components/importModalBus.ts + App.tsx's <ImportModalHost/>, which WOULD need an
 // App.tsx edit we're not allowed to make), this exports a single self-contained function:

@@ -20,7 +20,7 @@ const ZOOM_SENSITIVITY = 300;
 export interface ViewportController {
   viewport: Viewport;
   setViewport: React.Dispatch<React.SetStateAction<Viewport>>;
-  /** True while the user is panning (space/middle drag) — drives the cursor. */
+  /** True while the user is panning (space/middle drag) - drives the cursor. */
   panning: boolean;
   /** True while the space bar is held, so the board can show a grab cursor. */
   spaceHeld: boolean;
@@ -43,7 +43,7 @@ export function useViewport(hostRef: React.RefObject<HTMLElement | null>): Viewp
 
   // --- wheel ---------------------------------------------------------------
   // Bound manually rather than via onWheel: React attaches wheel listeners as
-  // passive, and a passive listener cannot preventDefault — so ctrl+wheel would
+  // passive, and a passive listener cannot preventDefault - so ctrl+wheel would
   // zoom the whole browser page instead of the board.
   useEffect(() => {
     const host = hostRef.current;
@@ -100,7 +100,7 @@ export function useViewport(hostRef: React.RefObject<HTMLElement | null>): Viewp
     let last = start;
     function onMove(ev: PointerEvent) {
       // A one-finger pan yields the moment a second finger turns the gesture into
-      // a pinch — otherwise both handlers would translate the viewport and the
+      // a pinch - otherwise both handlers would translate the viewport and the
       // board would move at double speed.
       if (gestureRef.current) return;
       const dx = ev.clientX - last.x;

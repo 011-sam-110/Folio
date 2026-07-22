@@ -45,11 +45,11 @@ test.describe('Dashboard', () => {
 
     await page.goto(`/notebook/${notebook.id}`);
     // title == snippet here (the note body defaults to its title), so the text
-    // appears in both the card title and snippet — scope to the first match.
+    // appears in both the card title and snippet - scope to the first match.
     await expect(page.getByText(newer.title).first()).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(older.title).first()).toBeVisible();
 
-    // Default sort is "updated" (most recent first) — the newer note should be
+    // Default sort is "updated" (most recent first) - the newer note should be
     // positioned before the older one in document order.
     const rowsUpdated = noteCards(page);
     const textsUpdated = await rowsUpdated.allTextContents();
@@ -59,7 +59,7 @@ test.describe('Dashboard', () => {
     expect(idxOlderUpdated).toBeGreaterThanOrEqual(0);
     expect(idxNewerUpdated).toBeLessThan(idxOlderUpdated);
 
-    // Switch sort to title — alphabetically "Aaa..." sorts before "Zzz...".
+    // Switch sort to title - alphabetically "Aaa..." sorts before "Zzz...".
     const sortSelect = page.getByRole('combobox', { name: /sort/i }).or(page.getByRole('combobox').first());
     await selectOptionMatching(sortSelect.first(), /title/i);
 

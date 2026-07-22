@@ -1,4 +1,4 @@
-// Small inline "link a note" combobox for the flashcard composer — search-as-you-type
+// Small inline "link a note" combobox for the flashcard composer - search-as-you-type
 // against api.searchTitles (same endpoint the quick switcher and wikilink suggestion use),
 // picked note renders as a removable chip. Not a modal: floats under the trigger input via
 // the shared useFloatingPanel hook so it behaves like the rest of the app's popovers.

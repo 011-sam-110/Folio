@@ -1,5 +1,5 @@
 // Inline "New card" composer row for the Browse tab (iteration 2 manual flashcards).
-// Deliberately inline rather than a modal — creating a few cards back-to-back shouldn't
+// Deliberately inline rather than a modal - creating a few cards back-to-back shouldn't
 // require re-opening a dialog each time (submit keeps the row open and clears the fields).
 import { useState, type KeyboardEvent } from 'react';
 import { api, ApiError } from '../../lib/api';

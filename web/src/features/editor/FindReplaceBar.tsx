@@ -1,7 +1,7 @@
 // Find/replace bar docked top-right of the editor area. Drives the FindReplace.ts
 // ProseMirror plugin: live match count ("n of m"), prev/next, an expandable replace row,
 // Replace / Replace all. Esc closes. Bound from NotePage.tsx via Ctrl/Cmd+F (find) and
-// Ctrl/Cmd+H (replace) — see NotePage.tsx for why that binding lives at the page level
+// Ctrl/Cmd+H (replace) - see NotePage.tsx for why that binding lives at the page level
 // rather than in buildExtensions.ts/FolioEditor.tsx (editor-blocks' files, not ours).
 import { useEffect, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';

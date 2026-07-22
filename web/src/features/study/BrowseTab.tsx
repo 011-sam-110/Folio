@@ -1,5 +1,5 @@
 // All-cards management table. Uses GET /api/study/cards (per docs/API.md), which
-// returns the whole deck including suspended and not-yet-due cards — the correct
+// returns the whole deck including suspended and not-yet-due cards - the correct
 // data source for a management surface (the review /queue is due-only).
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -246,7 +246,7 @@ export default function BrowseTab({
             {card.noteId ? (
               <Link className="sy-link-btn" to={`/note/${card.noteId}`}>{card.noteTitle ?? 'Untitled'}</Link>
             ) : (
-              <span className="sy-ink-3">—</span>
+              <span className="sy-ink-3">-</span>
             )}
           </td>
           <td>
@@ -309,9 +309,9 @@ export default function BrowseTab({
   return (
     <div className="sy-browse">
       <div className="sy-browse__stats">
-        <div className="sy-stat-pill"><strong>{stats?.due ?? '–'}</strong> due</div>
+        <div className="sy-stat-pill"><strong>{stats?.due ?? '-'}</strong> due</div>
         <div className="sy-stat-pill"><strong>{stats?.total ?? cards?.length ?? 0}</strong> total</div>
-        <div className="sy-stat-pill"><strong>{stats?.reviewedToday ?? '–'}</strong> reviewed today</div>
+        <div className="sy-stat-pill"><strong>{stats?.reviewedToday ?? '-'}</strong> reviewed today</div>
         <button
           type="button"
           className="sy-btn sy-btn--primary"

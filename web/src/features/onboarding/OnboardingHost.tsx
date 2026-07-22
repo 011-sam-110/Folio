@@ -2,7 +2,7 @@
 // opens by itself.
 //
 // It auto-opens exactly once, for an account that has never answered the offer. Any
-// other appearance is because the user asked for it — from the account menu, the
+// other appearance is because the user asked for it - from the account menu, the
 // command palette, or the "?" key. A tour that was left part-way through is NOT
 // reopened automatically: pressing Escape said something, and re-ambushing the user
 // with the same card on the next page load is precisely the behaviour the brief
@@ -68,7 +68,7 @@ export default function OnboardingHost({
           onShortcutsChange(true);
           return;
         }
-        // "Restart tutorial" means from the top, welcome card and all — including the
+        // "Restart tutorial" means from the top, welcome card and all - including the
         // seed offer, which is harmless the second time because the store remembers
         // the ids of what it already created and will not create a second copy.
         restartTour();
@@ -81,7 +81,7 @@ export default function OnboardingHost({
     setTourOpen(false);
     // Nothing else should start talking at them in the same breath.
     suppressHintsThisSession();
-    // Suppress the resume toast for the rest of this page load too — pausing and
+    // Suppress the resume toast for the rest of this page load too - pausing and
     // then immediately being told you paused is noise.
     offeredResume.current = true;
     if (status === 'done') {
@@ -89,7 +89,7 @@ export default function OnboardingHost({
     }
     // useDialogFocus restores focus to whatever was focused when the tour opened. On
     // a new account that element is usually gone, because the tour navigated away
-    // from the page it opened on — which drops focus to <body> and strands keyboard
+    // from the page it opened on - which drops focus to <body> and strands keyboard
     // users at the top of the document. Catch that one case.
     requestAnimationFrame(() => {
       if (document.activeElement === document.body) {

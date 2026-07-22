@@ -9,7 +9,7 @@ import { IS_SERVERLESS } from '../config.js';
  * is attacker-supplied.
  *
  * `X-Forwarded-For` is a chain, appended to by each proxy it passes through, so the
- * LEFTMOST entry is whatever the original client sent — forgeable, and therefore useless
+ * LEFTMOST entry is whatever the original client sent - forgeable, and therefore useless
  * as an identity. Reading `[0]` gives an attacker a fresh bucket per request simply by
  * varying a header. The trustworthy entry is the RIGHTMOST one, appended by the proxy
  * immediately in front of us, and it is only trustworthy at all when we know a proxy is

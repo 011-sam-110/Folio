@@ -1,4 +1,4 @@
-// web-shell — Ctrl/Cmd+K quick switcher. Instant title results, then
+// web-shell - Ctrl/Cmd+K quick switcher. Instant title results, then
 // full-text matches below, then a "Create note: <q>" fallback row.
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
@@ -90,7 +90,7 @@ export default function QuickSwitcher({
   const q = query.trim();
   const exactMatch = titleResults.some((r) => r.title.toLowerCase() === q.toLowerCase());
   const showCreate = q.length > 0 && !exactMatch;
-  // Always-available escape hatch to the full /search page — its paginated,
+  // Always-available escape hatch to the full /search page - its paginated,
   // operator-aware results (tag:/notebook:/"phrase"/-exclude) go well beyond
   // what this popup's capped title+full-text lists can show.
   const showSearchAll = q.length > 0;

@@ -1,5 +1,5 @@
 // Tracks which notebook new notes should be filed into, so Ctrl+N / the sidebar '+' /
-// quick-switcher "create" always target the notebook you're actually working in — even on
+// quick-switcher "create" always target the notebook you're actually working in - even on
 // routes (/note/:id, /study, /ask, /) that don't carry a :notebookId param.
 //
 // Resolution order: the current route's :notebookId → the open note's notebook (published by
@@ -14,7 +14,7 @@ export function setActiveNotebook(id: string | null): void {
     try {
       localStorage.setItem(LAST_KEY, id);
     } catch {
-      // localStorage unavailable — the in-memory `active` still covers the live session.
+      // localStorage unavailable - the in-memory `active` still covers the live session.
     }
   }
 }

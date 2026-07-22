@@ -11,7 +11,7 @@ function escapeLike(s: string): string {
 
 /**
  * Keeps only letters/digits/underscore/apostrophe/hyphen, then drops the result
- * entirely unless at least one letter or digit survived — this is what stops a
+ * entirely unless at least one letter or digit survived - this is what stops a
  * stray "-", "'", or punctuation soup from turning into an empty (or
  * quote-breaking) search token.
  */
@@ -24,7 +24,7 @@ export interface ParsedSearch {
   terms: string[];
   phrases: string[];
   excluded: string[];
-  /** Every `tag:` in the query. All must match — the Tags page promises exactly that. */
+  /** Every `tag:` in the query. All must match - the Tags page promises exactly that. */
   tags: string[];
   /** Every `-tag:`. None may match. */
   excludedTags: string[];
@@ -58,7 +58,7 @@ export function parseSearchQuery(raw: string): ParsedSearch {
    * Phrase extraction used to run first, which stripped the `"..."` out of
    * `notebook:"Machine Learning"` before the operator branch ever saw it. The
    * operator was then dropped for having an empty value and the name fell through
-   * as a plain text phrase — so the query silently answered a different question
+   * as a plain text phrase - so the query silently answered a different question
    * instead of failing. Quoting is the only way to express a name containing a
    * space, and Unote's own default notebook is called "My notes".
    */
@@ -118,9 +118,9 @@ interface TsQueryExpr {
  *  - `websearch_to_tsquery` handles phrases ("a b" → a <-> b, i.e. adjacency, not
  *    mere co-occurrence) and exclusions (-x → !x) directly, and never raises on
  *    malformed input.
- *  - It has no prefix syntax, so the trailing `*` on the final bareword — documented
+ *  - It has no prefix syntax, so the trailing `*` on the final bareword - documented
  *    in docs/API.md, and what lets the debounced quick switcher match while the user
- *    is still mid-word — is expressed as a separate `to_tsquery('word':*)` conjunct.
+ *    is still mid-word - is expressed as a separate `to_tsquery('word':*)` conjunct.
  *    The final term is therefore emitted ONLY as the prefix conjunct, never also as
  *    an exact one, or the exact half would veto every prefix-only hit.
  *
@@ -159,7 +159,7 @@ function buildTsQuery(parsed: ParsedSearch): TsQueryExpr | null {
 // Mirrors the old snippet(notes_fts, 1, '<mark>', '</mark>', '…', 12): a single
 // ~12-word window of content_text with the matched terms wrapped in <mark>.
 // (ts_headline only emits FragmentDelimiter *between* fragments, so a one-fragment
-// headline has no leading/trailing ellipsis — cosmetic difference from FTS5.)
+// headline has no leading/trailing ellipsis - cosmetic difference from FTS5.)
 const HEADLINE_OPTS = 'StartSel=<mark>, StopSel=</mark>, MaxWords=12, MinWords=5, MaxFragments=1';
 
 router.get('/', async (req, res) => {
@@ -171,7 +171,7 @@ router.get('/', async (req, res) => {
 
   try {
     if (tsq) {
-      // Text criteria present — rank with ts_rank, tag/notebook become extra joins.
+      // Text criteria present - rank with ts_rank, tag/notebook become extra joins.
       const joins: string[] = [];
       const joinParams: unknown[] = [];
       // One JOIN per tag. The Tags page states that with more than one tag you get
@@ -179,7 +179,7 @@ router.get('/', async (req, res) => {
       // answered a looser question instead.
       //
       // note_tags carries no user_id, so each join is scoped by reaching through `n`
-      // and filtering n.user_id below — it can only ever see tags on a note this
+      // and filtering n.user_id below - it can only ever see tags on a note this
       // user owns.
       parsed.tags.forEach((t, i) => {
         joins.push(`JOIN note_tags nt${i} ON nt${i}.note_id = n.id AND nt${i}.tag = ?`);
@@ -243,7 +243,7 @@ router.get('/', async (req, res) => {
     }
 
     if (parsed.tags.length || parsed.excludedTags.length || parsed.notebook) {
-      // Pure tag:/notebook: browsing (no text term) — e.g. the Tags page's
+      // Pure tag:/notebook: browsing (no text term) - e.g. the Tags page's
       // "search notes →" link (`/search?q=tag:x`). There is no relevance score to
       // rank by, so fall back to a plain notes lookup ordered by recency.
       const conditions = ['n.user_id = ?', 'n.archived = 0', 'n.deleted_at IS NULL'];
@@ -260,7 +260,7 @@ router.get('/', async (req, res) => {
       });
       // This branch built its own SQL and never read parsed.excluded, so a
       // `-word` combined with tag:/notebook: was silently discarded and the caller
-      // got the unfiltered set back — an answer to a question they did not ask.
+      // got the unfiltered set back - an answer to a question they did not ask.
       parsed.excluded.forEach(term => {
         conditions.push("NOT (n.fts @@ plainto_tsquery('english', ?))");
         tailParams.push(term);
@@ -289,7 +289,7 @@ router.get('/', async (req, res) => {
     }
 
     // Nothing usable survived parsing (empty q, or e.g. only punctuation/only a
-    // bare "-exclude" with no positive criteria) — never 500, just no results.
+    // bare "-exclude" with no positive criteria) - never 500, just no results.
     res.json({ results: [], parsed });
   } catch {
     // A hostile/malformed query should never 500 the request. This also absorbs the

@@ -12,7 +12,7 @@ const scrypt = promisify(scryptCb) as (
   options: { N: number; r: number; p: number; maxmem: number },
 ) => Promise<Buffer>;
 
-// OWASP's scrypt baseline (N=2^17, r=8, p=1). maxmem must be raised explicitly —
+// OWASP's scrypt baseline (N=2^17, r=8, p=1). maxmem must be raised explicitly -
 // Node's 32 MB default is below what N=2^17 needs and the call would throw.
 const PARAMS = { N: 2 ** 17, r: 8, p: 1, maxmem: 256 * 1024 * 1024 };
 const KEY_LEN = 64;

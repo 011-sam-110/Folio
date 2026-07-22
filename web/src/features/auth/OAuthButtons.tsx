@@ -1,7 +1,7 @@
 // Social sign-in buttons for the login + signup panels.
 //
 // Rendered ABOVE the email form, with an "or" divider between. Only providers the
-// server reports as configured are shown — the same graceful degradation the app uses
+// server reports as configured are shown - the same graceful degradation the app uses
 // for AI: when nothing is available the whole section (divider included) disappears,
 // so production with no credentials set shows no dead buttons.
 //
@@ -26,7 +26,7 @@ export default function OAuthButtons() {
     api.authProviders().then(
       (r) => alive && setProviders(r.providers),
       // Endpoint unreachable (offline, server down): show nothing rather than a broken
-      // control — the email form below still works.
+      // control - the email form below still works.
       () => alive && setProviders([]),
     );
     return () => {
@@ -34,7 +34,7 @@ export default function OAuthButtons() {
     };
   }, []);
 
-  // Nothing until we know, and nothing when none are configured — no divider, no dead
+  // Nothing until we know, and nothing when none are configured - no divider, no dead
   // buttons. Mirrors how the app hides every AI affordance when AI is off.
   if (!providers || providers.length === 0) return null;
 

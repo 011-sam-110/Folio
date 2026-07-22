@@ -1,6 +1,6 @@
 // The TipTap editor wrapper: extensions, selection/table bubble menus, drag handle,
 // the gutter "+" insert menu, image paste/drop, and outline reporting. Content is only
-// used to seed the editor — callers should `key={note.id}` this component to fully
+// used to seed the editor - callers should `key={note.id}` this component to fully
 // reinitialize on note switch.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor, type Editor, type JSONContent } from '@tiptap/react';
@@ -46,7 +46,7 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
     hoveredBlock.current = { node, pos };
   }, []);
 
-  // Stable for this component's lifetime — remount (key={note.id}) to rebuild for a new note.
+  // Stable for this component's lifetime - remount (key={note.id}) to rebuild for a new note.
   const extensions = useMemo(
     () =>
       createFolioExtensions({
@@ -103,7 +103,7 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
   // rather than TipTap's onCreate/onDestroy. Under React 18 StrictMode the editor
   // is created, torn down, and re-attached, and the raw create/destroy callbacks
   // can fire in an order that leaves the parent's editor ref pointing at a
-  // destroyed instance (or null) — which silently breaks autosave. Keying this
+  // destroyed instance (or null) - which silently breaks autosave. Keying this
   // effect on `editor` makes ref handoff deterministic: cleanup always runs before
   // the next setup, so the ref ends on the current live editor.
   useEffect(() => {
@@ -121,7 +121,7 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
   // A table wide enough to scroll must be reachable by keyboard, or a keyboard-only
   // user simply cannot see the off-screen columns (axe: scrollable-region-focusable).
   // TipTap builds .tableWrapper itself, so the attributes are applied to whatever it
-  // renders — via an observer, because the wrapper is recreated on document changes.
+  // renders - via an observer, because the wrapper is recreated on document changes.
   useEffect(() => {
     if (!editor) return;
     const root = editor.view.dom;
@@ -153,7 +153,7 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
       const end = Math.min(ed.state.doc.content.size - 1, pos + node.nodeSize - 1);
       ed.chain().setTextSelection(Math.max(1, end)).run();
     } catch {
-      /* position no longer valid — leave the selection as-is */
+      /* position no longer valid - leave the selection as-is */
     }
   }
 

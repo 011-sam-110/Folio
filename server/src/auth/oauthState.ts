@@ -101,7 +101,7 @@ export function setStateCookie(res: Response, flow: OAuthFlowState): void {
     httpOnly: true,
     // 'lax' is required, not just preferred: the callback arrives as a top-level
     // navigation from the provider's origin, and a 'strict' cookie would not be sent on
-    // that cross-site redirect — the flow would fail every time. 'lax' still blocks the
+    // that cross-site redirect - the flow would fail every time. 'lax' still blocks the
     // CSRF this cookie exists to stop.
     sameSite: 'lax',
     secure: IS_SERVERLESS,
@@ -124,9 +124,9 @@ export function statesMatch(a: string, b: string): boolean {
  *
  * That URI must match what is registered with the provider EXACTLY, so it is resolved
  * from a fixed source rather than guessed:
- *   1. OAUTH_BASE_URL  — explicit; set this for local dev and any custom domain.
- *   2. Vercel's production hostname — stable on the main deployment.
- *   3. the request's own proto+host — last resort, correct for a plain local run.
+ *   1. OAUTH_BASE_URL  - explicit; set this for local dev and any custom domain.
+ *   2. Vercel's production hostname - stable on the main deployment.
+ *   3. the request's own proto+host - last resort, correct for a plain local run.
  */
 export function appBaseUrl(req: Request): string {
   if (config.oauth.baseUrl) return config.oauth.baseUrl.replace(/\/$/, '');

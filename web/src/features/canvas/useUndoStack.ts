@@ -29,7 +29,7 @@ export interface UndoStack {
 export function useUndoStack(): UndoStack {
   const undoRef = useRef<UndoEntry[]>([]);
   const redoRef = useRef<UndoEntry[]>([]);
-  // Mirrors the stack depths purely so the toolbar buttons can disable — the
+  // Mirrors the stack depths purely so the toolbar buttons can disable - the
   // stacks themselves stay in refs because they are read inside event handlers
   // that must not be rebuilt on every push.
   const [depths, setDepths] = useState({ u: 0, r: 0 });
@@ -39,7 +39,7 @@ export function useUndoStack(): UndoStack {
     (entry: UndoEntry) => {
       undoRef.current.push(entry);
       if (undoRef.current.length > LIMIT) undoRef.current.shift();
-      // Any new action invalidates the redo branch — standard linear-history
+      // Any new action invalidates the redo branch - standard linear-history
       // behaviour, and the only one that cannot surprise the user.
       redoRef.current = [];
       sync();

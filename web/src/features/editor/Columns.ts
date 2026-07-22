@@ -3,7 +3,7 @@
 // docs/ITER2-PLAN.md): `{ type: 'columnList', content: [{ type: 'column',
 // attrs: { width: null }, content: [blocks…] }] }`. Rendered as a responsive CSS grid
 // (editor.css) that collapses to a stacked layout under 640px. Column-boundary dragging
-// (resizing individual widths) is intentionally NOT implemented — the spec calls it
+// (resizing individual widths) is intentionally NOT implemented - the spec calls it
 // optional and it's the flakiest part of this pattern to get right; `width` is carried
 // in the schema for a future pass but unused today (all columns render equal-width).
 import { Node, mergeAttributes } from '@tiptap/core';
@@ -31,7 +31,7 @@ function handleColumnBackspace(editor: Editor): boolean {
 
   const columnDepth = findColumnDepth(state);
   if (columnDepth === -1) return false;
-  // Only fires right at the start of the column's own content — a plain Backspace
+  // Only fires right at the start of the column's own content - a plain Backspace
   // elsewhere inside the column (e.g. mid-paragraph, or a second block down) should
   // behave exactly like it would anywhere else in the doc.
   if ($from.pos !== $from.start(columnDepth)) return false;
@@ -56,7 +56,7 @@ function handleColumnBackspace(editor: Editor): boolean {
   const { tr } = state;
 
   if (columnListNode.childCount === 2) {
-    // Removing this column leaves exactly one — unwrap the whole columnList, replacing
+    // Removing this column leaves exactly one - unwrap the whole columnList, replacing
     // it with the remaining column's own block content directly (sequential blocks,
     // per the "degrades to sequential blocks" contract in ITER2-PLAN.md).
     const otherColumn = columnListNode.child(colIndex === 0 ? 1 : 0);

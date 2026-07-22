@@ -10,7 +10,7 @@ const check = (name, cond, detail = '') => {
     console.log(`  PASS  ${name}`);
   } else {
     fail++;
-    console.log(`  FAIL  ${name}${detail ? ' — ' + detail : ''}`);
+    console.log(`  FAIL  ${name}${detail ? ' - ' + detail : ''}`);
   }
 };
 

@@ -101,7 +101,7 @@ router.post('/notes/:noteId/shares', requireAuth, async (req, res) => {
   const permission = b.permission === 'view' ? 'view' : 'edit';
   const password = typeof b.password === 'string' && b.password ? b.password : null;
   // Was 4. A share link is a bearer credential on a public URL, so its password is
-  // the only thing standing between a leaked link and the note behind it — and four
+  // the only thing standing between a leaked link and the note behind it - and four
   // characters is inside brute-force range even with the join throttle in place.
   if (password && password.length < 8) {
     res.status(400).json({ error: 'Share password must be at least 8 characters' });
@@ -133,7 +133,7 @@ router.post('/notes/:noteId/shares', requireAuth, async (req, res) => {
       nowIso(),
     );
 
-  // The raw token is returned exactly once, here — it is unrecoverable afterwards
+  // The raw token is returned exactly once, here - it is unrecoverable afterwards
   // because only its hash was stored.
   res.status(201).json({
     share: { id, permission, hasPassword: Boolean(password), expiresAt },
@@ -158,7 +158,7 @@ router.delete('/shares/:shareId', requireAuth, async (req, res) => {
 // Guest-side join flow. No account required.
 // ---------------------------------------------------------------------------
 
-/** What a visitor is told before they authenticate — deliberately minimal. */
+/** What a visitor is told before they authenticate - deliberately minimal. */
 router.get('/share/:token', async (req, res) => {
   const share = await loadShareByToken(String(req.params.token));
   if (!share) {
@@ -327,14 +327,14 @@ function ctx(req: Request): ShareContext {
  * May this request read the attachment stored as `storedName`?
  *
  * Images embedded in a note are fetched by the browser as plain `<img src="/uploads/…">`
- * requests. Those carry no share token — the token lives in the page URL, not in the
- * image URL — so a guest viewing a shared note would get a 404 for every figure if
+ * requests. Those carry no share token - the token lives in the page URL, not in the
+ * image URL - so a guest viewing a shared note would get a 404 for every figure if
  * attachment reads were scoped to the owner alone.
  *
  * The cookies a guest received at join time are the credential we do have, so this walks
  * them: for each `folio_guest_<shareId>` cookie, confirm the guest row is live and the
  * share is neither revoked nor expired, then confirm the attachment is filed against the
- * shared note. That last check is what keeps this narrow — holding a share link grants the
+ * shared note. That last check is what keeps this narrow - holding a share link grants the
  * images in *that* note, not the run of every attachment in the database.
  *
  * The membership test is `attachments.note_id`, and only that, because it is a column no
@@ -347,7 +347,7 @@ function ctx(req: Request): ShareContext {
  *
  * Editor uploads used to depend on that branch, because they are stored with note_id NULL
  * (the image is posted before it is placed). They are now filed against the note on the
- * owner's own write instead — see claimAttachmentsForNote in lib/attachments.ts.
+ * owner's own write instead - see claimAttachmentsForNote in lib/attachments.ts.
  */
 export async function shareGrantsAttachmentAccess(req: Request, storedName: string): Promise<boolean> {
   const header = req.headers.cookie;
@@ -365,7 +365,7 @@ export async function shareGrantsAttachmentAccess(req: Request, storedName: stri
     try {
       guestToken = decodeURIComponent(part.slice(eq + 1).trim());
     } catch {
-      continue; // malformed cookie value — not a credential
+      continue; // malformed cookie value - not a credential
     }
 
     const guest = await db
@@ -435,7 +435,7 @@ router.patch('/share/:token/note', requireShareAccess, async (req, res) => {
   }
   if (b.contentJson && typeof b.contentJson === 'object') {
     // content_text must be derived here, exactly as the owner's PATCH does. It backs
-    // full-text search, note snippets and the AI endpoints — writing content_json
+    // full-text search, note snippets and the AI endpoints - writing content_json
     // alone left everything a guest typed permanently unsearchable, behind a snippet
     // frozen at whatever the note said before they joined.
     const contentText =

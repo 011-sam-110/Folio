@@ -9,7 +9,7 @@ let pass = 0;
 let fail = 0;
 const check = (name, cond, detail = '') => {
   if (cond) { pass++; console.log(`  PASS  ${name}`); }
-  else { fail++; console.log(`  FAIL  ${name}${detail ? ' — ' + detail : ''}`); }
+  else { fail++; console.log(`  FAIL  ${name}${detail ? ' - ' + detail : ''}`); }
 };
 
 function makeClient() {

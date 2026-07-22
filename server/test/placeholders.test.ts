@@ -7,8 +7,8 @@ import { rewrite, toPgPlaceholders } from '../src/db.js';
  * every later parameter binds to the wrong column, with Postgres none the wiser.
  *
  * The three miscounts below were found by an adversarial security review. None
- * were exploitable — no query in the codebase contains a block comment, a
- * dollar-quoted string, or an E'' literal — but they were latent traps for the
+ * were exploitable - no query in the codebase contains a block comment, a
+ * dollar-quoted string, or an E'' literal - but they were latent traps for the
  * next person to write one.
  */
 describe('toPgPlaceholders', () => {

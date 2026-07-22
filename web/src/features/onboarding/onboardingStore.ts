@@ -7,8 +7,8 @@
 // There is no user-preferences surface in Unote today: `users` has no prefs column
 // and `publicUser()` returns exactly { id, email, displayName }. Persisting this
 // server-side would mean a schema change, a new authenticated route, and a widening
-// of the auth payload — real risk against code that was hardened in a security pass
-// — to store something whose worst-case failure is "a student sees a tutorial offer
+// of the auth payload - real risk against code that was hardened in a security pass
+// - to store something whose worst-case failure is "a student sees a tutorial offer
 // one extra time on a new device".
 //
 // It is also the more *correct* behaviour for what this actually stores. The tour
@@ -29,7 +29,7 @@ import { useEffect, useState } from 'react';
 const PREFIX = 'folio:onboarding:v1:';
 
 export type TourStatus =
-  /** Never offered, or offered and not yet answered — the welcome card is due. */
+  /** Never offered, or offered and not yet answered - the welcome card is due. */
   | 'unseen'
   /** Left mid-tour (Escape, reload, navigation away). Resumable from `step`. */
   | 'paused'

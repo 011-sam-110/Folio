@@ -3,17 +3,17 @@
 // v1 is a snapshot, not a live link: the produced PNG is uploaded as an ordinary image
 // attachment and inserted as an image node, so it does not track later edits to the board.
 // LIVE-LINKING (re-rendering the figure when the board changes, or storing the board id on
-// the node and refreshing on open) is a deliberate future enhancement — see the module
+// the node and refreshing on open) is a deliberate future enhancement - see the module
 // README note in canvasInsertInsertable.ts.
 //
-// The ink is drawn with canvas/strokes.ts's `drawLayer` — the exact renderer the live board
-// uses — so ink in the snapshot is pixel-identical to ink on the board. Items are drawn
+// The ink is drawn with canvas/strokes.ts's `drawLayer` - the exact renderer the live board
+// uses - so ink in the snapshot is pixel-identical to ink on the board. Items are drawn
 // here because the board renders them as React/DOM, which cannot be rasterised without a
 // DOM-to-canvas dependency (and the strict CSP rules those out anyway).
 //
 // Colours are a FIXED portable palette (white page, dark ink), not theme tokens: the image
 // is frozen at capture time and shown forever in whatever theme the reader has, so it must
-// be legible on both — the same reasoning canvas/items.ts gives for sticky colours.
+// be legible on both - the same reasoning canvas/items.ts gives for sticky colours.
 
 import { api } from '../../../../lib/api';
 import type { CanvasItem, InkStroke } from '../../../../lib/types';
@@ -42,7 +42,7 @@ export interface SnapshotOptions {
   maxDim?: number;
 }
 
-/** Same defensive read as canvas/useInkLayer's normalizeStroke — a bad ink row is skipped,
+/** Same defensive read as canvas/useInkLayer's normalizeStroke - a bad ink row is skipped,
  *  never allowed to crash the render. */
 function normalizeStroke(s: InkStroke): LocalStroke | null {
   if (!s || !Array.isArray(s.points) || s.points.length === 0) return null;
@@ -292,7 +292,7 @@ export function drawBoard(
 ): void {
   const ordered = [...board.items].sort((a, b) => a.z - b.z);
   for (const item of ordered) drawItem(ctx, item, vp, images);
-  // Ink always sits on top — you annotate over the cards, same as the live board.
+  // Ink always sits on top - you annotate over the cards, same as the live board.
   drawLayer(ctx, board.strokes, vp);
 }
 

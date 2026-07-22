@@ -104,7 +104,7 @@ const Wikilink = Node.create<WikilinkOptions>({
           const res = await api.searchTitles(query, 8);
           results = res.results;
         } catch {
-          // network hiccup — fall through to just the create-row below
+          // network hiccup - fall through to just the create-row below
         }
         const q = query.trim();
         if (q) {

@@ -1,7 +1,7 @@
-// palette-nav — Ctrl/Cmd+P command palette. A centered panel visually sibling
+// palette-nav - Ctrl/Cmd+P command palette. A centered panel visually sibling
 // to QuickSwitcher (Ctrl/Cmd+K), but clearly action-flavored: where the quick
-// switcher finds NOTES, this finds THINGS TO DO — navigation, creation, view
-// toggles and study shortcuts — grouped by section when browsing with an
+// switcher finds NOTES, this finds THINGS TO DO - navigation, creation, view
+// toggles and study shortcuts - grouped by section when browsing with an
 // empty query, fuzzy-ranked flat once the user starts typing.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -31,7 +31,7 @@ export default function CommandPalette({
 }: {
   open: boolean;
   onClose: () => void;
-  /** Same callback App.tsx wires to Ctrl/Cmd+\ — flips the sidebar collapse state. */
+  /** Same callback App.tsx wires to Ctrl/Cmd+\ - flips the sidebar collapse state. */
   onToggleSidebar: () => void;
   /** Opens the sidebar's phone-capture QR modal (state lives in App.tsx). */
   onOpenPhoneCapture: () => void;
@@ -79,7 +79,7 @@ export default function CommandPalette({
   const filingNotebookId = resolveFilingNotebook(params.notebookId, notebooks);
   const filingNotebook = notebooks.find((n) => n.id === filingNotebookId);
   // "Study this notebook" only makes sense as a command while genuinely on a
-  // notebook/note route — elsewhere the fallback chain would resolve to
+  // notebook/note route - elsewhere the fallback chain would resolve to
   // "some" notebook and mislabel a command that isn't actually contextual.
   const contextNotebook = onNotebookOrNoteRoute ? filingNotebook : undefined;
   const noteId = params.noteId;
@@ -243,7 +243,7 @@ export default function CommandPalette({
   const q = query.trim();
 
   // Grouped-by-section rows for browsing (empty query) vs. a flat fuzzy-ranked
-  // list once typing starts — same "index space" trick QuickSwitcher uses so
+  // list once typing starts - same "index space" trick QuickSwitcher uses so
   // ↑↓/Enter can address a row without caring which mode produced it.
   const { rows, flatCommands } = useMemo(() => {
     if (!q) {
@@ -293,7 +293,7 @@ export default function CommandPalette({
 
   function runCommand(cmd: Command) {
     // "New notebook" switches the palette into its inline prompt instead of
-    // closing — everything else runs and dismisses immediately.
+    // closing - everything else runs and dismisses immediately.
     if (cmd.id === 'create-notebook') {
       cmd.run(ctx);
       return;

@@ -18,10 +18,10 @@ export default function TableToolbar({ editor }: { editor: Editor }) {
           +Col
         </button>
         <button type="button" aria-label="Delete row" title="Delete row" onClick={() => editor.chain().focus().deleteRow().run()}>
-          −Row
+          -Row
         </button>
         <button type="button" aria-label="Delete column" title="Delete column" onClick={() => editor.chain().focus().deleteColumn().run()}>
-          −Col
+          -Col
         </button>
         <button type="button" aria-label="Toggle header row" title="Toggle header row" onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
           Header

@@ -1,11 +1,11 @@
 // React node view for the inline sketch pad.
 //
 // Reuse map:
-//   * canvas/InkSurface  — the entire drawable surface: pointer capture, palm rejection,
+//   * canvas/InkSurface  - the entire drawable surface: pointer capture, palm rejection,
 //     Apple-Pencil pressure, DPR-correct two-canvas rendering. Unchanged.
-//   * canvas/strokes.ts  — the renderer + palettes, via InkSurface and the toolbar.
-//   * canvas/useUndoStack — command-stack undo/redo, same as the doc-note overlay.
-//   * useSketchLayer     — OUR InkLayer, swapping server persistence for node attrs.
+//   * canvas/strokes.ts  - the renderer + palettes, via InkSurface and the toolbar.
+//   * canvas/useUndoStack - command-stack undo/redo, same as the doc-note overlay.
+//   * useSketchLayer     - OUR InkLayer, swapping server persistence for node attrs.
 //
 // The pad draws in a fixed world space (0..SKETCH_WORLD_W wide); the on-screen viewport
 // scale is just renderedWidth / SKETCH_WORLD_W, so the same strokes re-render proportionally
@@ -51,7 +51,7 @@ export default function SketchView({ node, updateAttributes, editor, selected }:
     pen: defaultWidthFor('pen'),
     highlighter: defaultWidthFor('highlighter'),
   });
-  // Unlike a board (where a finger pans), a pad has nothing to pan — so a finger draws by
+  // Unlike a board (where a finger pans), a pad has nothing to pan - so a finger draws by
   // default. The toolbar toggle turns it off when the reader needs to scroll past the pad.
   const [fingerDraws, setFingerDraws] = useState(true);
 
@@ -127,7 +127,7 @@ export default function SketchView({ node, updateAttributes, editor, selected }:
   }, [undo]);
 
   // Keep the pad's own undo/redo from bubbling to the editor's history while a sketch is
-  // focused — the editor beneath is not the thing the user means to undo.
+  // focused - the editor beneath is not the thing the user means to undo.
   const onKeyDown = useCallback(
     (e: ReactKeyboardEvent<HTMLDivElement>) => {
       const mod = e.ctrlKey || e.metaKey;

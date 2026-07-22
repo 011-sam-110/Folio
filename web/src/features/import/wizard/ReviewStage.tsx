@@ -1,4 +1,4 @@
-// The review screen — where "nothing commits until confirmed" lives. Left rail = the proposed
+// The review screen - where "nothing commits until confirmed" lives. Left rail = the proposed
 // categories; main = items grouped under their proposed notebook. Every item can be reassigned,
 // re-tagged, retitled, previewed, merged into an existing note, or rejected; proposed NEW
 // notebooks must be explicitly approved before their items can be imported.

@@ -1,24 +1,24 @@
 // Owned by web-shell (may be replaced; keep exported signatures).
 //
 // Global keyboard shortcut hub. Individual overlays (Modal, QuickSwitcher,
-// menus) own their own Escape handling locally — this hook only owns the
+// menus) own their own Escape handling locally - this hook only owns the
 // app-wide chords that must work from anywhere: quick switcher, new note,
 // focus search, and the sidebar collapse toggle.
 import { useEffect, useRef } from 'react';
 
 export interface ShortcutHandlers {
-  /** Ctrl/Cmd+K — open the quick switcher. */
+  /** Ctrl/Cmd+K - open the quick switcher. */
   onQuickSwitcher?: () => void;
-  /** Ctrl/Cmd+N — new note in the current (or first) notebook. */
+  /** Ctrl/Cmd+N - new note in the current (or first) notebook. */
   onNewNote?: () => void;
-  /** Ctrl/Cmd+Shift+F — focus full search. */
+  /** Ctrl/Cmd+Shift+F - focus full search. */
   onFocusSearch?: () => void;
-  /** Ctrl/Cmd+\ — toggle sidebar collapse. */
+  /** Ctrl/Cmd+\ - toggle sidebar collapse. */
   onToggleSidebar?: () => void;
-  /** Ctrl/Cmd+P — open the command palette. Always intercepted (even while
+  /** Ctrl/Cmd+P - open the command palette. Always intercepted (even while
    *  typing) so it never falls through to the browser's print dialog. */
   onCommandPalette?: () => void;
-  /** `?` — open the keyboard shortcut cheatsheet. Unmodified, so unlike every
+  /** `?` - open the keyboard shortcut cheatsheet. Unmodified, so unlike every
    *  other binding here it must yield while the user is typing: `?` is a real
    *  character in a note. */
   onShortcutsHelp?: () => void;
@@ -47,7 +47,7 @@ export function useShortcuts(handlers: ShortcutHandlers): void {
       const mod = e.metaKey || e.ctrlKey;
 
       // The one unmodified binding. Checked before the `mod` guard below, and only
-      // ever outside a text field — `?` has to keep working as a question mark.
+      // ever outside a text field - `?` has to keep working as a question mark.
       if (!mod && e.key === '?' && !isTypingTarget(e.target)) {
         e.preventDefault();
         ref.current.onShortcutsHelp?.();
@@ -66,7 +66,7 @@ export function useShortcuts(handlers: ShortcutHandlers): void {
       }
 
       // Command palette always works too, and must always block the
-      // browser's print dialog — including while focused in the editor.
+      // browser's print dialog - including while focused in the editor.
       if (key === 'p' && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         ref.current.onCommandPalette?.();

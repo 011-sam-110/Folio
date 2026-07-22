@@ -1,4 +1,4 @@
-/* Unote note page chrome — breadcrumb, action bar, title, outline rail, history drawer,
+/* Unote note page chrome - breadcrumb, action bar, title, outline rail, history drawer,
    AI preview modal, dropdowns. Editor content typography lives in editor.css. */
 
 .folio-note-page {
@@ -645,7 +645,7 @@
   color: var(--ink-3);
 }
 
-/* ---------- Assistant panel (study assistant — reuses the history drawer chrome) ---------- */
+/* ---------- Assistant panel (study assistant - reuses the history drawer chrome) ---------- */
 
 .folio-assistant .folio-history-head h3 {
   display: flex;
@@ -741,7 +741,7 @@
 /* ---------- Find/replace bar (docked top-right of the editor area) ---------- */
 /* Match/current-match highlight decorations render inside .folio-prosemirror (from
    FindReplace.ts's ProseMirror plugin); styled here rather than editor.css, which is
-   another agent's file this wave — CSS is global regardless of which stylesheet loads it. */
+   another agent's file this wave - CSS is global regardless of which stylesheet loads it. */
 
 .folio-prosemirror .folio-find-match {
   background: color-mix(in srgb, var(--accent) 22%, transparent);

@@ -56,7 +56,7 @@ describe('POST /api/auth/signup', () => {
     expect(row?.password_hash).toBeTruthy();
     expect(row?.password_hash).not.toContain(PASSWORD);
     expect(row?.password_salt).toBeTruthy();
-    // Two accounts with the same password must not share a hash — i.e. the salt is real.
+    // Two accounts with the same password must not share a hash - i.e. the salt is real.
     const other = await request(app).post('/api/auth/signup').send({ email: 'hash2@example.com', password: PASSWORD });
     const otherRow = await db
       .prepare('SELECT password_hash FROM users WHERE id = ?')
@@ -120,7 +120,7 @@ describe('password length cap', () => {
     const res = await request(app)
       .post('/api/auth/login')
       .send({ email: 'cap@example.com', password: TOO_LONG });
-    // 400, not the usual 401 — this is a rejected request shape, not a failed credential.
+    // 400, not the usual 401 - this is a rejected request shape, not a failed credential.
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/at most 128/);
   });

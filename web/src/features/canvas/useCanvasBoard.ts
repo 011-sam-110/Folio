@@ -118,7 +118,7 @@ export function useCanvasBoard(noteId: string): CanvasBoardDoc {
     pendingRef.current.clear();
     const run = (async () => {
       try {
-        // ONE request for the whole batch — this is why the drag handler never
+        // ONE request for the whole batch - this is why the drag handler never
         // touches the network.
         await api.updateCanvasItems(noteId, batch);
       } catch {

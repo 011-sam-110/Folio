@@ -295,8 +295,8 @@ const paths: Record<IconName, ReactNode> = {
   ),
 
   // --- canvas boards + stylus ink ---
-  // A framed board with two connected nodes — reads as "board", and stays legible
-  // at the 12–14px the sidebar and note cards render it at.
+  // A framed board with two connected nodes - reads as "board", and stays legible
+  // at the 12-14px the sidebar and note cards render it at.
   canvas: (
     <>
       <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -384,7 +384,7 @@ const paths: Record<IconName, ReactNode> = {
   ),
 };
 
-/** Runtime membership test for the icon set — lets callers accept a string that is
+/** Runtime membership test for the icon set - lets callers accept a string that is
  *  either an Icon name (rendered as a vector) or a plain text glyph. */
 export function isIconName(value: string): value is IconName {
   return value in paths;

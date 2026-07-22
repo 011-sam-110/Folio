@@ -17,7 +17,7 @@ const tagsStmt = () =>
      ORDER BY t.tag`,
   );
 // attachments carry their own user_id, so the owner check is a direct indexed
-// predicate rather than a join — note_id is nullable here (ON DELETE SET NULL),
+// predicate rather than a join - note_id is nullable here (ON DELETE SET NULL),
 // so the attachment's own user_id is the authoritative owner, not the note's.
 const attachmentsStmt = () =>
   db.prepare(
@@ -37,7 +37,7 @@ export interface AttachmentDto {
 }
 
 /** Attachments (photo/pdf/office originals) kept next to a note so an OCR'd source is
- *  always one click away — "never destructive OCR". */
+ *  always one click away - "never destructive OCR". */
 export async function attachmentsOf(noteId: string, uid: string): Promise<AttachmentDto[]> {
   const rows = await attachmentsStmt().all<{
     id: string; kind: string; original_name: string; stored_name: string; mime: string; size: number; status: string; created_at: string;
@@ -78,7 +78,7 @@ export interface NoteRow {
   id: string; user_id: string; notebook_id: string; title: string; content_json: string; content_text: string;
   // 'doc' (TipTap document) | 'canvas' (infinite board; its children live in
   // canvas_items/canvas_edges). Optional here because a handful of older callers
-  // predate the column — they fall back to 'doc' in the serialisers below.
+  // predate the column - they fall back to 'doc' in the serialisers below.
   kind?: string;
   pinned: number; archived: number; created_at: string; updated_at: string;
 }
@@ -90,13 +90,13 @@ export interface NoteRow {
  * session id. That is the correct key: `notes.user_id` is written by the server
  * and never taken from user input, and scoping to it means the tags/notebook
  * attached to a note always belong to that same note. Gating *whether* the
- * caller may see this row at all remains the fetching query's job — every
+ * caller may see this row at all remains the fetching query's job - every
  * `SELECT ... FROM notes` must still carry its own `user_id = ?` predicate.
  */
 function ownerOf(row: NoteRow): string {
   // Fail loudly rather than silently serialising a note with no tags/notebook,
   // which is what a `SELECT id, title, ...` projection cast to NoteRow would do.
-  if (!row.user_id) throw new Error('note row is missing user_id — SELECT it (or use SELECT *)');
+  if (!row.user_id) throw new Error('note row is missing user_id - SELECT it (or use SELECT *)');
   return row.user_id;
 }
 

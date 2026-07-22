@@ -1,4 +1,4 @@
-// Insert item: "Insert from canvas" — a STATIC snapshot of one of the student's boards.
+// Insert item: "Insert from canvas" - a STATIC snapshot of one of the student's boards.
 //
 // FUTURE (live-linking): v1 inserts a frozen image. A later iteration could store the
 // source board id on a dedicated figure node and re-render the snapshot when the board
@@ -11,7 +11,7 @@ import type { Editor } from '@tiptap/core';
 import { focusFrom, type InsertItem } from './insertTypes';
 import CanvasInsertModal from './CanvasInsertModal';
 
-/** Mount the board picker on its own detached root — no shared modal host to wire up. */
+/** Mount the board picker on its own detached root - no shared modal host to wire up. */
 export function openCanvasInsertModal(editor: Editor): void {
   const container = document.createElement('div');
   document.body.appendChild(container);

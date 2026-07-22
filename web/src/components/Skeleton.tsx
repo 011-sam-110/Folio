@@ -1,4 +1,4 @@
-// web-shell — keep the prop signature exactly: { lines? }.
+// web-shell - keep the prop signature exactly: { lines? }.
 export default function Skeleton({ lines = 3 }: { lines?: number }) {
   return (
     <div aria-hidden="true">

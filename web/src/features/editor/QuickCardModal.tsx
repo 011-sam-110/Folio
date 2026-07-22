@@ -1,6 +1,6 @@
 // "Add to flashcards" quick composer, opened from SelectionToolbar. The selected text
 // pre-fills the answer; the student only has to type the question. Saves via
-// api.createCard (the manual-flashcard endpoint — server route is study-manual's) and
+// api.createCard (the manual-flashcard endpoint - server route is study-manual's) and
 // links straight to /study on success.
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';

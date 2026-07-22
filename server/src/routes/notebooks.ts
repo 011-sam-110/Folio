@@ -17,7 +17,7 @@ interface NotebookRow {
 
 // Ownership is folded into the lookup itself rather than checked afterwards, so a
 // notebook belonging to someone else is indistinguishable from one that does not
-// exist (404) — and no handler can forget the check.
+// exist (404) - and no handler can forget the check.
 const getRowStmt = () => db.prepare('SELECT * FROM notebooks WHERE id = ? AND user_id = ?');
 // notes.user_id is redundant with the already-owner-checked notebook_id, but keeping
 // it means a mis-filed row could never inflate another user's counts.
@@ -61,7 +61,7 @@ router.post('/', async (req, res) => {
     .prepare('SELECT COALESCE(MAX(position), -1) as m FROM notebooks WHERE user_id = ?')
     .get(uid)) as { m: number }).m;
 
-  // The owner comes from the session only — never from the request body.
+  // The owner comes from the session only - never from the request body.
   await db.prepare(
     'INSERT INTO notebooks (id, user_id, name, emoji, color, position, archived, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
   ).run(id, uid, name, typeof b.emoji === 'string' && b.emoji ? b.emoji : '📓', typeof b.color === 'string' && b.color ? b.color : '#6366f1', maxPos + 1, now);
@@ -91,7 +91,7 @@ router.patch('/:id', async (req, res) => {
     b.emoji !== undefined ? String(b.emoji) : row.emoji,
     b.color !== undefined ? String(b.color) : row.color,
     b.position !== undefined ? Number(b.position) : row.position,
-    // archived is INTEGER 0/1 in Postgres, which rejects a JS boolean — coerce here.
+    // archived is INTEGER 0/1 in Postgres, which rejects a JS boolean - coerce here.
     b.archived !== undefined ? (b.archived ? 1 : 0) : row.archived,
     row.id,
     uid,

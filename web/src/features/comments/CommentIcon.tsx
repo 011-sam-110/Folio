@@ -1,7 +1,7 @@
 // A small stroke/currentColor speech-bubble glyph matching components/Icon.tsx's visual
 // language (24x24 viewbox, round joins, currentColor stroke). Icon.tsx itself is shared,
 // unowned infra this wave (every agent could plausibly want to add a glyph to it, which is
-// exactly the kind of concurrent-edit collision the ownership map exists to avoid) — so this
+// exactly the kind of concurrent-edit collision the ownership map exists to avoid) - so this
 // stays local to the comments feature instead of touching that shared file.
 export default function CommentIcon({ size = 15 }: { size?: number }) {
   return (

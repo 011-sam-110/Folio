@@ -1,7 +1,7 @@
 // Pull the figures and diagrams out of a slide deck, in slide order.
 //
 // Text extraction alone loses the part of a lecture slide that is often carrying the
-// actual explanation — the graph, the tree diagram, the worked trace. A .pptx is a
+// actual explanation - the graph, the tree diagram, the worked trace. A .pptx is a
 // ZIP, so the pictures are already sitting in ppt/media/; the work is not getting the
 // bytes out but deciding which ones are worth keeping and which slide each belongs to.
 import fsp from 'node:fs/promises';
@@ -32,7 +32,7 @@ const MIME_BY_EXT: Record<string, string> = {
 const MIN_BYTES = 12 * 1024;
 
 /**
- * An image on more than this share of slides is template furniture — a university
+ * An image on more than this share of slides is template furniture - a university
  * crest, a footer bar, the lecturer's headshot on every page. Keeping them would put
  * the same logo into the note a dozen times.
  *
@@ -68,7 +68,7 @@ function resolveTarget(target: string): string | null {
  * Extract slide images from a .pptx, ordered by slide.
  *
  * Returns an empty array rather than throwing for a deck with no usable pictures, or
- * for a file that turns out not to be a readable ZIP — a failed image pass must not
+ * for a file that turns out not to be a readable ZIP - a failed image pass must not
  * take the whole import down when the text extracted fine.
  */
 export async function extractPptxImages(filePath: string): Promise<SlideImage[]> {
@@ -127,14 +127,14 @@ export async function extractPptxImages(filePath: string): Promise<SlideImage[]>
   const ubiquityLimit = Math.max(2, Math.ceil(slidePaths.length * UBIQUITY_RATIO));
 
   const out: SlideImage[] = [];
-  const emitted = new Set<string>(); // by hash — the same figure twice adds nothing
+  const emitted = new Set<string>(); // by hash - the same figure twice adds nothing
   for (const { slide, media } of perSlide) {
     for (const name of media) {
       const bytes = files[name];
       if (!bytes || bytes.byteLength < MIN_BYTES) continue;
 
       const mime = MIME_BY_EXT[extOf(name)];
-      if (!mime) continue; // EMF/WMF vector blobs — no browser renders them
+      if (!mime) continue; // EMF/WMF vector blobs - no browser renders them
 
       const h = hashOf.get(name)!;
       if (applyUbiquity && (slidesByHash.get(h)?.size ?? 0) >= ubiquityLimit) continue;

@@ -1,4 +1,4 @@
-// Custom block node: a 2D molecular structure. The molecule is stored as TEXT ONLY —
+// Custom block node: a 2D molecular structure. The molecule is stored as TEXT ONLY -
 // a SMILES string (always), plus an optional molfile when the Draw editor produced one,
 // plus an optional human name. No binary, no attachment: the whole node round-trips through
 // the note's content_json. Rendering is done offline in the node view (see smilesRenderer).

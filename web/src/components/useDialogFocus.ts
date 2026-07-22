@@ -7,7 +7,7 @@ export interface DialogFocusOptions {
   /**
    * Trap Tab inside the panel and lock body scroll. True for modal overlays
    * (palettes, dialogs); false for the side drawers, which are deliberately
-   * non-modal — the note stays readable and editable behind them.
+   * non-modal - the note stays readable and editable behind them.
    */
   trap?: boolean;
   /** Pass false when the panel focuses its own field (e.g. a search input). */
@@ -20,7 +20,7 @@ export interface DialogFocusOptions {
  * Two bugs this exists to fix, both found by keyboard-only walkthrough:
  *
  * 1. The palette overlays (CommandPalette, QuickSwitcher) declared
- *    `role="dialog" aria-modal="true"` but implemented none of it — Tab walked
+ *    `role="dialog" aria-modal="true"` but implemented none of it - Tab walked
  *    straight into the page behind (13 of 14 stops leaked), and Escape was a React
  *    `onKeyDown` on the panel, so it stopped working the instant focus left.
  *
@@ -28,8 +28,8 @@ export interface DialogFocusOptions {
  *    on the panel but never moved focus into it, so Escape was dead on arrival:
  *    focus was still on the trigger button outside the panel when it opened.
  *
- * Escape is therefore handled on the document in the capture phase — it works
- * wherever focus currently is — and focus is always restored to the trigger.
+ * Escape is therefore handled on the document in the capture phase - it works
+ * wherever focus currently is - and focus is always restored to the trigger.
  *
  * `onClose` is read through a ref, so callers may pass a fresh closure each render
  * without the effect tearing down and stealing focus back mid-interaction.

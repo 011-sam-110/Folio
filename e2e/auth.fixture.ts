@@ -20,14 +20,14 @@
  *    somewhere. Truncating tables between tests would force `workers: 1` and would
  *    test a state the app never actually reaches in production. Giving each worker
  *    its own account instead means specs cannot see each other's notebooks *because
- *    the app's own multi-tenant scoping keeps them apart* — the isolation mechanism
+ *    the app's own multi-tenant scoping keeps them apart* - the isolation mechanism
  *    and the thing under test are the same mechanism, so a tenancy leak shows up as
  *    a test failure rather than being papered over.
  *
  *    The session is captured once per worker into a storageState file. Playwright
  *    feeds that file to both the `page` context and the built-in `request` context,
  *    so existing specs get an authenticated browser AND authenticated API setup
- *    calls without changing a line of their bodies — only their import.
+ *    calls without changing a line of their bodies - only their import.
  *
  * Specs that need a guaranteed-pristine vault (no notebooks or notes beyond the
  * signup starter) can opt out of the shared worker account with `freshAccount()`.
@@ -55,7 +55,7 @@ export interface Account {
   email: string;
   password: string;
   displayName: string;
-  /** Only ever returned by signup — this is the one moment it exists in the clear. */
+  /** Only ever returned by signup - this is the one moment it exists in the clear. */
   recoveryKey: string;
   /** Path to the Playwright storageState JSON holding this account's session cookie. */
   storageStatePath: string;
@@ -77,7 +77,7 @@ export function uniqueEmail(tag: string): string {
  * browser will load.
  *
  * The tutorial auto-opens exactly once per account per device, for an account that
- * has never answered its offer — which describes every account this fixture makes.
+ * has never answered its offer - which describes every account this fixture makes.
  * Its overlay is modal and deliberately swallows clicks on the page behind, so
  * without this every spec in the suite would open onto a coach mark and time out
  * trying to click the app underneath.
@@ -86,7 +86,7 @@ export function uniqueEmail(tag: string): string {
  * itself free of test-only branches: this writes the same localStorage record a
  * real user writes by pressing "Not now", so specs run against exactly the code
  * path a returning user gets. The tutorial's own behaviour is covered
- * deliberately, and only, in onboarding.spec.ts — which clears this key first.
+ * deliberately, and only, in onboarding.spec.ts - which clears this key first.
  *
  * `storageState` is captured from an APIRequestContext, which has no localStorage
  * of its own, so the origins entry is written into the JSON by hand.
@@ -120,7 +120,7 @@ async function markOnboardingSeen(statePath: string, baseURL: string, userId: st
  * Creates an account via POST /api/auth/signup and writes its session to a
  * storageState file.
  *
- * `baseURL` points at the web dev server, which proxies /api to the API — using
+ * `baseURL` points at the web dev server, which proxies /api to the API - using
  * that origin (rather than the API port directly) is what makes the session cookie
  * land on the same host the browser will later load, so storageState actually
  * applies.

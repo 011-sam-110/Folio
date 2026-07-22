@@ -19,7 +19,7 @@ import type { InkStroke } from '../../lib/types';
 import type { LocalStroke } from '../canvas/strokes';
 import type { InkLayer } from '../canvas/useInkLayer';
 
-/** Debounce before uploading a burst of finished strokes — matches the owner
+/** Debounce before uploading a burst of finished strokes - matches the owner
  *  layer, and is deliberately shorter than the sync poll so a stroke is on the
  *  server before the next poll goes looking for it. */
 const UPLOAD_DEBOUNCE_MS = 600;
@@ -29,8 +29,8 @@ export interface SharedInkLayer extends InkLayer {
    * Called when the delta feed reports an ink write. Returns true if anything
    * was actually pulled in, so the caller can surface "someone drew".
    *
-   * THIS IS THE ECHO SUPPRESSION. Every id we have ever seen — whether we drew it
-   * or fetched it — is in `knownRef`, so our own strokes coming back around the
+   * THIS IS THE ECHO SUPPRESSION. Every id we have ever seen - whether we drew it
+   * or fetched it - is in `knownRef`, so our own strokes coming back around the
    * loop are recognised and the refetch is skipped entirely. That works without
    * knowing our own actor id, which the share API never tells us.
    */
@@ -46,7 +46,7 @@ export function useSharedInk(token: string, canEdit: boolean): SharedInkLayer {
 
   // Every stroke id this client is aware of, local or remote.
   const knownRef = useRef<Set<string>>(new Set());
-  // Finished but not yet uploaded, in draw order — the POST returns ids
+  // Finished but not yet uploaded, in draw order - the POST returns ids
   // positionally, so the order is load-bearing.
   const queueRef = useRef<LocalStroke[]>([]);
   const timerRef = useRef<number | null>(null);
@@ -214,7 +214,7 @@ export function useSharedInk(token: string, canEdit: boolean): SharedInkLayer {
 
   // Append-only API: these exist to satisfy the InkLayer contract that InkSurface
   // is written against. The shared toolbar hides the eraser and the clear button,
-  // so nothing reaches them — but a silent no-op would be a trap if that ever
+  // so nothing reaches them - but a silent no-op would be a trap if that ever
   // changed, hence the toast.
   const removeStrokes = useCallback((): LocalStroke[] => {
     toast('Erasing is not available on a shared board', 'info');
@@ -240,7 +240,7 @@ export function useSharedInk(token: string, canEdit: boolean): SharedInkLayer {
   return { strokes, ready, addStroke, removeStrokes, restoreStrokes, clearAll, flush, pullRemote };
 }
 
-/** Defensive read of a server stroke — the stroke column is opaque JSON, so a row
+/** Defensive read of a server stroke - the stroke column is opaque JSON, so a row
  *  written by an older client must degrade to null and be skipped, not crash. */
 function normalizeStroke(s: InkStroke): LocalStroke | null {
   if (!s || !Array.isArray(s.points) || s.points.length === 0) return null;

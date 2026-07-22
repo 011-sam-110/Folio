@@ -3,12 +3,12 @@
  *
  * Tags used to be a write-only feature: the server stored note_tags, PATCH accepted
  * them and search could filter on them, but nothing in the app could put one on a
- * note — so the old suite seeded tags straight through the API and left a comment
+ * note - so the old suite seeded tags straight through the API and left a comment
  * admitting "how tags get attached" was ambiguous. There are now two real authoring
  * routes, and this file drives both:
  *
- *   • the chip editor (web/src/features/editor/TagEditor.tsx) — explicit, removable
- *   • inline #hashtags in the note body — parsed out and shown as read-only chips
+ *   • the chip editor (web/src/features/editor/TagEditor.tsx) - explicit, removable
+ *   • inline #hashtags in the note body - parsed out and shown as read-only chips
  *
  * The distinction between the two is behaviour worth protecting, not an
  * implementation detail: a body hashtag deliberately has NO remove button, because
@@ -59,7 +59,7 @@ test.describe('Tag editor', () => {
     await expect(tagEditor(page).getByRole('button', { name: `#${tag}` })).toBeVisible();
 
     // A tag edit goes through the SAME debounced autosave a keystroke does, so the
-    // saved chip is the real signal that it reached the server — no sleeping.
+    // saved chip is the real signal that it reached the server - no sleeping.
     await waitForSaved(page);
     await page.reload();
     await expect(tagEditor(page).getByRole('button', { name: `#${tag}` })).toBeVisible({ timeout: 10_000 });

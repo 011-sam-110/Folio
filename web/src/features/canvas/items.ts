@@ -13,7 +13,7 @@ import type { CanvasItemData, CanvasItemKind } from '../../lib/types';
  */
 export const STICKY_COLORS = ['#ffe8a3', '#ffd0d9', '#c9e8ff', '#c9f2d8', '#e5d4ff', '#ffffff'] as const;
 
-/** Shape outline colours — same reasoning as STICKY_COLORS. */
+/** Shape outline colours - same reasoning as STICKY_COLORS. */
 export const SHAPE_COLORS = ['#4f46e5', '#d1242f', '#1a7f37', '#c2680a', '#7c3aed', '#57606a'] as const;
 
 export const DEFAULT_SIZES: Record<CanvasItemKind, { width: number; height: number }> = {

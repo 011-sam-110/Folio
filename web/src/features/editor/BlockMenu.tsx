@@ -1,7 +1,7 @@
 // The block-level menu rendered inside the existing drag handle (see FolioEditor.tsx's
 // <DragHandle>). A plain click opens it (native HTML5 drag only engages after real pointer
 // movement past the browser's own drag threshold, so click and drag coexist on the same
-// grip without extra plumbing — the pattern tiptap's own drag-handle examples use).
+// grip without extra plumbing - the pattern tiptap's own drag-handle examples use).
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import ContextMenu, { menuItem, menuDivider, menuLabel, type MenuEntry } from '../../components/ContextMenu';
@@ -15,7 +15,7 @@ export interface BlockMenuProps {
 }
 
 // Node types where "Turn into" makes structural sense. Containers like tables, images,
-// columnLists and math blocks are left out — there's no sensible text-block conversion.
+// columnLists and math blocks are left out - there's no sensible text-block conversion.
 const TURN_INTO_ELIGIBLE = new Set([
   'paragraph',
   'heading',

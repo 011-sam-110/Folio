@@ -1,4 +1,4 @@
-// templates-nb — extracts heading text from a template's contentJson for the picker's
+// templates-nb - extracts heading text from a template's contentJson for the picker's
 // mini "skeleton preview" card. Walks the WHOLE tree (not just top-level children) so
 // headings nested inside columns/details (Cornell's columnList, Lecture's toggle) are
 // still found.

@@ -1,6 +1,6 @@
 // Tiny, best-effort Markdown → TipTap doc JSON converter used only by the
 // "Insert into new note" action on an AI answer. Handles paragraphs,
-// headings (h1-h3), bullet/ordered lists, blockquotes, and code blocks —
+// headings (h1-h3), bullet/ordered lists, blockquotes, and code blocks -
 // enough for an AI answer to land as a real, editable note. Inline marks
 // (bold/italic/code/links) are flattened to plain text rather than modelled
 // as TipTap marks; fine for a first-draft note the student can reformat.

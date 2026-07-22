@@ -1,7 +1,7 @@
 // Lazy loader + render helper for smiles-drawer (the offline 2D depiction engine).
 // Kept separate so ChemView stays lean and the ~197KB (minified) engine only enters the
 // bundle as its own async chunk when a Chemistry block is actually edited or viewed.
-// No WASM, no network — depiction works fully offline, which is a hard requirement here.
+// No WASM, no network - depiction works fully offline, which is a hard requirement here.
 
 // Type-only handle on the module's default export (the SmilesDrawer namespace class). Using
 // `typeof import(...)` keeps this reference type-level, so nothing is pulled into the main chunk.

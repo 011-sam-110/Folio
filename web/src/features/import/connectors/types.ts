@@ -8,9 +8,9 @@ export interface RawDoc {
   /** For dedupe / re-import later (Phase 3). */
   externalId?: string;
   title?: string;
-  /** Category signal — e.g. ['databases'] from a dropped folder. */
+  /** Category signal - e.g. ['databases'] from a dropped folder. */
   folderPath?: string[];
-  /** Category signal — frontmatter / #hashtags / export properties. */
+  /** Category signal - frontmatter / #hashtags / export properties. */
   sourceTags?: string[];
   /** The path as the user knows it, e.g. 'databases/indexing.md'. */
   sourcePath?: string;
@@ -26,7 +26,7 @@ export type SourceSetup = 'none' | 'oauth' | 'coming-soon';
 export interface SourceConnector {
   id: string;
   label: string;
-  /** One line under the tile — what this source is, in the student's words. */
+  /** One line under the tile - what this source is, in the student's words. */
   description: string;
   icon: IconName;
   /** file-input `accept`, when file-based. */

@@ -1,4 +1,4 @@
-// web-shell — confirmation dialog for destructive actions (delete, etc).
+// web-shell - confirmation dialog for destructive actions (delete, etc).
 import { useEffect, useState, type ReactNode } from 'react';
 import Modal from './Modal';
 import Spinner from './Spinner';
@@ -11,7 +11,7 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   danger?: boolean;
   loading?: boolean;
-  /** When set, the user must type this exact text before Confirm enables — used for
+  /** When set, the user must type this exact text before Confirm enables - used for
    *  hard-deletes with no undo (e.g. deleting a whole notebook). */
   requireText?: string;
   onConfirm: () => void;

@@ -1,4 +1,4 @@
-// "Insert from canvas" — pick one of your boards and drop a static snapshot of it into the
+// "Insert from canvas" - pick one of your boards and drop a static snapshot of it into the
 // note as an image figure. Mounted imperatively by canvasInsertInsertable.ts (no shared
 // modal host required), the same self-contained pattern as templates/saveAsTemplate.ts.
 
@@ -118,7 +118,7 @@ export default function CanvasInsertModal({ editor, onDone }: CanvasInsertModalP
             type="text"
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
-            placeholder={selectedBoard ? `Caption (optional) — e.g. ${selectedBoard.title}` : 'Caption (optional)'}
+            placeholder={selectedBoard ? `Caption (optional) - e.g. ${selectedBoard.title}` : 'Caption (optional)'}
             aria-label="Caption for the snapshot"
             disabled={!selectedBoard || busy}
           />
@@ -162,7 +162,7 @@ function BoardCard({ note, selected, onSelect, onLoaded }: BoardCardProps) {
           setState('empty');
           return;
         }
-        // Small, cheap preview — the real insert renders at full scale.
+        // Small, cheap preview - the real insert renders at full scale.
         const url = await renderBoardToDataUrl(data, { scale: 0.5, padding: 24, maxDim: 480 });
         if (!live) return;
         setThumb(url);

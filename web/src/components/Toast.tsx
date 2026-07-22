@@ -1,4 +1,4 @@
-// web-shell — keep the exported API: toast() + <Toaster/>.
+// web-shell - keep the exported API: toast() + <Toaster/>.
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from './Icon';

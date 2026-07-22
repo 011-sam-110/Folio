@@ -46,7 +46,7 @@ export interface InkSurfaceProps {
   tool: InkTool;
   color: string;
   width: number;
-  /** Let a finger draw when no stylus is around. Off by default — see InkToolbar. */
+  /** Let a finger draw when no stylus is around. Off by default - see InkToolbar. */
   fingerDraws: boolean;
   /** Committed a stroke / erased some, so the owner can push an undo entry. */
   onStrokeCommitted?: (stroke: LocalStroke) => void;
@@ -76,7 +76,7 @@ export default function InkSurface({
   const drawPointerRef = useRef<number | null>(null);
   const lastPenAtRef = useRef(0);
   const erasedRef = useRef<LocalStroke[]>([]);
-  /** Ids already claimed during THIS eraser gesture — see eraseAt. */
+  /** Ids already claimed during THIS eraser gesture - see eraseAt. */
   const erasedIdsRef = useRef<Set<string>>(new Set());
   const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
   const rafRef = useRef<number | null>(null);
@@ -139,7 +139,7 @@ export default function InkSurface({
 
   // Redraw committed ink whenever the stroke list or the viewport moves. Clearing
   // the live canvas HERE (rather than at pointerup) means the just-finished stroke
-  // is handed from one canvas to the other within a single paint — clearing it
+  // is handed from one canvas to the other within a single paint - clearing it
   // earlier would flash a one-frame gap where the stroke vanishes.
   useLayoutEffect(() => {
     resize();
@@ -199,7 +199,7 @@ export default function InkSurface({
    * Should this pointer draw?
    *
    * Pen always wins. Mouse draws on the primary button. Touch draws only when the
-   * user has explicitly enabled it AND no pen has been seen recently — the second
+   * user has explicitly enabled it AND no pen has been seen recently - the second
    * clause is the palm rejection, and it applies even with finger-drawing on,
    * because a hand resting during pencil use is never intentional input.
    */
@@ -217,7 +217,7 @@ export default function InkSurface({
     const worldRadius = ERASER_RADIUS / cfg.viewport.scale;
     // cfg.layer.strokes is one React render stale, and a single pointermove can
     // call this a dozen times (once per coalesced sample) before that render
-    // lands — so without this guard the same stroke is "erased" repeatedly and
+    // lands - so without this guard the same stroke is "erased" repeatedly and
     // fires a redundant DELETE each time.
     const hits = strokesNear(cfg.layer.strokes, world, worldRadius).filter((id) => !erasedIdsRef.current.has(id));
     if (hits.length === 0) return;
@@ -232,7 +232,7 @@ export default function InkSurface({
     // fork a second line.
     if (drawPointerRef.current !== null) return;
     if (!shouldDraw(e)) {
-      // Deliberately no preventDefault/capture — the event keeps bubbling so the
+      // Deliberately no preventDefault/capture - the event keeps bubbling so the
       // board underneath can start a two-finger pan/pinch while ink is armed.
       return;
     }
@@ -244,7 +244,7 @@ export default function InkSurface({
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {
-      // Fall through — window-level move/up handling still completes the stroke.
+      // Fall through - window-level move/up handling still completes the stroke.
     }
     drawPointerRef.current = e.pointerId;
 
@@ -268,7 +268,7 @@ export default function InkSurface({
     const vp = cfgRef.current.viewport;
 
     // getCoalescedEvents() returns every sample the digitiser produced since the
-    // last frame — typically 4-12 for a fast stroke, and up to 60+ on a 240Hz
+    // last frame - typically 4-12 for a fast stroke, and up to 60+ on a 240Hz
     // pen. Reading only the delivered event throws all but the last away, which
     // is exactly what makes fast strokes come out as visible straight facets.
     const native = e.nativeEvent;
@@ -312,7 +312,7 @@ export default function InkSurface({
         tool: cfg.tool === 'highlighter' ? 'highlighter' : 'pen',
       });
       cfg.onStrokeCommitted?.(committed);
-      // Live canvas is NOT cleared here — the base redraw triggered by addStroke
+      // Live canvas is NOT cleared here - the base redraw triggered by addStroke
       // clears it, so the stroke never blinks out between the two canvases.
     },
     [clearLive],
@@ -325,7 +325,7 @@ export default function InkSurface({
   }
 
   function handlePointerCancel(e: ReactPointerEvent<HTMLDivElement>) {
-    // A cancel (OS gesture, pen leaving range) still commits what was drawn —
+    // A cancel (OS gesture, pen leaving range) still commits what was drawn -
     // discarding it would silently eat a stroke the user watched appear.
     finishStroke(e.pointerId);
   }

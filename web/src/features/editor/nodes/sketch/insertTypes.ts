@@ -3,7 +3,7 @@
 // This is a LOCAL copy of the shared `InsertItem` contract so this module type-checks
 // and ships on its own, before the parent session's Insert-menu foundation lands. It is
 // intentionally identical in shape to the contract in the task brief; because TypeScript
-// is structural, the two `InsertItem` exports are interchangeable — the parent can either
+// is structural, the two `InsertItem` exports are interchangeable - the parent can either
 // import these consts as-is or re-point the annotations at its own canonical type without
 // touching any runtime code.
 

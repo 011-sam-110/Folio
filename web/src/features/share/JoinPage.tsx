@@ -1,15 +1,15 @@
-// `/join/:token` — the guest entry point. Public: mounted OUTSIDE RequireAuth,
+// `/join/:token` - the guest entry point. Public: mounted OUTSIDE RequireAuth,
 // because the whole point is that the person opening it has no Unote account.
 //
 // Three states, in order:
 //   1. peek    GET /share/:token tells us the title, the kind and whether there
-//              is a password — and nothing else. A visitor who cannot clear the
+//              is a password - and nothing else. A visitor who cannot clear the
 //              gate never learns anything about the note's contents or its owner.
 //   2. gate    ask for a display name (+ the password, if one is set) and POST
 //              /join, which sets a per-share httpOnly cookie.
 //   3. session hand off to SharedView.
 //
-// Step 2 is skipped when GET /note already answers 200 — that is a returning
+// Step 2 is skipped when GET /note already answers 200 - that is a returning
 // guest whose cookie is still valid, or the owner opening their own link. Making
 // them retype a name they already chose would be pointless friction.
 
@@ -47,7 +47,7 @@ export default function JoinPage() {
         peeked = await api.sharePeek(token);
       } catch (e) {
         if (cancelled) return;
-        // 404 is the server's single answer for invalid / expired / revoked — it
+        // 404 is the server's single answer for invalid / expired / revoked - it
         // deliberately does not distinguish them, so neither do we.
         setDeadReason(
           e instanceof ApiError && e.status === 404
@@ -140,7 +140,7 @@ function JoinGate({
       try {
         localStorage.setItem(NAME_KEY, name.trim());
       } catch {
-        // Private mode — the name just won't be remembered.
+        // Private mode - the name just won't be remembered.
       }
       // Load through the same call the session uses, so the view starts from the
       // server's truth rather than anything inferred from the join response.

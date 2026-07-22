@@ -14,8 +14,8 @@ import {
 
 const app = buildApp();
 
-// The dashboard aggregates across notes, versions, flashcards and comments — all of
-// which are now owner-scoped — so every fixture belongs to `user`.
+// The dashboard aggregates across notes, versions, flashcards and comments - all of
+// which are now owner-scoped - so every fixture belongs to `user`.
 let user: TestUser;
 let api: TestUser['agent'];
 
@@ -28,7 +28,7 @@ function isoDaysFromNow(days: number): string {
   return new Date(Date.now() + days * 86_400_000).toISOString();
 }
 
-/** Local (test-runner) midnight of the Monday of the current week — an independent
+/** Local (test-runner) midnight of the Monday of the current week - an independent
  *  re-derivation of the same Mon-Sun/local-tz rule the route is expected to implement,
  *  used here purely as ground truth for the boundary test below. */
 function localMondayOfThisWeek(): Date {
@@ -86,7 +86,7 @@ const LONG_TEXT = Array.from({ length: 220 }, (_, i) => `word${i}`).join(' '); /
 const SHORT_TEXT = 'just a few words here';
 
 
-describe('GET /api/dashboard — response shape', () => {
+describe('GET /api/dashboard - response shape', () => {
   it('includes weekGrid (7 Mon-Sun entries), weeklyReview, and recall alongside the existing v1 fields', async () => {
     const nbId = await insertNotebook('Databases', { emoji: '🗄️', color: '#0ea5e9' });
     const noteId = await insertNote(nbId, { title: 'B-Trees & Indexing' });
@@ -131,17 +131,17 @@ describe('GET /api/dashboard — response shape', () => {
   });
 });
 
-describe('GET /api/dashboard — weekGrid Monday-start / local-tz boundaries', () => {
+describe('GET /api/dashboard - weekGrid Monday-start / local-tz boundaries', () => {
   it('counts activity inside the current Mon-Sun week and excludes activity just outside it', async () => {
     const nbId = await insertNotebook('Algorithms');
     // Note's own created/updated timestamps are pinned far outside the week so they can't
-    // leak a stray activity event into the window under test — only the versions below are.
+    // leak a stray activity event into the window under test - only the versions below are.
     const noteId = await insertNote(nbId, { created_at: FAR_PAST, updated_at: FAR_PAST });
 
     const monday = localMondayOfThisWeek();
-    const insideMonday = new Date(monday.getTime() + 1_000); // Mon 00:00:01 local — inside the week
-    const beforeMonday = new Date(monday.getTime() - 1_000); // previous Sun 23:59:59 local — previous week
-    const nextMonday = new Date(monday.getTime() + 7 * 86_400_000); // exactly next week's start — exclusive bound
+    const insideMonday = new Date(monday.getTime() + 1_000); // Mon 00:00:01 local - inside the week
+    const beforeMonday = new Date(monday.getTime() - 1_000); // previous Sun 23:59:59 local - previous week
+    const nextMonday = new Date(monday.getTime() + 7 * 86_400_000); // exactly next week's start - exclusive bound
 
     await insertVersion(noteId, insideMonday.toISOString());
     await insertVersion(noteId, beforeMonday.toISOString());
@@ -160,7 +160,7 @@ describe('GET /api/dashboard — weekGrid Monday-start / local-tz boundaries', (
   });
 });
 
-describe('GET /api/dashboard — recall', () => {
+describe('GET /api/dashboard - recall', () => {
   it('picks the quiz card from the SAME notebook, never a different one', async () => {
     const nbA = await insertNotebook('Notebook A');
     const nbB = await insertNotebook('Notebook B');
@@ -225,7 +225,7 @@ describe('GET /api/dashboard — recall', () => {
   });
 });
 
-describe('GET /api/dashboard — weeklyReview counts', () => {
+describe('GET /api/dashboard - weeklyReview counts', () => {
   it('computes notesEditedThisWeek, notesWithoutSummary (word-count + h2/callout aware), and unresolvedComments', async () => {
     const nbId = await insertNotebook('Software Engineering');
 
@@ -281,6 +281,6 @@ describe('GET /api/dashboard — weeklyReview counts', () => {
 
     const res = await api.get('/api/dashboard');
     const suggestions: string[] = res.body.weeklyReview.suggestions;
-    expect(suggestions.some(s => s === 'Databases has 2 cards due — 10 min review?')).toBe(true);
+    expect(suggestions.some(s => s === 'Databases has 2 cards due - 10 min review?')).toBe(true);
   });
 });

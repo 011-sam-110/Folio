@@ -1,10 +1,10 @@
 /* Sharing + guest collaboration.
    Everything here is built on the tokens in styles/tokens.css, so light and dark
-   both fall out of the same rules — there is not a single hard-coded colour that
+   both fall out of the same rules - there is not a single hard-coded colour that
    is not either a token or a per-guest presence colour chosen by the server. */
 
 /* ==========================================================================
-   Owner side — the share dialog
+   Owner side - the share dialog
    ========================================================================== */
 
 .sh-dialog {
@@ -188,7 +188,7 @@
 
 /* --- the one-time reveal -------------------------------------------------
    Mirrors .auth-recovery: same shape, same friction, because it is the same
-   promise — this is the last time the secret exists anywhere reachable. */
+   promise - this is the last time the secret exists anywhere reachable. */
 
 .sh-minted {
   display: flex;
@@ -307,7 +307,7 @@
 }
 
 /* ==========================================================================
-   Guest side — join screens
+   Guest side - join screens
    ========================================================================== */
 
 .sh-page {
@@ -445,7 +445,7 @@
 }
 
 /* ==========================================================================
-   Guest side — the live session
+   Guest side - the live session
    ========================================================================== */
 
 .sh-session {
@@ -640,7 +640,7 @@
   text-decoration: underline;
 }
 
-/* A view-only reader must not get a text caret suggesting they can type — the
+/* A view-only reader must not get a text caret suggesting they can type - the
    editor is genuinely non-editable, and the cursor should say so. */
 .sh-doc__editor.is-readonly .folio-prosemirror {
   cursor: default;
@@ -660,7 +660,7 @@
 
 /* The owner's board stacks its pills vertically because it has three of them.
    The shared board has two, and a lone "Move" pill sitting on its own line above
-   the ink bar reads as a stray control — so they sit side by side instead.
+   the ink bar reads as a stray control - so they sit side by side instead.
    Positioned here rather than borrowing .cv-toolstack, so the layout does not
    depend on which of the two stylesheets the bundler happens to emit last. */
 .sh-board__tools {

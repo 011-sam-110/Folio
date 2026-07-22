@@ -1,6 +1,6 @@
 // The `sketch` node: an atomic block that embeds a draw surface directly in a note.
 //
-// Atom (leaf) node — it has no editable ProseMirror children; its entire content is the
+// Atom (leaf) node - it has no editable ProseMirror children; its entire content is the
 // vector strokes held in the `strokes` attr and drawn by SketchView. That mirrors how the
 // stock image node works, and is why renderHTML emits a self-closing element (no `0`
 // content hole, unlike the Callout block).

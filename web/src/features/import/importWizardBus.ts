@@ -21,7 +21,7 @@ export function openImportWizard(args: OpenImportWizardArgs = {}): void {
   listener(args);
 }
 
-/** Internal — used by ImportWizardHost only. */
+/** Internal - used by ImportWizardHost only. */
 export function _subscribeImportWizard(fn: Listener): () => void {
   listener = fn;
   return () => {

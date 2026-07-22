@@ -12,7 +12,7 @@ let ready: Promise<void> | null = null;
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   ready ??= migrate().catch((err) => {
-    // Don't cache a failed migration — a transient Neon connection error on a cold
+    // Don't cache a failed migration - a transient Neon connection error on a cold
     // start would otherwise poison every later request on this instance.
     ready = null;
     throw err;

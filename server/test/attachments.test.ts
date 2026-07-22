@@ -1,7 +1,7 @@
 // Attachment storage and serving.
 //
 // The bug these cover: uploads were written to data/uploads/ with multer.diskStorage, which
-// is a read-only path on the deployed serverless host — every import in production failed
+// is a read-only path on the deployed serverless host - every import in production failed
 // with EROFS before any of the logic below ran. Payloads now live in attachments.bytes and
 // are served from there, so these tests assert the two halves of that: the write puts real
 // bytes in the row, and the read hands them back to the right people and nobody else.
@@ -185,7 +185,7 @@ describe('share-link guests and embedded images', () => {
     return res.body.token;
   }
 
-  // Access is decided ONLY by attachments.note_id — a column no requester can write. These
+  // Access is decided ONLY by attachments.note_id - a column no requester can write. These
   // cover both halves of that: the owner's own writes file editor uploads against the note
   // so legitimate images still render, and nothing a guest can type grants anything.
 
@@ -265,7 +265,7 @@ describe('share-link guests and embedded images', () => {
       })
       .expect(200);
 
-    // The write landed — this is not passing because the edit was rejected.
+    // The write landed - this is not passing because the edit was rejected.
     const note = await db
       .prepare('SELECT content_json FROM notes WHERE id = ?')
       .get<{ content_json: string }>(mallorysNote);
@@ -308,7 +308,7 @@ describe('share-link guests and embedded images', () => {
     const notebookId = await insertNotebook(alice.id);
     const noteId = await insertNote(alice.id, notebookId);
     // Slide figures are stored with note_id set, and are not necessarily in content_json
-    // by the time the row is written — note_id is the association that matters for them.
+    // by the time the row is written - note_id is the association that matters for them.
     const { storedName } = await store(alice, { noteId });
 
     const token = await shareNote(alice, noteId);
@@ -391,7 +391,7 @@ describe('slide figures', () => {
     expect(srcs.join()).toContain('/uploads/fig3.png');
   });
 
-  it('only treats .pptx as having extractable figures — a PDF is skipped, not searched', () => {
+  it('only treats .pptx as having extractable figures - a PDF is skipped, not searched', () => {
     expect(isPptx('application/vnd.openxmlformats-officedocument.presentationml.presentation', 'deck.pptx')).toBe(true);
     expect(isPptx('', 'deck.pptx')).toBe(true);
     expect(isPptx('application/pdf', 'slides.pdf')).toBe(false);

@@ -31,7 +31,7 @@ export const DATABASE_URL =
 /**
  * Key used to sign session cookies. A generated fallback keeps local dev
  * frictionless, but it changes per boot (logging everyone out on restart) and
- * would differ across serverless instances — so production must set it.
+ * would differ across serverless instances - so production must set it.
  */
 export const SESSION_SECRET = (() => {
   const fromEnv = process.env.SESSION_SECRET;
@@ -94,10 +94,10 @@ export const config = {
   ai: {
     baseUrl: (process.env.FOLIO_AI_BASE_URL ?? 'http://localhost:3001/v1').replace(/\/$/, ''),
     apiKey: process.env.FOLIO_AI_KEY ?? '',
-    // 'auto' on the gateway can route to dead providers — always pin, with fallbacks.
+    // 'auto' on the gateway can route to dead providers - always pin, with fallbacks.
     textModels: (process.env.FOLIO_AI_TEXT_MODELS ?? 'gemini-2.5-flash,llama-3.3-70b-versatile,mistral-medium-latest')
       .split(',').map(s => s.trim()).filter(Boolean),
-    // Vision needs its own fallback chain too — a single provider hiccup on the only
+    // Vision needs its own fallback chain too - a single provider hiccup on the only
     // vision model used to fail every photo import.
     visionModels: (process.env.FOLIO_AI_VISION_MODELS ?? 'gemini-2.5-flash,gemini-3.5-flash,gemini-2.5-flash-lite')
       .split(',').map(s => s.trim()).filter(Boolean),
@@ -116,7 +116,7 @@ export const config = {
      *
      * The IP ceiling is deliberately much higher than the account one. This is a student
      * app, and a university or halls-of-residence NAT can put hundreds of legitimate
-     * users behind a single address — sized at 10x the per-account allowance so a shared
+     * users behind a single address - sized at 10x the per-account allowance so a shared
      * egress does not lock out a whole campus. Users who need more than either limit can
      * add their own provider key, which bypasses the pool entirely.
      */
@@ -138,7 +138,7 @@ export const config = {
    * Social sign-in (OAuth). Credentials come from the environment ONLY and are never
    * committed. A provider is treated as enabled only when BOTH its id and secret are
    * present (see auth/oauthProviders.ts), which is what drives the feature-flag gate:
-   * with these unset — the default, and production until they are configured — no social
+   * with these unset - the default, and production until they are configured - no social
    * buttons are shown and the routes refuse the provider.
    *
    * `baseUrl` is the public origin used to build the redirect_uri that must match what is
@@ -159,7 +159,7 @@ export const config = {
 };
 
 // Serverless filesystems are read-only outside /tmp, and attachments live in
-// Postgres there rather than on disk — so only prepare local directories.
+// Postgres there rather than on disk - so only prepare local directories.
 if (!IS_SERVERLESS) {
   for (const dir of [DATA_DIR, UPLOADS_DIR]) fs.mkdirSync(dir, { recursive: true });
 }

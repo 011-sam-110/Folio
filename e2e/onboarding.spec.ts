@@ -2,14 +2,14 @@
  * The guided tutorial, first-run hints and shortcut cheatsheet.
  *
  * Every other spec in this suite starts from a storageState that marks the tutorial
- * already answered (see markOnboardingSeen in auth.fixture.ts) — otherwise the
+ * already answered (see markOnboardingSeen in auth.fixture.ts) - otherwise the
  * modal coach mark would block them all. This file is the one that deliberately
  * clears that record, so it is the only place the first-run experience is exercised.
  *
  * What is worth asserting here is not the copy, which will change, but the two
  * properties the feature has to hold: it can always be left, and it never points at
  * nothing. The second is checked by walking the tour on an account with NO example
- * content, where five of the ten steps have no target to find — a run that has to
+ * content, where five of the ten steps have no target to find - a run that has to
  * end at "closed", not at a highlight over an empty region.
  */
 import { test, expect, freshAccount } from './auth.fixture';
@@ -69,7 +69,7 @@ test.describe('onboarding tutorial', () => {
     await page.keyboard.press('Escape');
     await expect(tourCard(page)).toBeHidden();
 
-    // 'paused', not 'skipped' — the difference is what makes it offer to resume.
+    // 'paused', not 'skipped' - the difference is what makes it offer to resume.
     expect((await readOnboarding(page))?.status).toBe('paused');
 
     // Focus must not be left on <body>, which would strand a keyboard user at the
@@ -87,7 +87,7 @@ test.describe('onboarding tutorial', () => {
     await page.getByRole('button', { name: /use my own notes/i }).click();
 
     // Five of the ten steps depend on seeded content this account does not have.
-    // The tour must still terminate — bounded by the step count, not by a timeout.
+    // The tour must still terminate - bounded by the step count, not by a timeout.
     for (let i = 0; i < TOUR_STEPS_MAX_CLICKS; i++) {
       if (!(await tourCard(page).isVisible().catch(() => false))) break;
       const next = page.getByRole('button', { name: /^(Next|Finish)$/ });

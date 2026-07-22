@@ -1,4 +1,4 @@
-// templates-nb — the actual modal UI mounted imperatively by saveAsTemplate.ts. Not
+// templates-nb - the actual modal UI mounted imperatively by saveAsTemplate.ts. Not
 // meant to be rendered directly by other agents' code; they call saveNoteAsTemplate(note)
 // instead (see saveAsTemplate.ts for why this can be self-mounting).
 import { useState } from 'react';

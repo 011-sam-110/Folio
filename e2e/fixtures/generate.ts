@@ -5,11 +5,11 @@
  *   npx tsx e2e/fixtures/generate.ts
  *
  * Produces, into this folder:
- *   - transcript.txt  — a fake lecture transcript on deadlocks (plain text)
- *   - slides.pdf      — a hand-built 3-page PDF about SQL JOINs (raw PDF objects, no deps)
- *   - slides.pptx     — a minimal 2-slide OOXML deck about normalisation (zip via fflate)
- *   - essay.docx      — a minimal OOXML document about the testing pyramid (zip via fflate)
- *   - note-photo.png  — a 1200x900 white bitmap with rendered "handwritten-ish" lecture
+ *   - transcript.txt  - a fake lecture transcript on deadlocks (plain text)
+ *   - slides.pdf      - a hand-built 3-page PDF about SQL JOINs (raw PDF objects, no deps)
+ *   - slides.pptx     - a minimal 2-slide OOXML deck about normalisation (zip via fflate)
+ *   - essay.docx      - a minimal OOXML document about the testing pyramid (zip via fflate)
+ *   - note-photo.png  - a 1200x900 white bitmap with rendered "handwritten-ish" lecture
  *                        notes text about OS scheduling, drawn via Windows System.Drawing
  *
  * These are committed to the repo so the e2e suite never depends on regenerating them,
@@ -24,12 +24,12 @@ import { zipSync, strToU8 } from 'fflate';
 const FIXTURES_DIR = __dirname;
 
 // ---------------------------------------------------------------------------
-// 1. transcript.txt — fake lecture transcript on deadlocks
+// 1. transcript.txt - fake lecture transcript on deadlocks
 // ---------------------------------------------------------------------------
 
 function writeTranscript(): void {
   const lines = [
-    'CS304 Operating Systems — Lecture 11 transcript',
+    'CS304 Operating Systems - Lecture 11 transcript',
     'Recorded lecture, auto-captioned, lightly cleaned up. Topic: deadlocks.',
     '',
     "Okay, let's get started. Today we're talking about deadlocks, which is one of",
@@ -46,7 +46,7 @@ function writeTranscript(): void {
     'Coffman who wrote them up in the early seventies.',
     '',
     'The first condition is mutual exclusion. At least one resource has to be held',
-    'in a non-shareable mode — only one process can use it at a time.',
+    'in a non-shareable mode - only one process can use it at a time.',
     '',
     'The second condition is hold and wait. A process is currently holding at least',
     'one resource and is simultaneously waiting to acquire additional resources that',
@@ -63,10 +63,10 @@ function writeTranscript(): void {
     '',
     'If you break any single one of these four conditions, deadlock becomes',
     'impossible. That gives us our main strategies. Deadlock prevention attacks one',
-    'of the four conditions directly — for example, requesting all resources up',
+    'of the four conditions directly - for example, requesting all resources up',
     'front removes hold and wait.',
     '',
-    'Deadlock avoidance is more dynamic — the classic example is the Banker\'s',
+    'Deadlock avoidance is more dynamic - the classic example is the Banker\'s',
     'algorithm, which only grants a resource request if the resulting state is still',
     'safe, meaning there exists some ordering of processes that can all finish.',
     '',
@@ -74,19 +74,19 @@ function writeTranscript(): void {
     'cycle-detection algorithm over a resource-allocation graph, and kills or rolls',
     'back a process to break the cycle when one is found.',
     '',
-    'And finally some systems just do deadlock ignorance — the ostrich algorithm —',
+    'And finally some systems just do deadlock ignorance - the ostrich algorithm -',
     'and assume deadlocks are rare enough that it is cheaper to reboot than to pay',
     'the constant overhead of prevention or detection. That is actually what most',
     'general-purpose operating systems do in practice.',
     '',
-    "That's it for today — next lecture we'll move on to memory management and",
+    "That's it for today - next lecture we'll move on to memory management and",
     'paging. Read chapter seven before Thursday.',
   ];
   fs.writeFileSync(path.join(FIXTURES_DIR, 'transcript.txt'), lines.join('\n') + '\n', 'utf8');
 }
 
 // ---------------------------------------------------------------------------
-// 2. slides.pdf — hand-written raw PDF, 3 pages of fake lecture slides on SQL JOINs
+// 2. slides.pdf - hand-written raw PDF, 3 pages of fake lecture slides on SQL JOINs
 // ---------------------------------------------------------------------------
 
 function escapePdfText(s: string): string {
@@ -209,15 +209,15 @@ async function writeAndVerifySlidesPdf(): Promise<void> {
     throw new Error(`slides.pdf: expected ${SLIDES.length} pages, unpdf saw ${totalPages}`);
   }
   if (!/JOIN/i.test(text)) {
-    throw new Error('slides.pdf: extracted text does not mention JOIN — fixture is broken');
+    throw new Error('slides.pdf: extracted text does not mention JOIN - fixture is broken');
   }
-  console.log(`[fixtures] slides.pdf OK — ${totalPages} pages, ${text.length} chars extracted, contains "JOIN"`);
+  console.log(`[fixtures] slides.pdf OK - ${totalPages} pages, ${text.length} chars extracted, contains "JOIN"`);
 }
 
 // ---------------------------------------------------------------------------
-// 2b. slides.pptx + essay.docx — minimal OOXML files (a docx/pptx is just a zip
+// 2b. slides.pptx + essay.docx - minimal OOXML files (a docx/pptx is just a zip
 //     of XML parts). Built with fflate (already in the dependency tree) and
-//     verified with officeparser — the same library the import route uses.
+//     verified with officeparser - the same library the import route uses.
 // ---------------------------------------------------------------------------
 
 function xmlEscape(s: string): string {
@@ -354,25 +354,25 @@ async function writeAndVerifyOfficeFixtures(): Promise<void> {
   fs.writeFileSync(pptxPath, buildPptx());
   fs.writeFileSync(docxPath, buildDocx());
 
-  // Verify with officeparser — the exact library server/src/lib/extract.ts uses.
+  // Verify with officeparser - the exact library server/src/lib/extract.ts uses.
   const { parseOffice } = await import('officeparser');
   const pptxAst = await parseOffice(pptxPath, { extractAttachments: false });
   const pptxText = pptxAst.toText();
   if (!/normalisation/i.test(pptxText)) {
     throw new Error(`slides.pptx: officeparser did not extract expected text (got ${pptxText.length} chars)`);
   }
-  console.log(`[fixtures] slides.pptx OK — ${pptxText.length} chars extracted, mentions "normalisation"`);
+  console.log(`[fixtures] slides.pptx OK - ${pptxText.length} chars extracted, mentions "normalisation"`);
 
   const docxAst = await parseOffice(docxPath, { extractAttachments: false });
   const docxText = docxAst.toText();
   if (!/testing pyramid/i.test(docxText)) {
     throw new Error(`essay.docx: officeparser did not extract expected text (got ${docxText.length} chars)`);
   }
-  console.log(`[fixtures] essay.docx OK — ${docxText.length} chars extracted, mentions "testing pyramid"`);
+  console.log(`[fixtures] essay.docx OK - ${docxText.length} chars extracted, mentions "testing pyramid"`);
 }
 
 // ---------------------------------------------------------------------------
-// 3. note-photo.png — rendered lecture-notes text via Windows System.Drawing
+// 3. note-photo.png - rendered lecture-notes text via Windows System.Drawing
 // ---------------------------------------------------------------------------
 
 const PHOTO_LINES = [
@@ -427,9 +427,9 @@ $bmp.Dispose()
   }
   const size = fs.statSync(outPath).size;
   if (size < 10 * 1024) {
-    throw new Error(`note-photo.png is too small (${size} bytes) — rendering likely failed`);
+    throw new Error(`note-photo.png is too small (${size} bytes) - rendering likely failed`);
   }
-  console.log(`[fixtures] note-photo.png OK — ${size} bytes`);
+  console.log(`[fixtures] note-photo.png OK - ${size} bytes`);
 }
 
 // ---------------------------------------------------------------------------

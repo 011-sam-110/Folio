@@ -1,4 +1,4 @@
-// web-shell — small curated emoji grid, used for notebook icons. Click the
+// web-shell - small curated emoji grid, used for notebook icons. Click the
 // trigger (renders `value`) to open; click an emoji to select and close.
 import { useState } from 'react';
 import { createPortal } from 'react-dom';

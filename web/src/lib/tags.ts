@@ -6,7 +6,7 @@
 // GET /api/notes?tag=), which is case-SENSITIVE. Without folding, "#Revision" and
 // "#revision" become two unrelated tags that each match only half the notes, and
 // `tag:revision` silently misses the capitalised ones. Folding at the only two
-// places a tag can be authored (the chip editor and the #hashtag parser — both of
+// places a tag can be authored (the chip editor and the #hashtag parser - both of
 // which route through this file) keeps exactly one canonical spelling per tag, and
 // matches the vocabulary that already exists in the database ("week1", "lecture").
 import { api } from './api';
@@ -36,7 +36,7 @@ export const HASHTAG_RE = /(?<![\p{L}\p{N}_/#])#(\p{L}[\p{L}\p{N}_/-]*)/gu;
 export function normalizeTag(raw: string): string | null {
   const cleaned = raw
     .trim()
-    .replace(/^#+/, '') // typing the '#' is natural — accept it and drop it
+    .replace(/^#+/, '') // typing the '#' is natural - accept it and drop it
     .toLowerCase()
     .replace(/\s+/g, '-') // "week 1" is one tag the user mis-spaced, not a broken one
     .replace(INVALID_CHARS, '')

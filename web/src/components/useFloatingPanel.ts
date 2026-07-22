@@ -1,4 +1,4 @@
-// web-shell internal helper — positions a floating panel against a trigger
+// web-shell internal helper - positions a floating panel against a trigger
 // element with @floating-ui/dom and handles outside-click / Escape to close.
 // Shared by EmojiPicker, ColorSwatches-style pickers, and other single-panel
 // popovers. ContextMenu hand-rolls its own (it manages two stacked panels).

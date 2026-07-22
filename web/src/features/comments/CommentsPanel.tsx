@@ -4,7 +4,7 @@
 // doc (the marked text was deleted, or CommentMark hasn't been wired into the schema yet)
 // shows an "orphaned" chip instead of a click-to-scroll affordance.
 //
-// Mirrors HistoryPanel's non-modal side-drawer shape (own classnames — see comments.css —
+// Mirrors HistoryPanel's non-modal side-drawer shape (own classnames - see comments.css -
 // so this stays fully independent of editor-blocks' file).
 //
 // Unlike HistoryPanel, this component fetches regardless of `open` so the action-bar
@@ -46,7 +46,7 @@ function collectLiveCommentIds(editor: Editor | null): Set<string> {
 /** Removes every span of the `comment` mark carrying this commentId from the live doc,
  *  so deleting a comment also clears its highlight immediately (no dangling mark left
  *  pointing at a comment record that no longer exists). No-op if the schema doesn't have
- *  the mark (defensive — see CommentMark.ts wiring note) or it isn't present in the doc. */
+ *  the mark (defensive - see CommentMark.ts wiring note) or it isn't present in the doc. */
 function stripCommentMark(editor: Editor | null, commentId: string): void {
   if (!editor || editor.isDestroyed) return;
   const markType = editor.state.schema.marks.comment;
@@ -86,7 +86,7 @@ export default function CommentsPanel({ noteId, open, onClose, editor, onUnresol
   }, [load]);
 
   // SelectionToolbar (mounted inside FolioEditor, not a file we own) creates comments and
-  // has no prop channel to us — it pings this bus instead so a freshly-added comment shows
+  // has no prop channel to us - it pings this bus instead so a freshly-added comment shows
   // up without waiting for the drawer to be reopened.
   useEffect(() => {
     setCommentsListener(load);

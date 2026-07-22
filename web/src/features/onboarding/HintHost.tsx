@@ -7,7 +7,7 @@
 //     Dismissal is written to storage the moment it happens.
 //  2. Never more than one on screen. A second hint waits for its own next visit.
 //  3. Nothing appears while the tutorial is running, or in the same session the
-//     tutorial ended — someone who has just been walked round the app does not then
+//     tutorial ended - someone who has just been walked round the app does not then
 //     want tooltips explaining the same things.
 //  4. A hint only appears once its target has been continuously on screen for a
 //     moment. Without that, hints flash during route transitions and read as noise.
@@ -16,7 +16,7 @@
 //     affordance costs nothing.
 //
 // Hints are hosted centrally here, driven off the route, rather than being sprinkled
-// through the page components — that keeps the "only one at a time" rule enforceable
+// through the page components - that keeps the "only one at a time" rule enforceable
 // in one place instead of by convention.
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -48,7 +48,7 @@ interface HintDef {
 const HINTS: HintDef[] = [
   {
     id: 'canvas-ink-v1',
-    // Canvas boards live on /note/:id too — the target decides, not the route.
+    // Canvas boards live on /note/:id too - the target decides, not the route.
     match: (p) => p.startsWith('/note/'),
     target: ['[data-tour="canvas-tools"]', '.cv-tools'],
     title: 'A stylus draws, a finger pans',
@@ -75,7 +75,7 @@ const HINTS: HintDef[] = [
 
 // A fourth hint pointing at the sidebar's command-palette button was cut. Its
 // anchor sits in the very bottom-left corner, so `shift()` pushed the bubble up
-// over the account menu trigger — and a non-modal hint that covers a control the
+// over the account menu trigger - and a non-modal hint that covers a control the
 // user is trying to click is worse than no hint. The palette is not undiscovered
 // anyway: the sidebar search box already shows a ⌘K chip, the tour has a step on
 // it, and it is in the cheatsheet. Three hints, each shown once, is also simply
@@ -102,7 +102,7 @@ export default function HintHost({ tourRunning }: { tourRunning: boolean }) {
   const state = useOnboarding();
   const [active, setActive] = useState<{ def: HintDef; el: HTMLElement } | null>(null);
 
-  // Hints are for people who are past the tutorial — either they finished it, skipped
+  // Hints are for people who are past the tutorial - either they finished it, skipped
   // it, or the account predates it. Someone mid-tour gets nothing.
   const eligible =
     !tourRunning && !suppressedForSession && (state.status === 'done' || state.status === 'skipped');
@@ -208,7 +208,7 @@ function HintBubble({ def, el, onDismiss }: { def: HintDef; el: HTMLElement; onD
       className={`hint-bubble${narrow ? ' hint-bubble--sheet' : ''}`}
       style={!narrow && pos ? { top: pos.y, left: pos.x } : undefined}
       // role="status" rather than a dialog: this is an unsolicited, non-modal message.
-      // It is announced politely when it appears and it never steals focus — the page
+      // It is announced politely when it appears and it never steals focus - the page
       // the user chose to be on stays the thing they are interacting with.
       role="status"
       aria-live="polite"

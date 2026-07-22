@@ -1,5 +1,5 @@
 /* Note-header tag editor. Everything is driven by the theme tokens in
-   styles/tokens.css, so light and dark come for free — there is deliberately no
+   styles/tokens.css, so light and dark come for free - there is deliberately no
    hard-coded colour in this file. */
 
 .folio-tags {
@@ -98,7 +98,7 @@
 }
 
 /* Auto chips come from a #hashtag in the body, so they carry no "×" and read as
-   secondary — a dashed edge signals "this one is written into the text". */
+   secondary - a dashed edge signals "this one is written into the text". */
 .folio-tag-chip--auto {
   background: none;
   border: 1px dashed var(--line);
@@ -141,7 +141,7 @@
   color: var(--ink-3);
 }
 
-/* The whole row only advertises itself as editable on hover/focus — at rest it
+/* The whole row only advertises itself as editable on hover/focus - at rest it
    should read as metadata under the title, not as a form field competing with it. */
 .folio-tags__input-wrap:focus-within {
   border-radius: 999px;

@@ -54,7 +54,7 @@ function wordCount(text: string): number {
 }
 
 const MAX_TAG_LENGTH = 32;
-/** Canonical tag spelling — mirrors routes/tags.ts and web/src/lib/tags.ts. Tags are matched
+/** Canonical tag spelling - mirrors routes/tags.ts and web/src/lib/tags.ts. Tags are matched
  *  by plain equality everywhere, so a divergent spelling would create a tag half the app can
  *  no longer find. */
 function normalizeTag(raw: unknown): string | null {
@@ -309,7 +309,7 @@ export async function discardBatch(uid: string, batchId: string): Promise<boolea
   // Staged photo/office attachments are referenced FROM import_items (attachment_id, ON DELETE
   // SET NULL), so the cascade from the batch does not remove them. Delete the never-committed
   // ones (note_id still NULL) explicitly, owner-scoped, so a discarded batch leaves no orphan
-  // bytes in Neon. A committed item's attachment (note_id set) is left alone — it belongs to a
+  // bytes in Neon. A committed item's attachment (note_id set) is left alone - it belongs to a
   // real note now.
   await db
     .prepare(
@@ -332,7 +332,7 @@ export interface RawStageItem {
 }
 
 /** Stage already-extracted text docs (md/txt/pdf extracted client-side). No upload of the raw
- *  file — only its text crosses the wire. The note body is kept as raw markdown in source_text
+ *  file - only its text crosses the wire. The note body is kept as raw markdown in source_text
  *  and turned into TipTap at commit. */
 export async function stageJsonItems(uid: string, batchId: string, items: RawStageItem[]): Promise<ImportItemDto[]> {
   const b = await ownedBatch(uid, batchId);
@@ -634,7 +634,7 @@ async function createNoteNoAi(uid: string, notebookId: string, title: string, so
 }
 
 /** Append staged markdown into an existing note (merge mode), re-reading fresh content under
- *  FOR UPDATE so a concurrent write cannot be clobbered. No AI — a plain structural append. */
+ *  FOR UPDATE so a concurrent write cannot be clobbered. No AI - a plain structural append. */
 async function appendNoAi(uid: string, noteId: string, sourceText: string): Promise<void> {
   const resolver = await createTitleResolver(uid, sourceText);
   const newJson = markdownToTipTap(sourceText, resolver) as { type: 'doc'; content?: unknown[] };
@@ -673,7 +673,7 @@ export interface CommitResult {
  * is skipped, so re-sending a chunk after a dropped connection is safe.
  *
  * New notebooks are resolved-or-created ONCE per name and only ever for an item actually being
- * committed here — so a proposed notebook the user never accepted is never created, which is
+ * committed here - so a proposed notebook the user never accepted is never created, which is
  * the "conservative new-notebook creation" rule enforced at the write.
  */
 export async function commitBatch(uid: string, batchId: string, itemIds: string[]): Promise<CommitResult | null> {

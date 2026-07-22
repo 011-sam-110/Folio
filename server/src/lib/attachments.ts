@@ -1,7 +1,7 @@
 // Attachment payloads live in Postgres (attachments.bytes), not on local disk.
 //
 // The deployed app runs as a Vercel serverless function, whose filesystem is read-only
-// apart from /tmp — and /tmp does not survive between invocations. Writing uploads to
+// apart from /tmp - and /tmp does not survive between invocations. Writing uploads to
 // data/uploads/ therefore failed outright in production (EROFS) and would have been
 // useless even if it had not: the next invocation reads a different, empty disk.
 //
@@ -19,7 +19,7 @@ export function attachmentUrl(storedName: string): string {
 }
 
 export interface AttachmentInput {
-  /** Owner. Always the session user — never anything from the request body. */
+  /** Owner. Always the session user - never anything from the request body. */
   uid: string;
   noteId?: string | null;
   kind: string;
@@ -68,7 +68,7 @@ export interface AttachmentRow {
 /**
  * Look an attachment up by the name embedded in its URL.
  *
- * stored_name is `newId()` + extension — 14 characters of 36-symbol randomness, so
+ * stored_name is `newId()` + extension - 14 characters of 36-symbol randomness, so
  * roughly 72 bits. Collisions are not a practical concern, but the ORDER BY keeps the
  * choice deterministic rather than leaving it to Postgres' scan order if one ever did.
  */
@@ -90,8 +90,8 @@ const UPLOAD_REF_RE = /\/uploads\/([A-Za-z0-9._-]{1,128})/g;
  *
  * Why this exists: a share-link guest loads embedded images as plain `<img src="/uploads/…">`
  * requests, and the only thing authorising those reads is `attachments.note_id = <shared note>`.
- * Editor uploads carry no note_id — the image is posted before it is placed, so the note is not
- * known yet — and that gap used to be papered over on the read side by checking whether the
+ * Editor uploads carry no note_id - the image is posted before it is placed, so the note is not
+ * known yet - and that gap used to be papered over on the read side by checking whether the
  * note's *body text* mentioned the URL. That was authorisation by requester-writable data:
  * a guest holding an edit share could type any `/uploads/<name>` into the note they were given
  * and the server would hand back those bytes. The association is therefore recorded here, on

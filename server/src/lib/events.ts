@@ -7,7 +7,7 @@ import { db, nowIso, type Db } from '../db.js';
  * functions cannot hold a WebSocket open). Two properties matter here:
  *
  *  - The owner's ordinary editor must publish too. Originally only the /share
- *    routes wrote events, so a guest on a link never saw the owner's edits — the
+ *    routes wrote events, so a guest on a link never saw the owner's edits - the
  *    feature looked like it worked, because two guests on the same link did sync.
  *
  *  - Autosave fires constantly, and the overwhelming majority of notes are never

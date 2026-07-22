@@ -145,7 +145,7 @@ export default function DashboardPage() {
           {data.recent.length === 0 ? (
             /* The first screen a new account lands on, and the only zero-state that
                used to offer no way out of itself. It now names the two ways notes
-               get here — write one, or import one you already have — and offers the
+               get here - write one, or import one you already have - and offers the
                tour for anyone who would rather be shown. */
             <EmptyState
               icon="📝"

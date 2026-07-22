@@ -6,13 +6,13 @@
 // That is a real constraint, not a shortcut, and the UI says so rather than
 // implying keystroke-level sync.
 //
-// ECHO SUPPRESSION. Every event carries an `actor` — a user id for the owner, an
+// ECHO SUPPRESSION. Every event carries an `actor` - a user id for the owner, an
 // opaque guest id otherwise. The share API never tells a client its OWN actor id
 // (GET /note returns `you`, a display name, which is not unique), so actor
 // matching only works for a signed-in owner reading their own link. Everything
 // else is suppressed downstream instead, and exactly:
-//   * ink  — by stroke id (useSharedInk.pullRemote skips ids it already knows)
-//   * doc  — by content equality (SharedDoc ignores a pull identical to its own
+//   * ink  - by stroke id (useSharedInk.pullRemote skips ids it already knows)
+//   * doc  - by content equality (SharedDoc ignores a pull identical to its own
 //            document, so our own echo can never move the caret)
 // Those checks are stronger than actor matching, because they also survive the
 // case where our own event and someone else's arrive in the same batch.
@@ -37,12 +37,12 @@ export interface ShareSync {
   /** Highest event sequence this client has consumed. */
   revision: number;
   presence: Presence[];
-  /** When the last successful poll landed — drives the "updated Ns ago" chip. */
+  /** When the last successful poll landed - drives the "updated Ns ago" chip. */
   lastSyncAt: Date | null;
   /** True once a poll has failed; cleared by the next success. */
   offline: boolean;
   /**
-   * Access to this link has gone away mid-session — it was revoked, it expired,
+   * Access to this link has gone away mid-session - it was revoked, it expired,
    * or the guest grant lapsed. Distinct from `offline` on purpose: one is a
    * network blip that will heal, the other never will, and telling a user their
    * connection is flaky when the owner has actually revoked their access leaves
@@ -125,7 +125,7 @@ export function useShareSync(
         setLost(true);
         return;
       }
-      // Anything else is a blip — the next tick retries from the same revision,
+      // Anything else is a blip - the next tick retries from the same revision,
       // so no delta is ever skipped.
       setOffline(true);
     } finally {

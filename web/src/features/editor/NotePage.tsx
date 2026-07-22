@@ -1,4 +1,4 @@
-// The editor page (`/note/:noteId`) — the crown jewel. Loads the note, then hands off
+// The editor page (`/note/:noteId`) - the crown jewel. Loads the note, then hands off
 // to NoteWorkspace (keyed by note id) which owns the title, TipTap editor, autosave,
 // history/AI/import affordances and the backlinks sections.
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
@@ -127,7 +127,7 @@ export default function NotePage() {
   }
 
   // A canvas is still a note (same id space, same notebook, same trash), but its
-  // content lives in canvas_items/canvas_edges rather than content_json — so the
+  // content lives in canvas_items/canvas_edges rather than content_json - so the
   // whole TipTap workspace below is the wrong surface for it. Branch before
   // mounting NoteWorkspace rather than inside it: the editor, autosave, outline
   // and comments machinery all assume a document and none of it applies here.
@@ -168,7 +168,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const [backlinks, setBacklinks] = useState(initialBacklinks);
   const [unlinked, setUnlinked] = useState<NoteLite[] | null>(null);
   const [title, setTitle] = useState(initialNote.title);
-  // Lazy initialisers — splitTags re-scans the whole body, so it must run once per
+  // Lazy initialisers - splitTags re-scans the whole body, so it must run once per
   // mounted note, not on every render.
   const [tags, setTags] = useState<string[]>(() => splitTags(initialNote.tags, initialNote.contentText).explicit);
   const [bodyTags, setBodyTags] = useState<string[]>(() => extractHashtags(initialNote.contentText));
@@ -182,7 +182,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const [importOpen, setImportOpen] = useState(false);
   const [importKind, setImportKind] = useState<'photo' | 'slides' | 'transcript'>('photo');
   const [aiBusy, setAiBusy] = useState<string | null>(null);
-  // Availability, not just preference — see lib/aiStatus. With no reachable gateway
+  // Availability, not just preference - see lib/aiStatus. With no reachable gateway
   // the AI menu and assistant panel would render as live controls that always fail.
   const aiOn = useAiAvailable();
   const [flashcardStep, setFlashcardStep] = useState(false);
@@ -208,7 +208,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   tagsRef.current = tags;
   const bodyTagsRef = useRef(bodyTags);
   bodyTagsRef.current = bodyTags;
-  // Read from the keydown handler below, which is bound once (empty dep array) — a ref keeps
+  // Read from the keydown handler below, which is bound once (empty dep array) - a ref keeps
   // it seeing the latest findMode without re-subscribing the window listener every toggle.
   const findModeRef = useRef<FindReplaceMode | null>(findMode);
   findModeRef.current = findMode;
@@ -224,7 +224,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     if (!ed) return;
     const contentText = ed.getText({ blockSeparator: '\n' });
     // Inline #hashtags are real tags, so they are re-parsed from the body on every
-    // capture and unioned with the explicit chips here — at the single point where
+    // capture and unioned with the explicit chips here - at the single point where
     // the autosave payload is built. That is what makes the two authoring routes
     // ("type #revision" / "add a chip") converge on one tags array, saved by the
     // debounce, retry and beforeunload machinery that already exists.
@@ -249,7 +249,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     (savedNote) => {
       setNote((prev) => {
         // A save that changed the tag set changed the app-wide vocabulary too, so
-        // drop the autocomplete cache — otherwise a tag you just invented stays
+        // drop the autocomplete cache - otherwise a tag you just invented stays
         // missing from the suggestions for up to its TTL.
         if (prev.tags.join(' ') !== savedNote.tags.join(' ')) invalidateTagVocabulary();
         return { ...prev, updatedAt: savedNote.updatedAt, tags: savedNote.tags };
@@ -275,7 +275,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
    * Put the caret in the title of a brand-new note.
    *
    * Creating a note left focus on <body>, so the first thing typed after "New note"
-   * went nowhere — no caret, no feedback, no text. That is the single most common
+   * went nowhere - no caret, no feedback, no text. That is the single most common
    * action in the app, and it failed in exactly the moment someone is mid-lecture.
    * It also caused its own follow-on: typing produced nothing, so people clicked
    * New note again and accumulated empty notes.
@@ -364,7 +364,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
         return;
       }
       // Ctrl/Cmd+F and +H are bound HERE (window-scoped, only while this note page is
-      // mounted) rather than in buildExtensions.ts/FolioEditor.tsx's editorProps/keymap —
+      // mounted) rather than in buildExtensions.ts/FolioEditor.tsx's editorProps/keymap -
       // those are editor-blocks' files this wave, not ours. A page-level listener also
       // naturally satisfies "editor focused-or-page" (e.g. focus sitting in the title
       // input still opens find) without touching lib/useShortcuts.ts.
@@ -395,7 +395,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
 
   function handleEditorReady(editor: Editor) {
     editorRef.current = editor;
-    // Attach the find/replace ProseMirror plugin directly to this editor instance —
+    // Attach the find/replace ProseMirror plugin directly to this editor instance -
     // registerPlugin() is how we add it without needing a slot in buildExtensions.ts's
     // shared extensions array (editor-blocks' file). Guard against double-registration:
     // React 18 StrictMode's mount→cleanup→mount can call this twice for the same editor.
@@ -403,7 +403,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
       editor.registerPlugin(createFindReplacePlugin());
     }
     // Same registerPlugin route (and the same StrictMode double-mount guard) for the
-    // inline #hashtag decorations — see HashtagExtension.ts for why it lives here
+    // inline #hashtag decorations - see HashtagExtension.ts for why it lives here
     // rather than in buildExtensions.ts's shared array.
     if (!HashtagPluginKey.get(editor.state)) {
       editor.registerPlugin(createHashtagPlugin(openTag));
@@ -438,7 +438,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     }
   }
 
-  /** A chip was added or removed — same dirty/debounce path a keystroke takes, so
+  /** A chip was added or removed - same dirty/debounce path a keystroke takes, so
    *  tag edits inherit the retry, the flush-on-blur and the beforeunload keepalive
    *  instead of racing them with a PATCH of their own. */
   function handleTagsChange(next: string[]) {
@@ -493,7 +493,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
       setAiBusy(null);
     }
   }
-  /** Clean: formatting-only pass — structure improves, the student's wording stays. */
+  /** Clean: formatting-only pass - structure improves, the student's wording stays. */
   async function handleClean(close: () => void) {
     close();
     setAiBusy('clean');
@@ -552,7 +552,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
       });
   }
 
-  /** Assistant "Add to note": append the gap analysis as a callout at the end —
+  /** Assistant "Add to note": append the gap analysis as a callout at the end -
    *  the ONLY way the assistant ever writes into a note, and the student clicked it. */
   function insertAssistantNotes(markdown: string) {
     const ed = editorRef.current;
@@ -768,7 +768,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
             </span>
           </div>
 
-          {/* Placeholder is not a label — it disappears on first keystroke and is not
+          {/* Placeholder is not a label - it disappears on first keystroke and is not
               reliably exposed. This is the highest-traffic input in the product. */}
           <input
             ref={titleInputRef}
@@ -892,7 +892,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
         noteId={note.id}
         defaultKind={importKind}
         onImported={(resultNoteId) => {
-          // The import merged/appended into THIS open note — pull the server's new content
+          // The import merged/appended into THIS open note - pull the server's new content
           // into the live editor so the next autosave doesn't revert it (fix 4).
           if (resultNoteId === note.id) void resyncFromServer();
         }}

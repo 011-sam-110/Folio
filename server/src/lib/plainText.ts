@@ -2,7 +2,7 @@
  * Flatten a TipTap document to plain text.
  *
  * `notes.content_text` is what full-text search indexes, what card snippets read,
- * and what the AI endpoints send as context — so any write path that updates
+ * and what the AI endpoints send as context - so any write path that updates
  * `content_json` without also updating this leaves the note editable but
  * unsearchable, with a stale snippet. That is exactly what happened on the share
  * route: a guest could type into a shared note and nothing they wrote was ever

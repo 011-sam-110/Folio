@@ -1,7 +1,7 @@
 // Network calls for the lecture import, kept in this feature rather than added to lib/api.ts.
 //
 // The serverless deployment caps a request body at ~4.5MB and a function at 60s, so the video
-// itself is never sent — only the derived slide JPEGs (~100-250KB each) and the caption text.
+// itself is never sent - only the derived slide JPEGs (~100-250KB each) and the caption text.
 // Slides go up one per request against the existing single-image endpoint, a few at a time:
 // that keeps every request far inside the body cap and stops a 40-slide lecture from opening
 // 40 simultaneous sockets.

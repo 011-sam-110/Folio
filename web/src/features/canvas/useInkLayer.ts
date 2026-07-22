@@ -44,7 +44,7 @@ export function useInkLayer(noteId: string, enabled: boolean): InkLayer {
   const [strokes, setStrokes] = useState<LocalStroke[]>([]);
   const [ready, setReady] = useState(false);
 
-  // Strokes finished but not yet uploaded, in the order they were drawn — the
+  // Strokes finished but not yet uploaded, in the order they were drawn - the
   // POST response returns ids positionally, so order is load-bearing.
   const queueRef = useRef<LocalStroke[]>([]);
   const timerRef = useRef<number | null>(null);
@@ -76,7 +76,7 @@ export function useInkLayer(noteId: string, enabled: boolean): InkLayer {
       })
       .catch(() => {
         if (loadSeqRef.current !== seq) return;
-        // A failed load must not present as an empty layer — that invites the user
+        // A failed load must not present as an empty layer - that invites the user
         // to draw over ink they cannot see and cannot recover.
         toast('Could not load ink for this note', 'error');
         setReady(false);
@@ -219,7 +219,7 @@ export function useInkLayer(noteId: string, enabled: boolean): InkLayer {
         if (isTemp(id)) {
           const qIdx = queueRef.current.findIndex((s) => s.id === id);
           if (qIdx >= 0) {
-            // Never uploaded — dropping it from the queue is the whole delete.
+            // Never uploaded - dropping it from the queue is the whole delete.
             queueRef.current.splice(qIdx, 1);
           } else {
             deleteAfterFlushRef.current.add(id);

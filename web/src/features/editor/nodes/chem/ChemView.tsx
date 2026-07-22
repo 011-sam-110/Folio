@@ -3,7 +3,7 @@
 //    plus an optional name field with best-effort name -> structure resolution.
 //  - Draw mode: a button that lazy-loads the Ketcher editor so students who don't know SMILES
 //    can draw a molecule and get SMILES (+ molfile) back.
-// Invalid/empty input never throws — it shows a friendly inline hint.
+// Invalid/empty input never throws - it shows a friendly inline hint.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NodeViewWrapper } from '@tiptap/react';
 import type { NodeViewProps } from '@tiptap/react';
@@ -94,7 +94,7 @@ export default function ChemView({ node, updateAttributes, editor, selected }: N
   );
 
   // Latest name/commit read inside the render effect via refs, so the effect only re-runs
-  // (and re-draws the structure) when the SMILES or theme actually changes — not on every
+  // (and re-draws the structure) when the SMILES or theme actually changes - not on every
   // name keystroke or re-render.
   const nameRef = useRef(name);
   nameRef.current = name;

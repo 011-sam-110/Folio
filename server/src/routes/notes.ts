@@ -11,7 +11,7 @@ import { claimAttachmentsForNote } from '../lib/attachments.js';
 const router = Router();
 
 // Auth is mounted once, in app.ts (`app.use('/api/notes', requireAuth, ...)`), so this
-// router does not add its own guard — one layer means one place to audit and one session
+// router does not add its own guard - one layer means one place to audit and one session
 // lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
 // failure mode is a loud 500, never an unscoped query.
 
@@ -20,7 +20,7 @@ const router = Router();
  *  - The owner id ALWAYS comes from `userId(req)`, never from the body or params.
  *  - `notes` carries user_id, so note lookups filter on it directly.
  *  - Child tables (note_versions, note_tags, links) have no user_id, so their
- *    statements reach through to `notes` — either by joining on the read side or
+ *    statements reach through to `notes` - either by joining on the read side or
  *    by an INSERT…SELECT over an owner-filtered `notes` row on the write side.
  *    A bare `WHERE note_id = ?` would let any signed-in user name any note id.
  *  - Where a bare note id IS used below, it is `row.id` from an already
@@ -330,7 +330,7 @@ router.patch('/:id', async (req, res) => {
   if (b.contentJson !== undefined) await claimAttachmentsForNote(uid, row.id, newContentJson);
   // Renaming a note is link-preserving: fix up the [[oldTitle]] references in every note
   // that links here so backlinks (and the on-screen wikilink text) follow the new title.
-  // Confined to this user's notes — a shared title must not rewrite anyone else's text.
+  // Confined to this user's notes - a shared title must not rewrite anyone else's text.
   if (b.title !== undefined && newTitle !== row.title) {
     await renameWikilinksToTitle(uid, row.id, row.title, newTitle);
   }
@@ -338,7 +338,7 @@ router.patch('/:id', async (req, res) => {
   const updated = (await getNoteRow(uid, row.id))!;
 
   // Publish to the note's change feed so anyone on a share link sees the owner's
-  // edit. No-ops for unshared notes — see lib/events.ts.
+  // edit. No-ops for unshared notes - see lib/events.ts.
   await recordNoteEvent(
     row.id,
     'doc',
@@ -375,7 +375,7 @@ router.post('/:id/undelete', async (req, res) => {
     return;
   }
   if (!row.deleted_at) {
-    res.json({ note: await noteFull(row) }); // already live — no-op
+    res.json({ note: await noteFull(row) }); // already live - no-op
     return;
   }
   await db.prepare('UPDATE notes SET deleted_at = NULL WHERE id = ? AND user_id = ?').run(row.id, uid);

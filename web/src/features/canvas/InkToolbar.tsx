@@ -20,7 +20,7 @@ export interface InkToolbarProps {
   /** Present on the doc-note overlay, where the toolbar can dismiss the layer. */
   onClose?: () => void;
   /** Hides the eraser and "clear all" together. Off for share links, whose ink
-   *  API is append-only (POST with no DELETE) — an eraser there would appear to
+   *  API is append-only (POST with no DELETE) - an eraser there would appear to
    *  work and then un-erase on the next load, which is worse than not having one. */
   allowErase?: boolean;
 }

@@ -1,5 +1,5 @@
 // Client-side extraction. Inherited from the lecture flow: pull text in the browser wherever a
-// library exists, so a 300MB vault never uploads 300MB — only the small extracted text (and,
+// library exists, so a 300MB vault never uploads 300MB - only the small extracted text (and,
 // for photos, the downscaled bytes) crosses the wire.
 //
 //   TXT / MD   -> read in the browser, parse frontmatter + #hashtags for sort signal
@@ -56,7 +56,7 @@ export function parseSourceTags(md: string): { tags: string[]; title?: string } 
     const t = yaml.match(/^title:\s*(.+)$/m);
     if (t) title = t[1].trim().replace(/['"]/g, '');
   }
-  // Inline #hashtags in the body — a letter must follow the '#', so markdown headings ('# H')
+  // Inline #hashtags in the body - a letter must follow the '#', so markdown headings ('# H')
   // and '## Sub' never match.
   for (const m of body.matchAll(/(?:^|[\s(])#([a-zA-Z][\w/-]{1,31})/g)) tags.add(m[1]);
   return { tags: [...tags], title };
@@ -118,8 +118,8 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 
 /**
  * A shared OCR runner for one import. The model download + worker spawn are lazy (first photo
- * only) and best-effort: if tesseract.js cannot load — offline, or blocked by the production
- * CSP (its worker fetches from a CDN) — the first failure flips `failed` and every photo just
+ * only) and best-effort: if tesseract.js cannot load - offline, or blocked by the production
+ * CSP (its worker fetches from a CDN) - the first failure flips `failed` and every photo just
  * imports without text. That is the locked graceful-degradation contract.
  */
 export function createOcrRunner(): OcrRunner {

@@ -114,7 +114,7 @@ export function useTranscription() {
               // Transferring hands the buffer over rather than structured-cloning ~200MB.
               // It is not always allowed: `getChannelData()` can hand back a view whose buffer
               // the AudioBuffer still owns, and transferring that throws. Falling back to a
-              // structured clone costs a copy but is far better than the alternative — the
+              // structured clone costs a copy but is far better than the alternative - the
               // throw used to escape this listener, leaving the promise forever pending and
               // the UI parked on "Transcribing…" with nothing running.
               worker.postMessage(payload, [audio.buffer as ArrayBuffer]);
@@ -128,7 +128,7 @@ export function useTranscription() {
               const elapsed = (Date.now() - startedAtRef.current) / 1000;
               const ratio = msg.totalSeconds > 0 ? msg.processedSeconds / msg.totalSeconds : 0;
               // Extrapolate from the observed rate, and only once there is enough to be
-              // meaningful — an ETA from the first few seconds is a guess dressed as a fact.
+              // meaningful - an ETA from the first few seconds is a guess dressed as a fact.
               const eta = ratio > 0.02 ? (elapsed / ratio) * (1 - ratio) : null;
               return {
                 ...s,

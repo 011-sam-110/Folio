@@ -1,5 +1,5 @@
 // Route guard. AuthProvider has already resolved /me by the time anything here
-// renders, so there is no loading branch to handle — only "signed in or not".
+// renders, so there is no loading branch to handle - only "signed in or not".
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
@@ -15,7 +15,7 @@ export default function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   if (!user) {
-    // `replace` keeps the guarded URL out of history — Back from /login should leave
+    // `replace` keeps the guarded URL out of history - Back from /login should leave
     // the app, not bounce through the page that just rejected them.
     return <Navigate to="/login" replace state={{ from: currentPath(location) }} />;
   }

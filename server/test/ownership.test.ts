@@ -1,7 +1,7 @@
 // Cross-tenant regression suite.
 //
 // The migration turned a single-user app into a multi-user one, and the pre-migration
-// route layer filtered on nothing but the row id — so essentially every read was a
+// route layer filtered on nothing but the row id - so essentially every read was a
 // cross-account read waiting to happen. Each test below pins one of the holes that was
 // closed during the port. They are written as "user B tries to reach user A's data",
 // because that is the shape the bugs actually had.
@@ -59,7 +59,7 @@ describe('unauthenticated access', () => {
 
   it('leaves /api/health and the auth router reachable', async () => {
     expect((await request(app).get('/api/health')).status).toBe(200);
-    // /me is how the client discovers it is signed out — it must answer, not 401-loop.
+    // /me is how the client discovers it is signed out - it must answer, not 401-loop.
     expect((await request(app).get('/api/auth/me')).status).toBe(401);
   });
 });
@@ -172,7 +172,7 @@ describe('study is owner-scoped', () => {
   });
 
   // Creating a card used to accept any note id and echo that note's title back in the
-  // card DTO — a cross-tenant read through the create endpoint.
+  // card DTO - a cross-tenant read through the create endpoint.
   it('refuses to attach a new card to another account note', async () => {
     const nb = await insertNotebook(alice.id);
     const note = await insertNote(alice.id, nb, { title: 'Alice secret title' });

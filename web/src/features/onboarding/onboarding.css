@@ -17,7 +17,7 @@
 }
 
 /* Absorbs clicks on the page behind. The tour navigates on the user's behalf, so a
-   stray click mid-step would fight it — every way out is a control on the card. */
+   stray click mid-step would fight it - every way out is a control on the card. */
 .tour-blocker {
   position: fixed;
   inset: 0;
@@ -76,7 +76,7 @@
   transform: translate(-50%, -50%);
 }
 
-/* Used when the highlighted element is too large to sit a card beside — the editor
+/* Used when the highlighted element is too large to sit a card beside - the editor
    body, a canvas surface. Docked bottom-right so it never covers the top of the
    spotlit region, where the thing being described usually is. */
 .tour-card--corner {
@@ -355,7 +355,7 @@
 }
 
 /* Short viewports (a 320x640 phone, or any handset in landscape) have almost no
-   vertical room once the sheet is docked. Give the card more of it — the sticky
+   vertical room once the sheet is docked. Give the card more of it - the sticky
    footer keeps the actions in reach regardless. */
 @media (max-height: 700px) and (max-width: 700px) {
   .tour-card,

@@ -34,7 +34,7 @@ function isPlainText(mime: string, ext: string): boolean {
 }
 
 /**
- * Extract text from an uploaded file. Throws for unsupported types — the caller
+ * Extract text from an uploaded file. Throws for unsupported types - the caller
  * (routes/imports.ts) turns that into a failed import job with a readable error.
  */
 export async function extractFromUpload(filePath: string, mime: string, originalName: string): Promise<ExtractResult> {

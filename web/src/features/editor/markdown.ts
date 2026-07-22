@@ -1,12 +1,12 @@
 // Renders AI-returned markdown to sanitized HTML for preview / insertion into the editor.
 //
 // AI-apply unification (iter1 leftover): every caller that already funnels AI/import
-// markdown through `markdownToSafeHtml` — NotePage's Improve/Summarize apply, the
-// SelectionToolbar "AI edit" apply, AssistantPanel's "Add to note" — gets live wikilink
+// markdown through `markdownToSafeHtml` - NotePage's Improve/Summarize apply, the
+// SelectionToolbar "AI edit" apply, AssistantPanel's "Add to note" - gets live wikilink
 // and math NODES for free, with no change needed at any of those call sites, because the
 // conversion happens once, here, at the shared choke point. `[[Title]]` / `[[Title|Alias]]`
 // become real `wikilink` nodes (unresolved at this synchronous step; WikilinkView resolves
-// an exact title match on mount, or falls back to its existing "missing" style — see
+// an exact title match on mount, or falls back to its existing "missing" style - see
 // WikilinkView.tsx) and `$...$` / `$$...$$` become inlineMath/blockMath nodes, matching
 // exactly what @tiptap/extension-mathematics expects to parse back out of HTML.
 import { marked } from 'marked';
@@ -15,8 +15,8 @@ import katex from 'katex';
 
 marked.setOptions({ breaks: true, gfm: true });
 
-// A single Unicode Private Use Area codepoint (U+E000) — never produced by `marked` or
-// real note text, and neither `marked.parse` nor DOMPurify has any reason to touch it — used
+// A single Unicode Private Use Area codepoint (U+E000) - never produced by `marked` or
+// real note text, and neither `marked.parse` nor DOMPurify has any reason to touch it - used
 // as an inert delimiter so math spans can round-trip through the markdown→HTML pipeline
 // untouched (see `extractMath`/`restoreMath` below).
 
@@ -35,8 +35,8 @@ function unescapeAttr(value: string): string {
   return value.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
 
-// Pulls $$...$$ / $...$ out of the raw markdown BEFORE `marked` ever sees it — LaTeX's own
-// underscores/asterisks/braces would otherwise get misread as markdown emphasis/lists — and
+// Pulls $$...$$ / $...$ out of the raw markdown BEFORE `marked` ever sees it - LaTeX's own
+// underscores/asterisks/braces would otherwise get misread as markdown emphasis/lists - and
 // swaps in inert placeholder tokens (private-use-area characters `marked` and DOMPurify both
 // leave completely alone) to be restored once the real HTML conversion is done.
 function extractMath(markdown: string): { text: string; tokens: MathToken[] } {
@@ -46,10 +46,10 @@ function extractMath(markdown: string): { text: string; tokens: MathToken[] } {
     tokens.push({ kind, latex: latex.trim() });
     return `${MATH_PLACEHOLDER}${i}${MATH_PLACEHOLDER}`;
   };
-  // Block math ($$...$$) first — across lines, non-greedy — so the inline pass below never
+  // Block math ($$...$$) first - across lines, non-greedy - so the inline pass below never
   // gets a chance to split a block span in half.
   let text = markdown.replace(/\$\$([\s\S]+?)\$\$/g, placeholder('block'));
-  // Inline math ($...$) — single line, and the content can't start with whitespace so bare
+  // Inline math ($...$) - single line, and the content can't start with whitespace so bare
   // currency like "$5 and $10" doesn't get misread as a math span.
   text = text.replace(/\$([^\s$][^$\n]*?)\$/g, placeholder('inline'));
   return { text, tokens };
@@ -92,7 +92,7 @@ export function markdownToSafeHtml(md: string | null | undefined): string {
   return linkifyWikilinks(restoreMath(sanitized, tokens));
 }
 
-// Static (non-editor) preview of AI markdown — e.g. AiPreviewModal's "After" pane — can't run
+// Static (non-editor) preview of AI markdown - e.g. AiPreviewModal's "After" pane - can't run
 // the Mathematics extension's own KaTeX node view (there's no live TipTap instance backing a
 // `dangerouslySetInnerHTML` block), so the inline/block math markup `markdownToSafeHtml` emits
 // would otherwise render as empty, invisible tags. This renders the same KaTeX output

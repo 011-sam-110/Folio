@@ -2,7 +2,7 @@
  * Canvas boards (web/src/features/canvas/).
  *
  * A canvas is a note with kind='canvas' whose children are rows in canvas_items
- * rather than content inside the note body — so "did it save" cannot be read off
+ * rather than content inside the note body - so "did it save" cannot be read off
  * the document editor's autosave chip. There is no visible saved-state indicator
  * on a board at all.
  *
@@ -64,7 +64,7 @@ async function newCanvas(page: import('@playwright/test').Page, notebookId: stri
  *
  * A board has no saved-state chip, and its writes are debounced and batched, so
  * the server's own view of the board is the only unambiguous "it saved" signal.
- * Polling it is a real condition — not a sleep — and it does not care whether the
+ * Polling it is a real condition - not a sleep - and it does not care whether the
  * app expressed the change as a POST, a PATCH or a batch of both.
  */
 async function expectBoardState(
@@ -95,7 +95,7 @@ test.describe('Canvas boards', () => {
     await expect(page.getByRole('toolbar', { name: 'Canvas tools' })).toBeVisible();
     await expect(page.getByTestId('note-editor')).toHaveCount(0);
     await expect(page.getByLabel('Canvas title')).toHaveValue('Untitled canvas');
-    // The board's own breadcrumb — the sidebar link to the same notebook shares its
+    // The board's own breadcrumb - the sidebar link to the same notebook shares its
     // accessible name, so this is matched by class rather than by role alone.
     await expect(page.locator('.cv-header__crumb')).toContainText(notebook.name);
   });
@@ -108,7 +108,7 @@ test.describe('Canvas boards', () => {
     await expect(items(page)).toHaveCount(1);
 
     // Placing a sticky drops straight into editing it, so the textarea is already
-    // focused — that behaviour is part of what is being checked here.
+    // focused - that behaviour is part of what is being checked here.
     const stickyText = `Deadlock notes ${Date.now()}`;
     const editor = board(page).locator('textarea');
     await expect(editor).toBeVisible({ timeout: 5_000 });

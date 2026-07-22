@@ -1,5 +1,5 @@
 // Module bus for the two onboarding surfaces that need to be openable from places
-// that have no path to the provider's state — the command palette registers its
+// that have no path to the provider's state - the command palette registers its
 // commands at import time (lib/commands.ts) and the account menu lives in the
 // sidebar. Same pattern as components/importModalBus.ts.
 type Surface = 'tour' | 'shortcuts';

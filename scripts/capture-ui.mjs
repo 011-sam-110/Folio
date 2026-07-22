@@ -88,7 +88,7 @@ const PUBLIC_PAGES = new Set(['login', 'signup', 'recover']);
  *
  * This exists because it already happened: a concurrent process reset the database
  * mid-run, the session died, and every "signed-in" route silently rendered the login
- * page. The run reported 78 successful captures — 78 pictures of a login form, filed
+ * page. The run reported 78 successful captures - 78 pictures of a login form, filed
  * under names like `note` and `canvas`. A reviewer grading those would produce
  * confident nonsense about screens it had never actually seen.
  *
@@ -103,7 +103,7 @@ async function shoot(page, name, viewport, theme) {
       name,
       viewport,
       theme,
-      reason: `expected an authenticated page but landed on ${url} — session lost, capture discarded`,
+      reason: `expected an authenticated page but landed on ${url} - session lost, capture discarded`,
     });
     return false;
   }
@@ -145,7 +145,7 @@ async function main() {
     await settle(probe);
     if (/\/(login|signup)(\?|#|$)/.test(probe.url())) {
       throw new Error(
-        `signed-in context was bounced to ${probe.url()} — the session did not survive. ` +
+        `signed-in context was bounced to ${probe.url()} - the session did not survive. ` +
           `Nothing was captured. If another process resets the database mid-run, the user row ` +
           `behind this session disappears and every capture silently becomes a login page.`,
       );
@@ -183,7 +183,7 @@ async function main() {
         }
       }
 
-      // Interactive states — the ones a route-only sweep never reaches.
+      // Interactive states - the ones a route-only sweep never reaches.
       try {
         await page.goto(`${BASE}/note/${noteIds[0]}`, { waitUntil: 'domcontentloaded' });
         await settle(page);

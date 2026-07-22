@@ -1,8 +1,8 @@
-// Study Assistant drawer — the "IDE for learning" surface. It NEVER rewrites the note:
+// Study Assistant drawer - the "IDE for learning" surface. It NEVER rewrites the note:
 // it reads the note plus its uploaded source material (transcripts/slides/photos already
 // attached to the note) and reports what's missing, what to double-check, and what to do
 // next. The only write path is the explicit "Add to note" button, which appends the
-// analysis as a callout — the student chooses that.
+// analysis as a callout - the student chooses that.
 import { useRef, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import { toast } from '../../components/Toast';

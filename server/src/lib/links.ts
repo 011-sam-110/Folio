@@ -1,7 +1,7 @@
 import { db, tx, type Db } from '../db.js';
 import type { NoteIdResolver } from './markdown.js';
 
-// [[Title]] or [[Title|Display text]] — titles never contain [ or ].
+// [[Title]] or [[Title|Display text]] - titles never contain [ or ].
 const WIKILINK_RE = /\[\[([^\[\]|]+)(?:\|[^\[\]]*)?\]\]/g;
 
 /** Extract the distinct wikilink titles referenced in a note's plain-text body. */
@@ -66,14 +66,14 @@ const insertLinkStmt = (d: Db) =>
 /**
  * Re-derive one note's outgoing links, on the given connection. Split out from
  * `syncLinksForNote` so callers that are already inside a transaction can pass their
- * scoped `t` — using the module-level `db` there would draw a different pooled
+ * scoped `t` - using the module-level `db` there would draw a different pooled
  * connection and run outside the transaction.
  */
 async function syncLinksForNoteIn(t: Db, uid: string, noteId: string, contentText: string): Promise<void> {
   // `links` carries no user_id, so ownership has to come from the notes on both ends.
   // The to-side is covered by the uid-scoped title lookup below; the from-side is proven
   // here, once, so the DELETE/INSERT can key off note_id alone. Callers already load the
-  // note scoped by user, so this is a backstop — but without it a caller passing an
+  // note scoped by user, so this is a backstop - but without it a caller passing an
   // unverified id could rewrite another user's link graph.
   const owned = await t.prepare('SELECT 1 FROM notes WHERE id = ? AND user_id = ?').get(noteId, uid);
   if (!owned) return;

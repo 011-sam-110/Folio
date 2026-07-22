@@ -128,11 +128,11 @@ export function buildApp(): express.Express {
   // 20mb: a photo import posts the image inline. Lowering this breaks photo capture.
   app.use(express.json({ limit: '20mb' }));
 
-  // Liveness only — no DB, no session, so it stays useful when either is broken.
+  // Liveness only - no DB, no session, so it stays useful when either is broken.
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
   // Apply the schema before any route touches the database. `migrate()` memoises its own
-  // promise, so this is a single settled-promise await per request after the first — but
+  // promise, so this is a single settled-promise await per request after the first - but
   // it has to be a request-time gate, not just a boot step: on Vercel there is no boot
   // hook, and a cold instance's first request would otherwise hit missing tables.
   app.use('/api', (_req, _res, next) => {
@@ -143,13 +143,13 @@ export function buildApp(): express.Express {
   // in the first place. This router guards its own one privileged route (/password).
   app.use('/api/auth', authRouter);
 
-  // Social sign-in shares the /api/auth prefix and is likewise unauthenticated — the
+  // Social sign-in shares the /api/auth prefix and is likewise unauthenticated - the
   // provider redirect + callback ARE how the session is obtained. Also serves
   // GET /api/auth/providers, which the signed-out login page reads to gate its buttons.
   app.use('/api/auth', oauthRouter);
 
   // Public share links: guests have no account, so this router cannot sit behind
-  // requireAuth. It guards each route individually instead — the owner-only routes
+  // requireAuth. It guards each route individually instead - the owner-only routes
   // (/notes/:id/shares, /shares/:id) with requireAuth, and the guest routes with
   // requireShareAccess, which validates the share token and password gate.
   // Mounted before the routers below so /api/notes/:noteId/shares resolves here.
@@ -159,7 +159,7 @@ export function buildApp(): express.Express {
   // inside each router: one place to audit, and one session lookup per request.
   // `userId(req)` inside these routers throws if the guard is ever removed, so a
   // mis-mount fails loudly with a 500 rather than silently querying `undefined`.
-  // Paths are /notes/:id/comments and /comments/:id, so this mounts at /api —
+  // Paths are /notes/:id/comments and /comments/:id, so this mounts at /api -
   // before /api/notes so the nested route resolves.
   app.use('/api', requireAuth, commentsRouter);
   app.use('/api/notebooks', requireAuth, notebooksRouter);
@@ -176,7 +176,7 @@ export function buildApp(): express.Express {
   // about the host, not public information, so it is signed-in-only like the rest.
   app.use('/api/meta', requireAuth, metaRouter);
 
-  // Attachment payloads live in Postgres and are served from there — the database is the
+  // Attachment payloads live in Postgres and are served from there - the database is the
   // source of truth, and the only storage that exists at all on a serverless host.
   // Mounted BEFORE the static handler so the row always wins over a stale local file.
   //
@@ -195,7 +195,7 @@ export function buildApp(): express.Express {
   const dist = path.join(ROOT, 'web', 'dist');
   if (fs.existsSync(dist)) {
     app.use(express.static(dist));
-    // Express 5 removed the bare '*' path pattern — a named wildcard ('/*splat') is
+    // Express 5 removed the bare '*' path pattern - a named wildcard ('/*splat') is
     // now required, and '*' throws a path-to-regexp parse error at mount time.
     app.get('/*splat', (req, res, next) => {
       if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();

@@ -40,8 +40,8 @@ export class OAuthResolveError extends Error {
 }
 
 /**
- * The only persistence the policy needs. Deliberately narrow — two lookups and two
- * writes — so the fake in the test is trivial and the real store has nowhere to hide
+ * The only persistence the policy needs. Deliberately narrow - two lookups and two
+ * writes - so the fake in the test is trivial and the real store has nowhere to hide
  * behaviour the tests do not see.
  *
  * `createUser` is expected to provision a complete, passwordless account (row + the
@@ -80,7 +80,7 @@ function normaliseEmail(email: string | null): string | null {
  * case: adopting an identity into an existing account on the strength of an address
  * the provider has not verified would let anyone who can make a provider emit an
  * arbitrary address seize that account. Creation needs the same gate for a subtler
- * reason — the email stored on a new account becomes the link target for rule 2 on the
+ * reason - the email stored on a new account becomes the link target for rule 2 on the
  * NEXT provider that reports it, so creating from an unverified address just defers the
  * same hijack. It is the same guard, not a weaker one.
  */

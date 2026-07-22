@@ -12,7 +12,7 @@
 //    focus to the heading each step would be the more common pattern and is worse
 //    here: it costs a Tab per step and interrupts the reading order.
 //  * Because focus does not move, the step change is announced by a polite live
-//    region carrying the full step text — otherwise a screen-reader user would hear
+//    region carrying the full step text - otherwise a screen-reader user would hear
 //    nothing at all when the content behind their focus point silently changed.
 //  * The dim layer is `aria-hidden` decoration; the card is the dialog. The
 //    spotlight is drawn with a huge box-shadow rather than an SVG mask so there is
@@ -60,7 +60,7 @@ function prefersReducedMotion(): boolean {
 
 /** An element counts as a usable target only if it is actually rendered AND has a
  *  box. `offsetParent` is null for `position: fixed` elements, so client rects are
- *  the reliable test — the sidebar drawer and the canvas toolbar are both fixed. */
+ *  the reliable test - the sidebar drawer and the canvas toolbar are both fixed. */
 function isVisible(el: Element): boolean {
   const rects = el.getClientRects();
   if (rects.length === 0) return false;
@@ -74,7 +74,7 @@ async function stillExists(notebookId: string): Promise<boolean> {
     const { notebooks } = await api.notebooks();
     return notebooks.some((n) => n.id === notebookId);
   } catch {
-    // Can't tell — assume it is there rather than risk creating a duplicate.
+    // Can't tell - assume it is there rather than risk creating a duplicate.
     return true;
   }
 }
@@ -142,7 +142,7 @@ export default function TourOverlay({
     [seeded],
   );
 
-  /** null until checked — drives the welcome card's wording for a repeat run. */
+  /** null until checked - drives the welcome card's wording for a repeat run. */
   const [seedSurvives, setSeedSurvives] = useState<boolean | null>(null);
 
   // Ask once, on the welcome card, whether last run's example is still around, so
@@ -191,15 +191,15 @@ export default function TourOverlay({
     if (phase !== 'steps') return;
     const current = TOUR_STEPS[index];
 
-    // Ran off either end — off the top is "finished", off the bottom clamps.
+    // Ran off either end - off the top is "finished", off the bottom clamps.
     if (!current) {
       if (index >= TOUR_LENGTH) exit('done');
       else setIndex(0);
       return;
     }
 
-    // Record progress as "in progress" on every step, so an abrupt exit — a reload,
-    // a closed tab, a crash — is resumable rather than lost. A clean finish or skip
+    // Record progress as "in progress" on every step, so an abrupt exit - a reload,
+    // a closed tab, a crash - is resumable rather than lost. A clean finish or skip
     // overwrites this with its own terminal status.
     setTourStatus('paused', index);
     setResolution({ status: 'locating' });
@@ -208,7 +208,7 @@ export default function TourOverlay({
 
     const wanted = current.route?.(targets) ?? null;
 
-    // A step that declares a route but resolves to none has an unmet prerequisite —
+    // A step that declares a route but resolves to none has an unmet prerequisite -
     // in practice, the example notebook the user chose not to create. If the step
     // is one that skips when it cannot anchor, skip it NOW rather than burning the
     // full resolve timeout waiting for an element that cannot possibly appear.
@@ -275,14 +275,14 @@ export default function TourOverlay({
 
     const update = () => {
       // Re-query rather than trusting the captured node. React replaces subtrees
-      // freely — the backlinks panel swaps its whole section when its fetch lands —
+      // freely - the backlinks panel swaps its whole section when its fetch lands -
       // and a DETACHED element measures as an all-zero rect, which parked the
       // spotlight in the top-left corner and dragged the card up there with it.
       const live = findTarget(selectors);
       if (!live) return; // vanished mid-step: hold the last good position, don't jump
       if (live !== el) {
         // Rebind to the replacement; this effect re-runs and re-subscribes. Bring
-        // it into view too — the node that replaced ours is often taller (a list
+        // it into view too - the node that replaced ours is often taller (a list
         // that has just filled in) and can land below the fold.
         live.scrollIntoView({
           behavior: prefersReducedMotion() ? 'auto' : 'smooth',
@@ -300,7 +300,7 @@ export default function TourOverlay({
         height: r.height + SPOT_PAD * 2,
       });
 
-      // A target that fills most of the screen — the editor body, a canvas surface —
+      // A target that fills most of the screen - the editor body, a canvas surface -
       // leaves no edge to hang a card off. floating-ui will happily place one
       // half off the bottom of the viewport, because `shift` only corrects the
       // cross axis. Dock the card to a corner instead: the spotlight already says
@@ -321,7 +321,7 @@ export default function TourOverlay({
     };
 
     const stop = autoUpdate(el, card ?? el, update);
-    // autoUpdate watches scroll, resize and the reference's own size — but not the
+    // autoUpdate watches scroll, resize and the reference's own size - but not the
     // reference being swapped for a different node, which is the common React case.
     // One cheap querySelector twice a second covers it.
     const poll = window.setInterval(update, 500);
@@ -339,7 +339,7 @@ export default function TourOverlay({
       return;
     }
     if (phase !== 'steps' || !step || resolution.status === 'locating') return;
-    // Full text, because focus stays put — nothing else would tell a screen-reader
+    // Full text, because focus stays put - nothing else would tell a screen-reader
     // user that the card behind their focus point had changed.
     setAnnouncement(`Step ${index + 1} of ${TOUR_LENGTH}. ${step.title}. ${step.body}`);
   }, [phase, index, step, resolution.status]);
@@ -353,7 +353,7 @@ export default function TourOverlay({
 
   useDialogFocus(true, cardRef, pause, { trap: true, takeInitialFocus: true });
 
-  // Left/right arrows step the tour, but only when focus is not in a text field —
+  // Left/right arrows step the tour, but only when focus is not in a text field -
   // the card has no fields today, and this keeps that true if one is ever added.
   useEffect(() => {
     if (phase !== 'steps') return;
@@ -379,7 +379,7 @@ export default function TourOverlay({
     setSeedError(null);
     try {
       // Replaying the tutorial must not stack up a second, third, fourth copy of
-      // the example notebook. Reuse the one from last time when it is still there —
+      // the example notebook. Reuse the one from last time when it is still there -
       // and only when it IS still there, because a user who deleted it and then
       // asked for the tour again plainly does want one.
       if (seeded && (await stillExists(seeded.notebookId))) {
@@ -392,7 +392,7 @@ export default function TourOverlay({
       setPhase('steps');
     } catch (e) {
       // Do not strand the user on a spinner. Say what happened and let them carry
-      // on without the example — every step that needed it degrades on its own.
+      // on without the example - every step that needed it degrades on its own.
       const message = errorMessage(e, 'Could not create the example notebook');
       setSeedError(message);
       toast(message, 'error');
@@ -574,7 +574,7 @@ export default function TourOverlay({
         )}
       </div>
 
-      {/* Polite, atomic, and always mounted — a live region added at the same moment
+      {/* Polite, atomic, and always mounted - a live region added at the same moment
           its text changes is not reliably announced. */}
       <div className="folio-visually-hidden" role="status" aria-live="polite" aria-atomic="true">
         {announcement}
@@ -585,7 +585,7 @@ export default function TourOverlay({
 }
 
 /** Local matchMedia binding. The app's own `useIsMobile` lives inside App.tsx and
- *  is not exported, and this needs a different breakpoint anyway — the card becomes
+ *  is not exported, and this needs a different breakpoint anyway - the card becomes
  *  a bottom sheet well before the sidebar becomes a drawer. */
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => window.matchMedia(query).matches);

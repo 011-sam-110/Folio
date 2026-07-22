@@ -16,7 +16,7 @@ import CommentIcon from '../comments/CommentIcon';
 import { notifyCommentAdded } from '../comments/commentsBus';
 import { markdownToSafeHtml } from './markdown';
 
-/** Closes `close()` on outside click or Escape while `active` — used for the AI dropdown and
+/** Closes `close()` on outside click or Escape while `active` - used for the AI dropdown and
  *  the comment composer popover (the AI dropdown previously only closed on mouse-leave, which
  *  iter1 review flagged as neither click-outside- nor keyboard-dismissable). */
 function useDismiss(active: boolean, ref: React.RefObject<HTMLElement | null>, close: () => void) {
@@ -80,7 +80,7 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
 
   // Pin the AI-edit target range by mapping it through every transaction that lands while
   // the request is in flight (and while the preview modal is open). Without this, applying
-  // "Replace selection" used the positions captured BEFORE the round trip — typing anywhere
+  // "Replace selection" used the positions captured BEFORE the round trip - typing anywhere
   // above the selection shifted the doc and the result landed at the wrong spot (or threw).
   const trackedRangeRef = useRef<{ from: number; to: number } | null>(null);
   const trackerAttachedRef = useRef(false);
@@ -177,7 +177,7 @@ export default function SelectionToolbar({ editor }: { editor: Editor }) {
       const { comment } = await api.addComment(noteId, { anchorText, body });
       const range = commentRangeRef.current ?? { from, to };
       // Graceful degradation: apply the mark only if the schema actually has it (depends on
-      // editor-blocks having wired CommentMark into buildExtensions.ts — see CommentMark.ts).
+      // editor-blocks having wired CommentMark into buildExtensions.ts - see CommentMark.ts).
       // The comment is still saved and visible in the margin panel either way.
       if (editor.schema.marks.comment) {
         editor.chain().setTextSelection(range).setMark('comment', { commentId: comment.id }).run();

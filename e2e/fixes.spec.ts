@@ -86,7 +86,7 @@ test.describe('Editor data integrity', () => {
     const chip = page.getByTestId(TESTIDS.autosaveStatus);
     await expect(chip).toContainText(/save failed/i, { timeout: 15_000 });
 
-    // Server "recovers" — the automatic backoff retry must persist the edit with no
+    // Server "recovers" - the automatic backoff retry must persist the edit with no
     // further user input.
     failing = false;
     await expect(chip).toContainText(/saved/i, { timeout: 20_000 });
@@ -95,7 +95,7 @@ test.describe('Editor data integrity', () => {
     await expect(editorBody(page)).toContainText('CRITICAL-EDIT', { timeout: 10_000 });
   });
 
-  test('restoring a version refreshes the live editor — the next autosave does not revert it', async ({ page }) => {
+  test('restoring a version refreshes the live editor - the next autosave does not revert it', async ({ page }) => {
     const notebookName = uniqueName('E2E Resync Notebook');
     const original = 'ORIGINAL-RESYNC-CONTENT before the snapshot.';
     const later = 'LATER-CONTENT that the restore must wipe.';
@@ -161,7 +161,7 @@ test.describe('Soft delete + undo', () => {
     await page.getByRole('menuitem', { name: /delete/i }).click();
     await page.getByRole('button', { name: /delete note/i }).click();
 
-    // Note is gone from the LIST (scope to main — the Undo toast itself quotes the title),
+    // Note is gone from the LIST (scope to main - the Undo toast itself quotes the title),
     // and the toast offers Undo.
     const main = page.getByRole('main');
     await expect(main.getByText(exact(note.title))).toHaveCount(0, { timeout: 10_000 });
@@ -228,12 +228,12 @@ test.describe('AI kill-switch', () => {
     const note = await apiCreateNote(request, notebook.id, uniqueName('AI Toggle Note'));
 
     // AI affordances are now gated on BOTH the user's preference and live gateway
-    // health (web/src/lib/aiStatus.ts — useAiAvailable). GET /api/meta/ai-health
+    // health (web/src/lib/aiStatus.ts - useAiAvailable). GET /api/meta/ai-health
     // performs a real completion against the free gateway, so under load it can
     // answer 'bad' and hide every AI control before this spec has touched anything.
     //
     // The subject here is the PREFERENCE switch, not gateway reachability, so health
-    // is pinned to healthy. That keeps the test deterministic without weakening it —
+    // is pinned to healthy. That keeps the test deterministic without weakening it -
     // the assertions about what the toggle does are unchanged, and the real gateway
     // is still exercised for real in ai.spec.ts.
     await page.route('**/api/meta/ai-health', (route) =>
@@ -311,7 +311,7 @@ test.describe('Study notebook filter', () => {
     await expect(page.getByText(`Reviewing ${pair.name} only`)).toBeVisible({ timeout: 5_000 });
     await expect(counter).toHaveText('2 due', { timeout: 10_000 });
 
-    // Back to all notebooks: at least the three we planted. Not an equality check —
+    // Back to all notebooks: at least the three we planted. Not an equality check -
     // other specs sharing this worker's account may have left cards of their own.
     await filter.getByRole('button', { name: /All notebooks/ }).click();
     await expect(page.getByText(/across every notebook/i)).toBeVisible({ timeout: 5_000 });

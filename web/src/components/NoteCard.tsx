@@ -1,4 +1,4 @@
-// web-shell — the required signature is exactly { note, onClick }; `compact`
+// web-shell - the required signature is exactly { note, onClick }; `compact`
 // and `controls` are additive optional props (backward compatible) so
 // NotebookPage can render pin/⋯ controls without NoteCard knowing any
 // business logic about pin/duplicate/move/delete itself.
@@ -23,7 +23,7 @@ export default function NoteCard({
   const isCanvas = note.kind === 'canvas';
 
   // The card used to be a role="button" wrapper, but it also contains the pin/⋯
-  // controls — a focusable descendant inside a button role, which is invalid
+  // controls - a focusable descendant inside a button role, which is invalid
   // (axe: nested-interactive) and left screen-reader users with one opaque
   // "button" hiding two more. The card is now a plain container whose TITLE is
   // the real button; `.note-card__open::after` stretches that button's hit area
@@ -48,7 +48,7 @@ export default function NoteCard({
       <div className="note-card__main">
         <button type="button" className="note-card__title note-card__open" onClick={onClick}>
           {/* Canvases and documents live in the same lists, so the kind has to be
-              readable at a glance — otherwise "open it and find out" is the only
+              readable at a glance - otherwise "open it and find out" is the only
               way to tell them apart. */}
           {isCanvas && (
             <span style={{ color: 'var(--accent)', display: 'inline-flex', marginRight: 6, verticalAlign: '-2px' }}>
@@ -69,7 +69,7 @@ export default function NoteCard({
             </span>
           )}
           <span>{relativeTime(note.updatedAt)}</span>
-          {/* A word count on a board is meaningless — it is always zero. */}
+          {/* A word count on a board is meaningless - it is always zero. */}
           {!isCanvas && <span>{plural(note.wordCount, 'word')}</span>}
           {note.tags.length > 0 && (
             <span className="note-card__tags">

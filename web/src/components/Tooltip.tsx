@@ -10,7 +10,7 @@ export default function Tooltip({
   delay = 350,
 }: {
   content: ReactNode;
-  /** Any single element (button, span, ...) — loosely typed since this
+  /** Any single element (button, span, ...) - loosely typed since this
    *  merges handlers/ref onto whatever the caller passes in. */
   children: ReactElement;
   placement?: Placement;
@@ -59,7 +59,7 @@ export default function Tooltip({
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // `ReactElement`'s props are untyped (`any`) here by design — this wraps
+  // `ReactElement`'s props are untyped (`any`) here by design - this wraps
   // an arbitrary caller-supplied trigger element, so we merge event
   // handlers + a ref loosely rather than fighting variance on a generic
   // props type. Internal utility only, not a cross-agent contract surface.

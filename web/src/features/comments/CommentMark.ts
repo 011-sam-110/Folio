@@ -1,12 +1,12 @@
 // Margin comment anchor: a plain inline mark carrying only `commentId`. The comment's
-// text (body, resolved state, anchorText snapshot) lives server-side in note_comments —
+// text (body, resolved state, anchorText snapshot) lives server-side in note_comments -
 // this mark just anchors a comment to a live span of text in the document so
 // CommentsPanel can scroll-to/flash it, and so we can tell a comment is "orphaned"
 // (its mark got deleted/edited away) by checking whether any mark with that id remains.
 //
 // Cross-agent contract (docs/ITER2-PLAN.md): editor-blocks imports this EXACT named
 // export into buildExtensions.ts via `import { CommentMark } from '../comments/CommentMark'`.
-// This file only ever exports the name `CommentMark` — do not rename it.
+// This file only ever exports the name `CommentMark` - do not rename it.
 import { Mark, mergeAttributes } from '@tiptap/core';
 
 export interface CommentMarkOptions {
@@ -27,7 +27,7 @@ declare module '@tiptap/core' {
 export const CommentMark = Mark.create<CommentMarkOptions>({
   name: 'comment',
 
-  // Don't let the mark "grow" to swallow text typed immediately after it — a comment
+  // Don't let the mark "grow" to swallow text typed immediately after it - a comment
   // anchors the text that existed when it was created, not whatever gets typed next.
   inclusive: false,
 

@@ -6,9 +6,9 @@
 // derived JPEGs ever reach the network.
 //
 // Two passes, because they want different things:
-//   1. SCAN  — seek every few seconds, draw into a tiny 160x90 canvas and diff. Cheap, and the
+//   1. SCAN  - seek every few seconds, draw into a tiny 160x90 canvas and diff. Cheap, and the
 //              only pass that touches most of the timeline.
-//   2. CAPTURE — re-seek to just the ~20 accepted timestamps and draw those at full resolution.
+//   2. CAPTURE - re-seek to just the ~20 accepted timestamps and draw those at full resolution.
 // Doing it this way means full-size frames are only ever decoded for frames actually kept,
 // instead of holding a thousand full-resolution bitmaps to throw nearly all of them away.
 
@@ -131,7 +131,7 @@ function readGrayFrame(
   ctx.drawImage(video, 0, 0, SAMPLE_W, SAMPLE_H);
   const { data } = ctx.getImageData(0, 0, SAMPLE_W, SAMPLE_H);
   for (let i = 0, p = 0; i < out.length; i++, p += 4) {
-    // Rec. 601 luma — matches what the offline tuning used (ffmpeg's `format=gray`).
+    // Rec. 601 luma - matches what the offline tuning used (ffmpeg's `format=gray`).
     out[i] = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
   }
   return out;

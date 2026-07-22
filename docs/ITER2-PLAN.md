@@ -18,7 +18,7 @@ endpoints/types), main.tsx (routes /search /tags → placeholder pages), docs/AP
 
 ## Cross-agent contracts (fixed paths/shapes)
 - Column node JSON (editor-blocks implements; templates-nb's Cornell template emits it):
-  `{ type: 'columnList', content: [{ type: 'column', attrs: { width: null }, content: [blocks…] }] }`. 2–4 columns,
+  `{ type: 'columnList', content: [{ type: 'column', attrs: { width: null }, content: [blocks…] }] }`. 2-4 columns,
   keyboard-escapable, deletable, degrades to sequential blocks if nodes unknown.
 - Comment mark (notepage-tools implements at features/comments/CommentMark.ts, exports `CommentMark`):
   mark name 'comment', attrs { commentId }. editor-blocks imports it in buildExtensions.ts via

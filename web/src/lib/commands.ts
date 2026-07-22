@@ -1,9 +1,9 @@
-// palette-nav — global command registry for the Ctrl/Cmd+P command palette.
+// palette-nav - global command registry for the Ctrl/Cmd+P command palette.
 //
 // Cross-agent contract (docs/ITER2-PLAN.md): `registerCommands(cmds)` /
 // `useCommands()`, with this exact minimal Command shape (id, title, hint?,
 // section, keywords?, shortcut?, run(ctx)). No other agent registers commands
-// this wave — CommandPalette.tsx wires every built-in itself — but the
+// this wave - CommandPalette.tsx wires every built-in itself - but the
 // registry is generic on purpose so a future feature (a template picker, a
 // jump-to-comment) can add its own commands without touching this file or
 // CommandPalette.tsx.
@@ -12,7 +12,7 @@
 // context-dependent (per-notebook "Go to…", New note's notebook filing,
 // Snapshot now, Study this notebook, the sidebar/theme toggles that need
 // component state) is assembled directly inside CommandPalette.tsx instead of
-// being registered here — this file only holds the commands that are truly
+// being registered here - this file only holds the commands that are truly
 // global and context-free.
 import { useEffect, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
@@ -31,7 +31,7 @@ export interface Command {
   section: string;
   keywords?: string[];
   shortcut?: string;
-  /** Presentation only — additive to the wave's minimal contract shape, and
+  /** Presentation only - additive to the wave's minimal contract shape, and
    *  optional, so a registrant that omits both falls back to a default glyph. */
   icon?: IconName;
   emoji?: string;
@@ -57,7 +57,7 @@ export function registerCommands(cmds: Command[]): () => void {
   };
 }
 
-/** Live, reactive view of every registered command — CommandPalette merges
+/** Live, reactive view of every registered command - CommandPalette merges
  *  this with its own context-dependent commands before filtering/rendering. */
 export function useCommands(): Command[] {
   const [snapshot, setSnapshot] = useState(registry);
@@ -74,7 +74,7 @@ export function useCommands(): Command[] {
 
 /**
  * Simple subsequence fuzzy scorer: every character of `query` must appear in
- * `text`, in order (case-insensitive), gaps allowed — returns null when it
+ * `text`, in order (case-insensitive), gaps allowed - returns null when it
  * isn't a subsequence at all. Consecutive runs and an early match start score
  * higher, so typing "nn" ranks "New note" above a coincidental late match.
  * Good enough for a few dozen commands; no fuzzy-match dependency needed.
@@ -101,7 +101,7 @@ export function fuzzyScore(query: string, text: string): number | null {
 }
 
 /** Scores a command against a query across its title (weighted highest), then
- *  keywords, then hint — null when the query doesn't subsequence-match any. */
+ *  keywords, then hint - null when the query doesn't subsequence-match any. */
 export function matchCommand(query: string, cmd: Pick<Command, 'title' | 'keywords' | 'hint'>): number | null {
   if (!query.trim()) return 0;
   const candidates: Array<[string, number]> = [[cmd.title, 1]];
@@ -122,7 +122,7 @@ export function matchCommand(query: string, cmd: Pick<Command, 'title' | 'keywor
 export const SECTION_ORDER = ['Navigate', 'Create', 'Note', 'View', 'Study', 'Help'];
 
 // ---------------------------------------------------------------------------
-// Built-ins that need no page/route context beyond `navigate` — registered
+// Built-ins that need no page/route context beyond `navigate` - registered
 // once, the moment this module is first imported (by CommandPalette.tsx).
 // ---------------------------------------------------------------------------
 registerCommands([
@@ -168,7 +168,7 @@ registerCommands([
     section: 'Navigate',
     hint: 'Browse notes by tag',
     keywords: ['labels', 'hashtag'],
-    // No matching Icon.tsx glyph — CommandPalette renders a small local hash
+    // No matching Icon.tsx glyph - CommandPalette renders a small local hash
     // icon for this one id instead of an `icon`/`emoji` field.
     run: (ctx) => ctx.navigate('/tags'),
   },

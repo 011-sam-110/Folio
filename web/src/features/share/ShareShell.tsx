@@ -2,7 +2,7 @@
 // loading state, and the two ways a link can be dead.
 //
 // It carries its own wordmark and theme toggle because a guest never sees the
-// sidebar that normally provides them — without this, a visitor arriving in dark
+// sidebar that normally provides them - without this, a visitor arriving in dark
 // mode would have no way to change it and no sign they were in Unote at all.
 
 import type { ReactNode } from 'react';

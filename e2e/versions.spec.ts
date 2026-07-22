@@ -74,7 +74,7 @@ test.describe('Version history', () => {
     await drawer.getByTestId(TESTIDS.historyVersionItem).filter({ hasText: label }).first().click();
     await drawer.getByRole('button', { name: /restore/i }).click();
 
-    // Exact toast copy — a page-wide /restor/i regex also matches any notebook/note whose
+    // Exact toast copy - a page-wide /restor/i regex also matches any notebook/note whose
     // NAME contains "restor" (sidebar rows), which made this assertion collide with other
     // specs' leftover fixtures.
     await expect(page.getByText('Note restored')).toBeVisible({ timeout: 10_000 });

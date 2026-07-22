@@ -1,6 +1,6 @@
 import { Router } from 'express';
 // Auth is mounted once, in app.ts (`app.use('/api/tags', requireAuth, ...)`), so this
-// router does not add its own guard — one layer means one place to audit and one session
+// router does not add its own guard - one layer means one place to audit and one session
 // lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
 // failure mode is a loud 500, never an unscoped query.
 import { userId } from '../auth/middleware.js';
@@ -14,7 +14,7 @@ interface TagRow {
 }
 
 /**
- * Canonical tag spelling — mirrors web/src/lib/tags.ts's normalizeTag.
+ * Canonical tag spelling - mirrors web/src/lib/tags.ts's normalizeTag.
  *
  * The rule is duplicated rather than shared because client and server are separate
  * packages, but it must not drift: tags are matched with plain equality
@@ -92,7 +92,7 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * POST /api/tags/merge — fold one or more tags into another.
+ * POST /api/tags/merge - fold one or more tags into another.
  * Body: { from: string[], into: string }
  *
  * Registered before the /:tag routes so "merge" can never be read as a tag name.
@@ -126,7 +126,7 @@ router.post('/merge', async (req, res) => {
 });
 
 /**
- * PATCH /api/tags/:tag — rename a tag across every one of the user's notes.
+ * PATCH /api/tags/:tag - rename a tag across every one of the user's notes.
  * Body: { tag: string }. Renaming onto an existing tag merges into it (see retag).
  */
 router.patch('/:tag', async (req, res) => {
@@ -157,7 +157,7 @@ router.patch('/:tag', async (req, res) => {
 });
 
 /**
- * DELETE /api/tags/:tag — remove a tag from every one of the user's notes.
+ * DELETE /api/tags/:tag - remove a tag from every one of the user's notes.
  * The notes themselves are untouched; only the note_tags rows go.
  */
 router.delete('/:tag', async (req, res) => {

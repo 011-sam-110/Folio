@@ -44,7 +44,7 @@ export async function decodeAudioTo16kMono(
     throw new Error('This browser has no Web Audio support, so audio cannot be extracted for transcription.');
   }
 
-  // One unavoidable full read — decodeAudioData cannot stream.
+  // One unavoidable full read - decodeAudioData cannot stream.
   let buffer: ArrayBuffer | null = await file.arrayBuffer();
   if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
 

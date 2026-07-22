@@ -70,7 +70,7 @@ describe('bulk import: staging never touches real notebooks until commit', () =>
     // Real notebooks are untouched: no note created by staging.
     expect(await noteCount(alice.id)).toBe(before);
 
-    // 3) label space feeds the (client) heuristic — the Databases profile has real terms
+    // 3) label space feeds the (client) heuristic - the Databases profile has real terms
     const ls = await alice.agent.get('/api/import/label-space');
     expect(ls.status).toBe(200);
     expect(ls.body.notebooks.map((n: { name: string }) => n.name)).toContain('Databases');
@@ -112,7 +112,7 @@ describe('bulk import: staging never touches real notebooks until commit', () =>
     expect(newNbNames).toContain('Operating Systems');
     expect(newNbNames).toContain('Unsorted');
 
-    // Now — and only now — the notes exist.
+    // Now - and only now - the notes exist.
     expect(await noteCount(alice.id)).toBe(before + 3);
 
     // item 0 landed in the existing Databases notebook, with its tags
@@ -235,7 +235,7 @@ describe('bulk import is owner-scoped', () => {
     const batchId = b.batchId as string;
     const { body: s } = await bob.agent.post(`/api/import/batches/${batchId}/items`).send({ items: [{ originalName: 'x.md', text: 'hi' }] });
     const itemId = s.items[0].id as string;
-    // Suggest bob's item into alice's notebook — must be ignored, not accepted.
+    // Suggest bob's item into alice's notebook - must be ignored, not accepted.
     await bob.agent.post(`/api/import/batches/${batchId}/categorise`).send({
       categoriser: 'heuristic',
       suggestions: [{ itemId, notebook: { kind: 'existing', id: aliceNb }, tags: [], confidence: 0.9 }],

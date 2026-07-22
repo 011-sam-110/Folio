@@ -1,4 +1,4 @@
-// The note header's tag editor — the missing authoring surface for tags.
+// The note header's tag editor - the missing authoring surface for tags.
 //
 // Before this existed the whole tag feature was write-only from the seed script:
 // the server stored note_tags, PATCH /api/notes/:id accepted `tags`, search had a
@@ -6,8 +6,8 @@
 // on a note.
 //
 // Two kinds of chip are rendered side by side, and the difference matters:
-//   • explicit chips — added here, removable here (they are this component's value)
-//   • auto chips     — parsed from #hashtags in the note body (read-only here,
+//   • explicit chips - added here, removable here (they are this component's value)
+//   • auto chips     - parsed from #hashtags in the note body (read-only here,
 //                      because the body is their source of truth; offering an "×"
 //                      that the next keystroke undoes would be a lie)
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
@@ -17,7 +17,7 @@ import { loadTagVocabulary, normalizeTag, MAX_TAG_LENGTH, type TagCount } from '
 import './tagEditor.css';
 
 export interface TagEditorProps {
-  /** Explicit chips — the editable value. */
+  /** Explicit chips - the editable value. */
   tags: string[];
   /** Tags discovered in the body as #hashtags; shown as read-only companions. */
   autoTags: string[];
@@ -37,7 +37,7 @@ export default function TagEditor({ tags, autoTags, onChange, onOpenTag }: TagEd
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   // Vocabulary is fetched once per mount (cached module-level for a minute) rather
-  // than per keystroke — the list is small and filtering it locally keeps the
+  // than per keystroke - the list is small and filtering it locally keeps the
   // suggestion popup instant.
   useEffect(() => {
     let alive = true;
@@ -60,7 +60,7 @@ export default function TagEditor({ tags, autoTags, onChange, onOpenTag }: TagEd
     const q = normalizeTag(draft) ?? '';
     const pool = vocabulary.filter((v) => !applied.has(v.tag));
     if (!q) return pool.slice(0, MAX_SUGGESTIONS);
-    // Prefix matches first — they are what the user is most likely reaching for —
+    // Prefix matches first - they are what the user is most likely reaching for -
     // then any other substring hit, each group keeping the server's count ordering.
     const prefix = pool.filter((v) => v.tag.startsWith(q));
     const rest = pool.filter((v) => !v.tag.startsWith(q) && v.tag.includes(q));
@@ -87,7 +87,7 @@ export default function TagEditor({ tags, autoTags, onChange, onOpenTag }: TagEd
     const tag = normalizeTag(raw);
     setDraft('');
     if (!tag) return false;
-    // A duplicate isn't an error worth shouting about — the tag is already there,
+    // A duplicate isn't an error worth shouting about - the tag is already there,
     // so clearing the input is the whole correct response.
     if (applied.has(tag)) return false;
     onChange([...tags, tag]);
@@ -195,7 +195,7 @@ export default function TagEditor({ tags, autoTags, onChange, onOpenTag }: TagEd
             onFocus={() => setOpen(true)}
             onKeyDown={handleKeyDown}
             onBlur={() => {
-              // Commit a half-typed tag rather than silently discarding it — losing
+              // Commit a half-typed tag rather than silently discarding it - losing
               // work on a stray click is the worst outcome for a field like this.
               if (draft.trim()) commit(draft);
             }}

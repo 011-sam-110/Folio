@@ -71,7 +71,7 @@ function AppShell() {
     try {
       localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
     } catch {
-      // localStorage unavailable (private mode, etc) — collapse state just won't persist.
+      // localStorage unavailable (private mode, etc) - collapse state just won't persist.
     }
   }, [collapsed]);
 
@@ -140,7 +140,7 @@ function AppShell() {
     }
   }, [params.notebookId, notebooks, navigate]);
 
-  // Same filing rules as a new note — a canvas IS a note, so it belongs in the
+  // Same filing rules as a new note - a canvas IS a note, so it belongs in the
   // notebook you are currently working in rather than a special home of its own.
   const handleNewCanvas = useCallback(async () => {
     const notebookId = resolveFilingNotebook(params.notebookId, notebooks);
@@ -176,7 +176,7 @@ function AppShell() {
 
       {/* A <header> rather than a <div>: the mobile topbar sits outside the sidebar
           <nav> and outside <main>, so as a plain div its wordmark was page content
-          belonging to no landmark — axe's `region` rule, reproducible at 390px with
+          belonging to no landmark - axe's `region` rule, reproducible at 390px with
           nothing else on screen. */}
       <header className="app-topbar">
         <button
@@ -217,7 +217,7 @@ function AppShell() {
           data-mobile-open={mobileOpen}
           // On mobile this is a modal drawer over the content and is announced as one.
           // On desktop it is permanent page furniture, so it must NOT claim dialog
-          // semantics — it is just the navigation region.
+          // semantics - it is just the navigation region.
           role={isMobile ? 'dialog' : undefined}
           aria-modal={isMobile && mobileOpen ? true : undefined}
           aria-label={isMobile ? 'Main navigation' : undefined}

@@ -1,9 +1,9 @@
-// search-tags agent — tag browser: a sized pill grid of every tag in use,
+// search-tags agent - tag browser: a sized pill grid of every tag in use,
 // multi-select filtering (intersection) of an inline note list, and a
 // "search notes →" escape hatch into the full search page's tag: operator.
 //
 // The selection lives in the URL (?tag=a&tag=b) so a tag view is shareable, works
-// with the back button, and — the reason it was moved out of local state — can be
+// with the back button, and - the reason it was moved out of local state - can be
 // linked to from a note's tag chips (NotePage → /tags?tag=x).
 //
 // Each pill also carries a manage affordance: rename across all notes, merge into
@@ -72,7 +72,7 @@ export default function TagsPage() {
   }, [loadTags]);
 
   // Multi-select = intersection: fetch by the first selected tag (server-side
-  // filter, cheap), then narrow further client-side for any additional tags —
+  // filter, cheap), then narrow further client-side for any additional tags -
   // a note must carry ALL selected tags to stay in the list.
   useEffect(() => {
     const list = selectedKey ? selectedKey.split(',') : [];
@@ -119,7 +119,7 @@ export default function TagsPage() {
   function sizeFor(count: number): number {
     if (maxCount === minCount) return 14;
     const t = (count - minCount) / (maxCount - minCount);
-    return 13 + t * 6; // 13px .. 19px — a gentle "cloud" without a handful of tags towering over the rest
+    return 13 + t * 6; // 13px .. 19px - a gentle "cloud" without a handful of tags towering over the rest
   }
 
   const managingTag = tags?.find((t) => t.tag === managing) ?? null;
@@ -290,7 +290,7 @@ interface ManageTagDialogProps {
   tag: TagCount;
   allTags: TagCount[];
   onClose: () => void;
-  /** (previousTag, replacementTag | null) — null means it was deleted outright. */
+  /** (previousTag, replacementTag | null) - null means it was deleted outright. */
   onDone: (previous: string, replacement: string | null) => void;
 }
 
@@ -303,7 +303,7 @@ function ManageTagDialog({ tag, allTags, onClose, onDone }: ManageTagDialogProps
   const others = useMemo(() => allTags.filter((t) => t.tag !== tag.tag), [allTags, tag.tag]);
   const renameNormalized = normalizeTag(renameTo);
   const renameChanged = !!renameNormalized && renameNormalized !== tag.tag;
-  // Renaming onto a tag that already exists is a merge — say so rather than letting
+  // Renaming onto a tag that already exists is a merge - say so rather than letting
   // the note count quietly change under the user.
   const renameCollides = !!renameNormalized && others.some((t) => t.tag === renameNormalized);
 
@@ -434,7 +434,7 @@ function ManageTagDialog({ tag, allTags, onClose, onDone }: ManageTagDialogProps
               <Icon name="trash" size={13} /> Delete #{tag.tag}
             </button>
           ) : (
-            // Inline two-step rather than a nested ConfirmDialog — stacking a second
+            // Inline two-step rather than a nested ConfirmDialog - stacking a second
             // modal over this one would double the scrim and steal the focus trap.
             <div className="tg-manage__confirm">
               <span>Remove #{tag.tag} from {plural(tag.count, 'note')}? The notes themselves are kept.</span>

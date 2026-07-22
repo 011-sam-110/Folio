@@ -65,7 +65,7 @@ export function rewrite(sql: string): { text: string; count: number } {
       continue;
     }
     // Block comments. Without this, a '?' inside /* ... */ is counted as a
-    // parameter and every placeholder after it shifts by one — binding values to
+    // parameter and every placeholder after it shifts by one - binding values to
     // the wrong columns silently, with no error anywhere.
     if (ch === '/' && sql[i + 1] === '*') {
       out += '/*';
@@ -144,7 +144,7 @@ function statement(runner: Queryable, sql: string): Statement {
    * values to the wrong columns.
    *
    * The rewriter has to understand every way SQL can quote or comment out a literal
-   * '?'. A security review found it mishandled block comments and dollar-quoting —
+   * '?'. A security review found it mishandled block comments and dollar-quoting -
    * harmless in this codebase today because no query contains them, but the failure
    * mode is silent data corruption, not an error. This assertion does not depend on
    * the rewriter being right about syntax it has never seen: if the number of
@@ -195,7 +195,7 @@ export const db: Db = {
  * Run `fn` inside a transaction on one dedicated connection.
  *
  * The module-level `db` draws a possibly-different pooled connection per
- * statement, which would silently run the body outside the transaction — so the
+ * statement, which would silently run the body outside the transaction - so the
  * callback receives its own scoped `Db` and must use that instead.
  */
 export async function tx<T>(fn: (t: Db) => Promise<T>): Promise<T> {

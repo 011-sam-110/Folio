@@ -1,17 +1,17 @@
-// Pure model + persistence helpers for the inline sketch node. No React, no DOM — so
+// Pure model + persistence helpers for the inline sketch node. No React, no DOM - so
 // the serialise/round-trip logic that guarantees a sketch survives a reload can be
 // reasoned about (and tested) in one place, exactly like canvas/geometry.ts.
 //
-// PERSISTENCE CHOICE (option i — vector strokes in node attrs, not a rendered image):
+// PERSISTENCE CHOICE (option i - vector strokes in node attrs, not a rendered image):
 //   * A sketch is small vector data. Storing the strokes as JSON in the node's attrs
-//     means the drawing round-trips through the note's EXISTING content-JSON autosave —
+//     means the drawing round-trips through the note's EXISTING content-JSON autosave -
 //     no extra attachment upload, no network round-trip, no orphaned-file lifecycle.
 //   * It stays fully editable on reopen (draw more, erase, undo) because the vector
 //     source is retained. A baked raster would be a dead end for editing.
 //   * It re-renders crisply at any DPR / container width / theme because we redraw from
 //     vectors; a raster would blur when scaled and freeze one theme's colours in.
 //   The alternative (upload a PNG *and* keep the strokes) doubles storage and adds an
-//   attachment lifecycle for no gain here — we can always re-render from the strokes.
+//   attachment lifecycle for no gain here - we can always re-render from the strokes.
 //   That trade only pays off for server-side thumbnails or huge strokes, neither of
 //   which an inline note sketch has.
 
@@ -19,7 +19,7 @@ import type { InkPoint } from '../../../../lib/types';
 import type { LocalStroke } from '../../../canvas/strokes';
 
 /** World coordinate space of the pad. Strokes are stored in 0..WORLD_W x 0..h, so they
- *  re-render proportionally at ANY rendered width — the on-screen viewport scale is just
+ *  re-render proportionally at ANY rendered width - the on-screen viewport scale is just
  *  renderedWidth / WORLD_W. WORLD_W is sized so a desktop-width pad renders at ~scale 1,
  *  keeping the pen widths (1.5..10 world units) reading true. */
 export const SKETCH_WORLD_W = 720;
@@ -31,7 +31,7 @@ export type SketchBg = 'dots' | 'grid' | 'plain';
 
 /**
  * The persisted shape stored in the node's `strokes` attr. Deliberately a SUBSET of
- * LocalStroke — no ephemeral `id` / `pending` — so the doc JSON stays clean and every
+ * LocalStroke - no ephemeral `id` / `pending` - so the doc JSON stays clean and every
  * reopen mints fresh local ids.
  */
 export interface SketchStroke {
@@ -53,7 +53,7 @@ export function serializeStrokes(strokes: readonly LocalStroke[]): SketchStroke[
 /**
  * Defensive parse of the `strokes` attr. Node attrs are opaque JSON that may have been
  * hand-edited, produced by an older build, or pasted from elsewhere, so anything
- * malformed is dropped rather than thrown — a bad blob must degrade to an empty pad,
+ * malformed is dropped rather than thrown - a bad blob must degrade to an empty pad,
  * never crash the editor.
  */
 export function deserializeStrokes(raw: unknown): LocalStroke[] {

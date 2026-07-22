@@ -1,4 +1,4 @@
-// web-shell — keep the prop signature exactly: { open, onClose, title?, width?, children }.
+// web-shell - keep the prop signature exactly: { open, onClose, title?, width?, children }.
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from './Icon';

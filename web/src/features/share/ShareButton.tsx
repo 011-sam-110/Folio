@@ -2,7 +2,7 @@
 // reports whether this note is currently reachable by anyone else.
 //
 // The share state is fetched here rather than passed in, because no notes
-// endpoint returns it — /api/notes and /api/notes/:id say nothing about shares,
+// endpoint returns it - /api/notes and /api/notes/:id say nothing about shares,
 // so a "shared" badge on a note CARD is not currently possible without a server
 // change. Within an open note it costs one cheap request, and that is where the
 // author is when the answer matters.

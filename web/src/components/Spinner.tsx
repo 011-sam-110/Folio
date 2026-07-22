@@ -1,4 +1,4 @@
-// web-shell — keep the prop signature exactly: { size? }.
+// web-shell - keep the prop signature exactly: { size? }.
 export default function Spinner({ size = 18 }: { size?: number }) {
   return (
     <span

@@ -43,7 +43,7 @@ function flashcardDto(row: FlashcardRow) {
   };
 }
 
-// Every caller of this fragment MUST add `f.user_id = ?` to the WHERE clause — the
+// Every caller of this fragment MUST add `f.user_id = ?` to the WHERE clause - the
 // joins carry no scoping of their own. The `n.user_id = f.user_id` condition on the
 // notes join is belt-and-braces: a card should never point at another user's note,
 // but if one ever did, this keeps the foreign title/notebook name out of the DTO
@@ -91,7 +91,7 @@ router.get('/queue', async (req, res) => {
   res.json({ cards: cards.map(flashcardDto), due, total });
 });
 
-// GET /api/study/cards — ALL cards (incl. suspended and not-yet-due), newest first.
+// GET /api/study/cards - ALL cards (incl. suspended and not-yet-due), newest first.
 // Distinct from /queue (which is the due, non-suspended review set) so the Browse
 // tab can manage the whole deck.
 router.get('/cards', async (req, res) => {
@@ -100,7 +100,7 @@ router.get('/cards', async (req, res) => {
   res.json({ cards: cards.map(flashcardDto) });
 });
 
-// POST /api/study/cards { noteId?, question, answer } — manual card creation (iteration 2).
+// POST /api/study/cards { noteId?, question, answer } - manual card creation (iteration 2).
 // New card starts fresh (ease 2.5, interval 0, reps 0) with due_at = now, so it shows up
 // in the review queue immediately alongside any other due card.
 router.post('/cards', async (req, res) => {
@@ -175,7 +175,7 @@ router.post('/review', async (req, res) => {
       ease = Math.max(MIN_EASE, ease - 0.15);
       if (reps === 0 && interval === 0) {
         // Brand-new card graded 'hard': one short 10-minute relearning step. But a card
-        // that keeps getting 'hard' must not loop in the 10-minute step forever — after a
+        // that keeps getting 'hard' must not loop in the 10-minute step forever - after a
         // SECOND consecutive 'hard' from the new state, graduate it to a 1-day interval so
         // it escapes the relearn loop (the review is logged AFTER this handler, so the most
         // recent logged rating being 'hard' means this is the 2nd consecutive one).
@@ -260,7 +260,7 @@ router.get('/stats', async (req, res) => {
   const total = (await db.prepare('SELECT COUNT(*) as c FROM flashcards WHERE user_id = ?').get<{ c: number }>(uid))!.c;
   const [dayStart, dayEnd] = localDayBounds();
   // review_log carries no user_id, so 'reviewed today' is scoped through the card it
-  // belongs to — otherwise this counts every user's reviews.
+  // belongs to - otherwise this counts every user's reviews.
   const reviewedToday = (
     await db
       .prepare(

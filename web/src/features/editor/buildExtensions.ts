@@ -78,7 +78,7 @@ export function createFolioExtensions(opts: BuildExtensionsOpts): Extensions {
     Highlight.configure({ multicolor: false }),
     // Smart quotes and ellipsis are welcome; the arrow and dash rules are not.
     // Unconfigured, Typography silently rewrote `1 << 3` to `1 « 3`, `n >> 1` to
-    // `n » 1`, and `A --> B` to `A —> B` — including inside backticks, because the
+    // `n » 1`, and `A --> B` to `A -> B` - including inside backticks, because the
     // input rule fires before the code mark applies. For a computer science
     // notebook that is data loss in the most common thing its user types, and undo
     // does not recover it cleanly.
@@ -87,7 +87,7 @@ export function createFolioExtensions(opts: BuildExtensionsOpts): Extensions {
       raquo: false, // >> stays >>
       leftArrow: false, // <- stays <-
       rightArrow: false, // -> stays ->  (pointers, Rust, type signatures)
-      emDash: false, // -- stays --  (CLI flags, and `-->` was becoming `—>`)
+      emDash: false, // -- stays --  (CLI flags, and `-->` was becoming `->`)
       notEqual: false, // != stays !=
     }),
     CodeBlockWithView.configure({ lowlight, defaultLanguage: 'plaintext' }),

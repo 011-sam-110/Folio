@@ -1,11 +1,11 @@
 // The always-available, zero-AI categoriser. It composes four signals in priority order and
 // stops at the first confident hit:
 //
-//   1. Folder structure   (highest) — a dropped folder / vault path maps to a notebook.
-//   2. Source tags         (high)    — frontmatter / #hashtags; a tag equal to a notebook name
+//   1. Folder structure   (highest) - a dropped folder / vault path maps to a notebook.
+//   2. Source tags         (high)    - frontmatter / #hashtags; a tag equal to a notebook name
 //                                      is also a notebook hint.
-//   3. TF-IDF similarity   (medium)  — nearest existing notebook by topic, from its notes.
-//   4. Clustering          (low)     — the remainder grouped among themselves; small clusters
+//   3. TF-IDF similarity   (medium)  - nearest existing notebook by topic, from its notes.
+//   4. Clustering          (low)     - the remainder grouped among themselves; small clusters
 //                                      become proposed notebooks, tiny leftovers go to Unsorted.
 //
 // Conservative on new notebooks (locked decision #3): a NEW notebook is proposed only from a

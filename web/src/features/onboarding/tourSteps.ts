@@ -8,7 +8,7 @@
 //    is free to change, or on an aria-label that flips with state (the ink toggle
 //    and share button both do that).
 //
-// 2. NO STEP MAY DEAD-END. Each declares what to do when its target is missing —
+// 2. NO STEP MAY DEAD-END. Each declares what to do when its target is missing -
 //    `skip` for steps that are *about* an element (pointing at nothing teaches
 //    nothing), `center` for steps whose value is the explanation itself. Targets go
 //    missing for ordinary reasons: AI affordances are hidden when the gateway is

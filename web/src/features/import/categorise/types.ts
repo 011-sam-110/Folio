@@ -9,7 +9,7 @@ export interface CategoriserItem {
   /** Extracted plain text. May be '' (e.g. a photo whose OCR found nothing). */
   text: string;
   filename: string;
-  /** ['databases'] — the strongest sort signal a student ever gives us. */
+  /** ['databases'] - the strongest sort signal a student ever gives us. */
   folderPath?: string[];
   /** Frontmatter / #hashtags found in the source. */
   sourceTags?: string[];
@@ -23,7 +23,7 @@ export interface NotebookLabel {
 
 export interface LabelSpace {
   notebooks: NotebookLabel[];
-  /** The user's existing tag vocabulary — we reinforce it rather than invent noise. */
+  /** The user's existing tag vocabulary - we reinforce it rather than invent noise. */
   tags: string[];
   /** notebookId -> term -> tf weight (0..1). Precomputed server-side from the notebook's notes. */
   profiles?: Record<string, Record<string, number>>;

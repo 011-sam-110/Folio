@@ -13,7 +13,7 @@ import { nextIntervalHints, formatDueIn, type Rating } from './sm2';
 import './StudyPage.css';
 
 // 'no-cards': the deck itself is empty (zero flashcards exist at all).
-// 'nothing-due': cards exist but none are due right now — offers "Study ahead".
+// 'nothing-due': cards exist but none are due right now - offers "Study ahead".
 type Phase = 'loading' | 'no-cards' | 'nothing-due' | 'active' | 'summary' | 'error';
 
 const RATING_META: Array<{ key: Rating; label: string; keyHint: string; tone: string }> = [
@@ -44,7 +44,7 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
   const [reviewedCount, setReviewedCount] = useState(0);
 
   // "Nothing due" empty state: next-up card time + the up-to-10 not-yet-due cards
-  // 'Study ahead' can pull from, computed client-side from the full deck (api.studyCards) —
+  // 'Study ahead' can pull from, computed client-side from the full deck (api.studyCards) -
   // /queue is due-only by design, so it can't tell us what's coming next.
   const [nextDueAt, setNextDueAt] = useState<string | null>(null);
   const [aheadCards, setAheadCards] = useState<Flashcard[]>([]);
@@ -69,7 +69,7 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
         setPhase('active');
         return;
       }
-      // Nothing due — figure out whether the deck is empty or just fully caught up, and
+      // Nothing due - figure out whether the deck is empty or just fully caught up, and
       // stage the next-up cards in case the student wants to study ahead of schedule.
       const all = await api.studyCards();
       const upcoming = all.cards
@@ -198,7 +198,7 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
         icon="🗂️"
         title="No flashcards yet"
         /* The old copy pointed only at the AI menu, which is hidden whenever the
-           gateway is unreachable — leaving the empty state naming an affordance
+           gateway is unreachable - leaving the empty state naming an affordance
            that was not on screen. Lead with the path that always works. */
         hint="Select a sentence in any note and choose 'Add to flashcards' from the toolbar that appears. Cards then come back on a spaced schedule: sooner if you found one hard, later if it was easy."
         action={

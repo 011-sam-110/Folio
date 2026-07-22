@@ -6,7 +6,7 @@
 // found" for a job running perfectly well elsewhere. Every import on the deployed
 // app therefore appeared to vanish the moment it was submitted.
 //
-// Jobs are still ephemeral in spirit — losing one only costs a re-import — but they
+// Jobs are still ephemeral in spirit - losing one only costs a re-import - but they
 // have to be visible to whichever instance the next request happens to reach.
 import { db, nowIso } from '../db.js';
 
@@ -97,7 +97,7 @@ export async function updateJob(
 }
 
 /**
- * Read a job. Scoped by owner when a user id is supplied — job ids are short, and
+ * Read a job. Scoped by owner when a user id is supplied - job ids are short, and
  * an unscoped read would leak other people's import progress and the note ids it
  * produced.
  */

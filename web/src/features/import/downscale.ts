@@ -1,4 +1,4 @@
-// Client-side photo downscale before upload — phones send 12MP+ JPEG/HEIC,
+// Client-side photo downscale before upload - phones send 12MP+ JPEG/HEIC,
 // we only need enough resolution for vision OCR. Best-effort: any failure
 // (unsupported format like HEIC in some browsers, canvas errors, etc.) just
 // falls back to uploading the original file untouched.

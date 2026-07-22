@@ -71,8 +71,8 @@ test.describe('Search', () => {
     // Give the debounced search a moment to fire and settle.
     await page.waitForTimeout(600);
 
-    // No error toast (Toast.tsx renders `.folio-toast.error`, role="status") — this
-    // is the surface QuickSwitcher uses to report a failed search — and no inline
+    // No error toast (Toast.tsx renders `.folio-toast.error`, role="status") - this
+    // is the surface QuickSwitcher uses to report a failed search - and no inline
     // error copy inside the palette itself. The error-text check is scoped to the
     // switcher dialog on purpose: a page-wide bare "500" substring match false-fires
     // on legitimate accumulated content (word counts, ids, timestamps, snippets) once

@@ -1,4 +1,4 @@
-// search-tags agent — full-text search results page (Ctrl+Shift+F / navbar Search,
+// search-tags agent - full-text search results page (Ctrl+Shift+F / navbar Search,
 // and the destination for every "search notes →" link on the Tags page).
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';

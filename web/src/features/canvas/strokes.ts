@@ -7,7 +7,7 @@
 //     stroke; joining them with lineTo() gives visibly faceted, polygonal ink. We
 //     trace a quadratic through the MIDPOINTS of consecutive samples, using each
 //     sample as the control point. That is C1-continuous (no corners at joins),
-//     costs one quadraticCurveTo per sample, and needs no lookahead — so the
+//     costs one quadraticCurveTo per sample, and needs no lookahead - so the
 //     live stroke can be drawn incrementally while the pen is still moving.
 //
 //  2. Pressure varies width, so it must be stroked per segment. A single Path2D
@@ -17,7 +17,7 @@
 //
 //  3. Highlighter is the exact opposite and must be ONE path. Under
 //     'multiply' blending, per-segment strokes overlap at every join and each
-//     overlap darkens — a highlighter drawn that way comes out blotchy along its
+//     overlap darkens - a highlighter drawn that way comes out blotchy along its
 //     own length. Constant width + a single stroke() means the stroke composites
 //     against the page exactly once.
 
@@ -63,7 +63,7 @@ export function widthForPressure(base: number, pressure: number): number {
 /**
  * Pressure to record for a pointer event.
  *
- * Mouse and most touchscreens report a constant 0.5 (or 0, or 1) — treating that
+ * Mouse and most touchscreens report a constant 0.5 (or 0, or 1) - treating that
  * as real pressure would make mouse ink randomly thin. Only a pen's value is
  * trusted; everything else is pinned to the neutral midpoint so it renders at the
  * nominal width.
@@ -71,7 +71,7 @@ export function widthForPressure(base: number, pressure: number): number {
 export function pressureOf(e: { pointerType: string; pressure: number }): number {
   if (e.pointerType !== 'pen') return 0.5;
   // A pen that reports exactly 0 while down is reporting "unsupported", not "no
-  // force" — the spec's default for a down pointer without pressure support.
+  // force" - the spec's default for a down pointer without pressure support.
   return e.pressure > 0 ? e.pressure : 0.5;
 }
 
@@ -79,7 +79,7 @@ export function toSamples(points: readonly InkPoint[]): SamplePoint[] {
   return points.map(([x, y, p]) => ({ x, y, p }));
 }
 
-/** Round-trip to the wire format, trimmed to 2dp — a long stroke is thousands of
+/** Round-trip to the wire format, trimmed to 2dp - a long stroke is thousands of
  *  points and full float precision roughly triples the payload for no visible gain. */
 export function toInkPoints(samples: readonly SamplePoint[]): InkPoint[] {
   const r = (n: number) => Math.round(n * 100) / 100;
@@ -150,7 +150,7 @@ function drawDot(ctx: CanvasRenderingContext2D, p: Point, radius: number, color:
 
 export interface DrawOptions {
   color: string;
-  /** Nominal width in WORLD units — scaled by the viewport so ink zooms with the board. */
+  /** Nominal width in WORLD units - scaled by the viewport so ink zooms with the board. */
   width: number;
   tool: 'pen' | 'highlighter';
 }
@@ -213,7 +213,7 @@ export function drawStroke(
     // Each segment spans midpoint(i-1,i) -> midpoint(i,i+1), curving through
     // sample i. Consecutive segments therefore share an endpoint exactly, and the
     // round cap at that shared point hides the width change between them.
-    // NOTE: midpoints come from `pts` (screen space), matching moveTo/curveTo —
+    // NOTE: midpoints come from `pts` (screen space), matching moveTo/curveTo -
     // `samples` are world space and must never be mixed in here.
     const start = i === 1 ? pts[0] : mid(pts[i - 1], pts[i]);
     const end = mid(pts[i], pts[i + 1]);
@@ -236,7 +236,7 @@ export function drawStroke(
 }
 
 /** Draw a whole layer. Highlighter goes down first so pen ink stays readable on
- *  top of it — the same order you would use with real pens on paper. */
+ *  top of it - the same order you would use with real pens on paper. */
 export function drawLayer(ctx: CanvasRenderingContext2D, strokes: readonly LocalStroke[], vp: Viewport): void {
   const ordered = [...strokes].sort((a, b) => Number(a.tool === 'pen') - Number(b.tool === 'pen'));
   for (const s of ordered) {
@@ -288,7 +288,7 @@ export function strokesNear(
   return hit;
 }
 
-/** World-space bounding box of a stroke set — feeds "zoom to fit" on a board
+/** World-space bounding box of a stroke set - feeds "zoom to fit" on a board
  *  whose only content is ink. */
 export function inkBounds(strokes: readonly LocalStroke[]): { x: number; y: number; width: number; height: number } | null {
   let minX = Infinity;

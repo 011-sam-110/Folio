@@ -13,7 +13,7 @@ import { createFolioExtensions } from './buildExtensions';
 import './editor.css';
 import './notePage.css';
 
-// Vector icons for interactive chrome (Icon.tsx rule) — emoji stays reserved for content.
+// Vector icons for interactive chrome (Icon.tsx rule) - emoji stays reserved for content.
 const CAUSE_ICON: Record<string, IconName> = { autosave: 'pencil', manual: 'pin', ai: 'sparkles', restore: 'rotate-ccw', import: 'download' };
 const CAUSE_LABEL: Record<string, string> = { autosave: 'Autosave', manual: 'Snapshot', ai: 'AI edit', restore: 'Restore', import: 'Import' };
 

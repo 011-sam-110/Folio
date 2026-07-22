@@ -1,4 +1,4 @@
-// InsertMenuList.tsx — the one list rendered by all three Insert surfaces (the "/" menu,
+// InsertMenuList.tsx - the one list rendered by all three Insert surfaces (the "/" menu,
 // the gutter "+" and the toolbar). Presentational and controlled: the parent owns the
 // selected index (so the "/" plugin and the popover can each drive it their own way) and
 // this component draws the sections, options and ARIA. useInsertNavigation packages the

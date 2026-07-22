@@ -54,7 +54,7 @@ afterAll(async () => {
   await closeDatabase();
 });
 
-describe('GET /api/search — phrase match', () => {
+describe('GET /api/search - phrase match', () => {
   it('an "exact phrase" only matches notes where the words are adjacent, not just co-occurring', async () => {
     const nbId = await insertNotebook('Algorithms');
     const adjacent = await insertNote(nbId, 'BST note', 'Binary search trees provide O(log n) lookup for sorted data.');
@@ -68,7 +68,7 @@ describe('GET /api/search — phrase match', () => {
   });
 });
 
-describe('GET /api/search — exclusion', () => {
+describe('GET /api/search - exclusion', () => {
   it('-word drops notes containing the excluded term', async () => {
     const nbId = await insertNotebook('Algorithms');
     const keep = await insertNote(nbId, 'Quicksort', 'Quicksort is a divide and conquer sorting algorithm.');
@@ -91,7 +91,7 @@ describe('GET /api/search — exclusion', () => {
   });
 });
 
-describe('GET /api/search — tag filter', () => {
+describe('GET /api/search - tag filter', () => {
   it('tag:name filters to notes carrying that exact tag, with no text term required', async () => {
     const nbId = await insertNotebook('Algorithms');
     const tagged = await insertNote(nbId, 'Week 3 note', 'Balanced trees this week.');
@@ -119,7 +119,7 @@ describe('GET /api/search — tag filter', () => {
   });
 });
 
-describe('GET /api/search — notebook filter', () => {
+describe('GET /api/search - notebook filter', () => {
   it('notebook:name is a case-insensitive prefix match on the notebook name', async () => {
     const algo = await insertNotebook('Algorithms & Data Structures');
     const db2 = await insertNotebook('Databases');
@@ -133,7 +133,7 @@ describe('GET /api/search — notebook filter', () => {
   });
 });
 
-describe('GET /api/search — combination', () => {
+describe('GET /api/search - combination', () => {
   it('tag: + a bareword term must both match (FTS branch honours the tag join)', async () => {
     const nbId = await insertNotebook('Databases');
     const match = await insertNote(nbId, 'Normalization', 'Normal forms reduce redundancy in relational database design.');
@@ -161,7 +161,7 @@ describe('GET /api/search — combination', () => {
   });
 });
 
-describe('GET /api/search — hostile input', () => {
+describe('GET /api/search - hostile input', () => {
   const hostileQueries = [
     `'; DROP TABLE notes; --`,
     '***',
@@ -192,7 +192,7 @@ describe('GET /api/search — hostile input', () => {
   });
 });
 
-describe('GET /api/search — empty', () => {
+describe('GET /api/search - empty', () => {
   it('missing q returns no results with an all-empty parsed echo', async () => {
     const res = await api.get('/api/search');
     expect(res.status).toBe(200);
@@ -217,13 +217,13 @@ describe('GET /api/search — empty', () => {
 
 /**
  * Regressions found by a student-persona critique of the running app. Each of these
- * returned a WRONG result set silently — never an error — so the user got a
+ * returned a WRONG result set silently - never an error - so the user got a
  * confident answer to a question they had not asked.
  */
-describe('GET /api/search — operator regressions', () => {
+describe('GET /api/search - operator regressions', () => {
   it('notebook:"Two Words" filters by the quoted name instead of dropping the filter', async () => {
     // Phrase extraction used to run before operator parsing, so the quoted value was
-    // stripped away and `notebook:` was discarded as empty — the name then fell
+    // stripped away and `notebook:` was discarded as empty - the name then fell
     // through as a plain text search. Unote's own default notebook is "My notes".
     const ml = await insertNotebook('Machine Learning');
     const db2 = await insertNotebook('Databases');

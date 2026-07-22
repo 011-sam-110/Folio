@@ -1,5 +1,5 @@
 // Client-side mirrors of the server's rules in server/src/routes/auth.ts. These exist
-// to give instant inline feedback, NOT to be the real gate — the server re-validates
+// to give instant inline feedback, NOT to be the real gate - the server re-validates
 // everything, and its message wins whenever the two ever disagree.
 
 /** Same shape the server accepts. Deliberately permissive: rejecting exotic-but-valid
@@ -18,7 +18,7 @@ export function emailError(value: string): string | null {
   return null;
 }
 
-/** Login only checks presence — an existing account may predate any rule change,
+/** Login only checks presence - an existing account may predate any rule change,
  *  so telling someone their correct password is "too short" would be a dead end. */
 export function loginPasswordError(value: string): string | null {
   if (!value) return 'Enter your password';
@@ -39,7 +39,7 @@ export function newPasswordError(value: string): string | null {
 export type StrengthLevel = 0 | 1 | 2 | 3;
 
 export interface Strength {
-  /** 0 = too short to accept, 1–3 = accepted and increasingly resistant to guessing. */
+  /** 0 = too short to accept, 1-3 = accepted and increasingly resistant to guessing. */
   level: StrengthLevel;
   label: string;
   hint: string;
@@ -47,7 +47,7 @@ export interface Strength {
 
 /**
  * A coarse, honest strength read: length carries most of the weight because it is what
- * actually costs an attacker time. We never block on it — anything meeting the server's
+ * actually costs an attacker time. We never block on it - anything meeting the server's
  * 8-character minimum is allowed through; this only nudges.
  */
 export function passwordStrength(value: string): Strength {

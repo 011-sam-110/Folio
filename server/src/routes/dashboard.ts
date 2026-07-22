@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db, nowIso } from '../db.js';
 // Auth is mounted once, in app.ts (`app.use('/api/dashboard', requireAuth, ...)`), so this
-// router does not add its own guard — one layer means one place to audit and one session
+// router does not add its own guard - one layer means one place to audit and one session
 // lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
 // failure mode is a loud 500, never an unscoped query.
 import { userId } from '../auth/middleware.js';
@@ -237,16 +237,16 @@ router.get('/', async (req, res) => {
 
   const suggestions: string[] = [];
   for (const row of dueByNotebook.slice(0, 2)) {
-    suggestions.push(`${row.name} has ${row.due} card${row.due === 1 ? '' : 's'} due — 10 min review?`);
+    suggestions.push(`${row.name} has ${row.due} card${row.due === 1 ? '' : 's'} due - 10 min review?`);
   }
   if (notesWithoutSummary > 0) {
-    suggestions.push(`${notesWithoutSummary} long note${notesWithoutSummary === 1 ? '' : 's'} could use a Summary — try AI Summarize.`);
+    suggestions.push(`${notesWithoutSummary} long note${notesWithoutSummary === 1 ? '' : 's'} could use a Summary - try AI Summarize.`);
   }
   if (unresolvedComments > 0) {
     suggestions.push(`${unresolvedComments} margin comment${unresolvedComments === 1 ? '' : 's'} waiting on a decision.`);
   }
   if (notesEditedThisWeek === 0) {
-    suggestions.push(`No notes touched yet this week — pick one up to keep the streak alive.`);
+    suggestions.push(`No notes touched yet this week - pick one up to keep the streak alive.`);
   }
 
   const weeklyReview = {

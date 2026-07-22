@@ -1,4 +1,4 @@
-// templates-nb — modal grid of template cards for "New note ▾". 'Blank note' first,
+// templates-nb - modal grid of template cards for "New note ▾". 'Blank note' first,
 // then server templates (builtin first, then newest, per docs/API.md ordering). Also
 // hosts a small in-place "Manage templates" view (list + delete with inline confirm).
 import { useEffect, useState } from 'react';

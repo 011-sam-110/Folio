@@ -1,7 +1,7 @@
 // OAuth (social) sign-in: Google + GitHub now, provider-agnostic so Apple slots in with
 // one registry entry (see auth/oauthProviders.ts) and two env vars (see config.ts).
 //
-// Three routes, all UNAUTHENTICATED by necessity — they are how a session is obtained:
+// Three routes, all UNAUTHENTICATED by necessity - they are how a session is obtained:
 //   GET /api/auth/providers                    which providers are configured (gate)
 //   GET /api/auth/oauth/:provider/start        redirect to the provider (state + PKCE)
 //   GET /api/auth/oauth/:provider/callback     exchange the code, resolve, open a session
@@ -57,7 +57,7 @@ function safeReturnTo(raw: unknown): string {
  *
  * `createUser` provisions a complete, passwordless account. The users table keeps
  * password_hash / password_salt NOT NULL, so both are filled with the hash of a random
- * secret that is discarded immediately — nobody, including this account's owner, holds a
+ * secret that is discarded immediately - nobody, including this account's owner, holds a
  * value that verifies against it, so the password-login and recovery routes simply never
  * match for an OAuth account. That means those security-sensitive routes need no change
  * and cannot be weakened; the only way into the account is the provider.
@@ -175,7 +175,7 @@ router.get(
 );
 
 // Come back from the provider: verify state, exchange the code, resolve the identity, and
-// open a session. Every failure is a friendly redirect to /login with a readable reason —
+// open a session. Every failure is a friendly redirect to /login with a readable reason -
 // never a token, never a stack trace.
 router.get('/oauth/:provider/callback', async (req: Request, res: Response) => {
   const id = String(req.params.provider);

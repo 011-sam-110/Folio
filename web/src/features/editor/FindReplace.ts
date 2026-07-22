@@ -5,8 +5,8 @@
 // Ownership note: buildExtensions.ts/FolioEditor.tsx (where the shared extensions array is
 // built) belong to editor-blocks this wave, so this plugin is NOT added to that array.
 // Instead NotePage.tsx (ours) calls `editor.registerPlugin(findReplacePlugin)` once the
-// editor is ready — a documented TipTap API for attaching a plain ProseMirror plugin to an
-// already-constructed editor — and `editor.unregisterPlugin(FindReplacePluginKey)` on
+// editor is ready - a documented TipTap API for attaching a plain ProseMirror plugin to an
+// already-constructed editor - and `editor.unregisterPlugin(FindReplacePluginKey)` on
 // teardown. That keeps the whole feature inside files we own.
 import type { Editor } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
@@ -30,7 +30,7 @@ interface FindReplaceState {
 type Meta = { type: 'query'; query: string } | { type: 'index'; index: number } | { type: 'clear' };
 
 /** Case-insensitive, non-overlapping scan of every text node in the doc. Recomputed from
- *  scratch on every query change / doc change — note bodies are small (the AI size guard
+ *  scratch on every query change / doc change - note bodies are small (the AI size guard
  *  caps them around 24k chars elsewhere) so this is cheap relative to a keystroke. */
 function computeMatches(doc: PMNode, query: string): FindReplaceMatch[] {
   if (!query) return [];
@@ -88,7 +88,7 @@ export function createFindReplacePlugin(): Plugin<FindReplaceState> {
         } else if (meta?.type === 'index') {
           currentIndex = meta.index;
         } else {
-          // Unrelated transaction (e.g. a plain selection change) — nothing to recompute.
+          // Unrelated transaction (e.g. a plain selection change) - nothing to recompute.
           return prev;
         }
 
@@ -108,7 +108,7 @@ function getState(editor: Editor): FindReplaceState | undefined {
   return FindReplacePluginKey.getState(editor.state);
 }
 
-/** Sets the search query and — like a browser's find-as-you-type — jumps straight to the
+/** Sets the search query and - like a browser's find-as-you-type - jumps straight to the
  *  first match (decoration-only highlight + scrollIntoView, no DOM focus stolen from the
  *  search input). Matches are computed here (not just inside the plugin's `apply`) so this
  *  function knows where the first match landed without a second round trip. */
@@ -141,7 +141,7 @@ export function getMatchState(editor: Editor): MatchState {
 }
 
 /** Moves to and (softly) scrolls the match at `index` into view WITHOUT stealing DOM
- *  focus from the find input — the "current" highlight comes from the decoration, not
+ *  focus from the find input - the "current" highlight comes from the decoration, not
  *  native selection rendering, so the search box can stay focused across Enter/Next/Prev. */
 function goToIndex(editor: Editor, index: number): void {
   if (editor.isDestroyed) return;

@@ -105,7 +105,7 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Window-bound pointer handlers must read the CURRENT viewport/items, but are
-  // created once per gesture — refs, not deps.
+  // created once per gesture - refs, not deps.
   const vpRef = useRef<Viewport>(viewport);
   vpRef.current = viewport;
   const itemsRef = useRef(doc.items);
@@ -281,7 +281,7 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
         if (!moved && Math.hypot(dx, dy) * vpRef.current.scale < DRAG_THRESHOLD_PX) return;
         moved = true;
         last = { dx, dy };
-        // Local only — NOT a request. The whole point of the bulk PATCH is that
+        // Local only - NOT a request. The whole point of the bulk PATCH is that
         // this loop never touches the network.
         doc.patchLocal(origin.map((o) => ({ id: o.id, x: o.x + dx, y: o.y + dy })));
       }
@@ -444,14 +444,14 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
       return;
     }
     if (e.pointerType === 'touch') {
-      // A tap in a placement mode still places — otherwise the tool row would do
+      // A tap in a placement mode still places - otherwise the tool row would do
       // nothing at all on a tablet.
       if (mode !== 'select' && !isInkMode(mode)) {
         void placeItem(mode, worldPoint(e));
         return;
       }
       // Otherwise one finger NAVIGATES. That is the whole reason a stylus feels
-      // right here: the pen draws and selects, the hand scrolls the board —
+      // right here: the pen draws and selects, the hand scrolls the board -
       // exactly the split Freeform uses. useViewport promotes this to a pinch if
       // a second finger arrives, and beginPan yields to it.
       beginPan(e);
@@ -642,7 +642,7 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
       // A board is inherently a pointer surface, but selecting, moving and editing
       // an item must not REQUIRE a pointer. Tab cycles the selection through items
       // in reading order, arrows nudge, Enter edits. (Creating an item at an
-      // arbitrary point and freehand ink remain pointer/stylus-only — that
+      // arbitrary point and freehand ink remain pointer/stylus-only - that
       // limitation is stated in the board's help text rather than left silent.)
       const ordered = [...itemsRef.current].sort((a, b) => a.y - b.y || a.x - b.x);
       if (e.key === 'Tab' && ordered.length > 0) {

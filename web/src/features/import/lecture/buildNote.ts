@@ -1,7 +1,7 @@
 // Assembles the imported lecture into a TipTap document.
 //
 // Shape per slide: a heading with its timestamp, the slide image, then whatever was said while
-// that slide was on screen. Aligning captions to slides is the point of the whole feature —
+// that slide was on screen. Aligning captions to slides is the point of the whole feature -
 // a wall of transcript under a pile of images would be no more useful than the raw recording.
 
 import type { SlideImage } from './extractSlides';
@@ -112,7 +112,7 @@ export function buildLectureNote({
   });
 
   if (slides.length === 0 && includeTranscript) {
-    // No slides detected (a talking-head recording, say) — the transcript is still worth having.
+    // No slides detected (a talking-head recording, say) - the transcript is still worth having.
     const all = joinChunks(chunks);
     if (all) {
       content.push({ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Transcript' }] });

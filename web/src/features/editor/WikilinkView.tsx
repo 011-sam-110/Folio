@@ -1,5 +1,5 @@
 // NodeView for a [[Wikilink]]: accent link, click navigates via the router,
-// hover shows a lazily-fetched preview card. Unresolved links (noteId == null — e.g. from
+// hover shows a lazily-fetched preview card. Unresolved links (noteId == null - e.g. from
 // an import whose target doesn't exist yet) get a distinct 'missing' style and clicking
 // one offers to create the note.
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
@@ -69,7 +69,7 @@ export default function WikilinkView({ node, extension, updateAttributes }: Node
       try {
         updateAttributes({ noteId: note.id, title: note.title });
       } catch {
-        // read-only host (e.g. history preview) — navigation below still works
+        // read-only host (e.g. history preview) - navigation below still works
       }
       toast(`Created "${note.title}"`, 'ok');
       await flushActiveNote();
@@ -84,7 +84,7 @@ export default function WikilinkView({ node, extension, updateAttributes }: Node
   async function handleClick(e: MouseEvent) {
     e.preventDefault();
     if (!noteId) {
-      // Unresolved link — offer to create the target note.
+      // Unresolved link - offer to create the target note.
       if (window.confirm(`"${title}" doesn't exist yet. Create it?`)) void createTarget();
       return;
     }

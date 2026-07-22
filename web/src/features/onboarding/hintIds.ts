@@ -7,7 +7,7 @@
 // drifting apart when a hint is added or removed.
 //
 // Ids are versioned (`-v1`). Changing a hint's wording materially means minting a
-// new id, so people who dismissed the old one see the new one once — and never
+// new id, so people who dismissed the old one see the new one once - and never
 // means resurrecting a hint someone has already waved away.
 export const HINT_IDS = ['canvas-ink-v1', 'editor-slash-v1', 'search-operators-v1'] as const;
 

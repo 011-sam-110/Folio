@@ -1,4 +1,4 @@
-// web-shell — shared notebook list + mutations, consumed by Sidebar and
+// web-shell - shared notebook list + mutations, consumed by Sidebar and
 // NotebookPage (and anything else in the shell that needs a live list
 // without an extra round trip). Dashboard/editor get notebook info from
 // their own dedicated endpoints per docs/API.md and don't need this.
@@ -26,7 +26,7 @@ export function NotebooksProvider({ children }: { children: ReactNode }) {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Mirror of the latest committed list, updated synchronously inside every setNotebooks —
+  // Mirror of the latest committed list, updated synchronously inside every setNotebooks -
   // used to capture a PRE-mutation snapshot for rollback. (The old useEffect-based snapshot
   // refreshed AFTER the optimistic update committed, so "rollback" re-applied the failed
   // state and a failed delete looked permanent.)

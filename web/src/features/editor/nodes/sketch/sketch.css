@@ -1,6 +1,6 @@
 /* Inline sketch node + "insert from canvas" picker.
    All colour comes from the shared tokens (styles/tokens.css), so both themes and WCAG-AA
-   contrast are inherited. Meaningful text uses --ink / --ink-2 only — never --ink-3. */
+   contrast are inherited. Meaningful text uses --ink / --ink-2 only - never --ink-3. */
 
 /* ---- the pad ------------------------------------------------------------------ */
 

@@ -2,12 +2,12 @@
 //
 // The tour needs something to point at. Narrating an empty editor teaches nothing
 // about wikilinks or backlinks, because there is nothing to link and nothing linking
-// back — so the offer to seed is made up front, in plain words, and declining it is
+// back - so the offer to seed is made up front, in plain words, and declining it is
 // a first-class path (every step that needs seeded content declares a `skip` or
 // `center` fallback in tourSteps.ts).
 //
 // This is deliberately SMALL: one notebook, two notes, one board. It is an example,
-// not a demo vault — a student who accepts it should be able to read the whole thing
+// not a demo vault - a student who accepts it should be able to read the whole thing
 // in a minute and delete it in one click. (server/src/seed.ts holds the large demo
 // vault; that one is CLI-only and seeds a whole degree's worth of material.)
 //
@@ -19,7 +19,7 @@ import { api } from '../../lib/api';
 export interface SeedResult {
   notebookId: string;
   noteId: string;
-  /** The note the main one links TO — so it is the one with a backlink to show. */
+  /** The note the main one links TO - so it is the one with a backlink to show. */
   linkedNoteId: string;
   canvasId: string;
 }
@@ -49,7 +49,7 @@ function bullets(items: string[]) {
  * Order matters: the linked note is created FIRST so the main note can carry a real
  * `wikilink` node pointing at its id, rather than bare text that only resolves on a
  * later save. The main note's contentText still carries the literal `[[Title]]` form
- * because that is what the server parses to build the `links` table — the rendered
+ * because that is what the server parses to build the `links` table - the rendered
  * node and the extracted backlink come from those two fields respectively, and both
  * have to be right for the backlinks step to have anything to show.
  */
@@ -157,7 +157,7 @@ export async function seedExampleNotebook(): Promise<SeedResult> {
       data: { noteId: main.id, title: MAIN_TITLE },
     });
   } catch {
-    // Board decoration only — see above.
+    // Board decoration only - see above.
   }
 
   // Two cards so the Study page has a real queue rather than an empty state during

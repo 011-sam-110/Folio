@@ -55,7 +55,7 @@ export interface DetectorOptions {
   titlePixelThreshold: number;
   /** Fraction of the title band that must change to force a new slide. */
   titleThreshold: number;
-  /** Below this much ink, the previous frame is effectively blank — you cannot "build" on
+  /** Below this much ink, the previous frame is effectively blank - you cannot "build" on
    *  nothing, so any substantial content arriving is a new slide. */
   minInkBase: number;
   /** Slides on screen for less than this are transition artefacts, not slides. */
@@ -86,7 +86,7 @@ export const DEFAULTS: DetectorOptions = {
 export interface DetectedSlide {
   /** When the slide first appeared. */
   startTime: number;
-  /** Timestamp of the settled frame to capture — never the transition frame, and for a slide
+  /** Timestamp of the settled frame to capture - never the transition frame, and for a slide
    *  that builds, the last and therefore most complete state. */
   captureTime: number;
   /** How long the slide stayed on screen. Filled in once the following slide is known. */
@@ -162,7 +162,7 @@ function countOnes(a: Uint8Array): number {
   return n;
 }
 
-/** Fraction of the title band whose pixels changed, at full sample resolution — the coarse
+/** Fraction of the title band whose pixels changed, at full sample resolution - the coarse
  *  grid smears a single line of title text away to nothing. */
 function titleDiff(a: Float32Array, b: Float32Array, threshold: number): number {
   const rows = Math.max(1, Math.round(SAMPLE_H * TITLE_BAND));
@@ -243,7 +243,7 @@ export class SlideDetector {
       if (isNewSlide) {
         this.pendingTime = time;
       } else {
-        // Additive build of the slide already on screen — keep the richer, later frame.
+        // Additive build of the slide already on screen - keep the richer, later frame.
         this.curCaptureTime = time;
         this.curCaptureGrid = Float32Array.from(grid);
       }

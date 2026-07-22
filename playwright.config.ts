@@ -6,7 +6,7 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * The database is `folio_e2e`, NOT the `folio` dev database. Create it once with:
  *   docker exec folio-pg psql -U folio -d postgres -c "CREATE DATABASE folio_e2e OWNER folio;"
- * The server migrates it on boot, so no seed step is required — and there is no
+ * The server migrates it on boot, so no seed step is required - and there is no
  * longer one. Every spec now signs up its own account, and signup runs
  * `seedNewUser` (server/src/seed.ts), which is what provisions the starter
  * notebook and the built-in templates. The old `npm run seed -- --force` step
@@ -41,7 +41,7 @@ export default defineConfig({
   // Tests WITHIN a file stay serial: these specs build on each other's state
   // (create notebook → open it → add a note), and several use `mode: 'serial'`
   // explicitly. Files still run in parallel across workers, which is safe because
-  // e2e/auth.fixture.ts gives every worker its own account — two files can never
+  // e2e/auth.fixture.ts gives every worker its own account - two files can never
   // see each other's notebooks even when they run at the same instant.
   fullyParallel: false,
   // Deliberately modest: three of the spec files drive the real AI gateway, and a

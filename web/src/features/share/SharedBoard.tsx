@@ -1,13 +1,13 @@
 // The shared view of a CANVAS note: a collaborative whiteboard.
 //
-// SCOPE, STATED PLAINLY. A canvas owns two kinds of content — spatial items
+// SCOPE, STATED PLAINLY. A canvas owns two kinds of content - spatial items
 // (stickies, shapes, linked notes) that live in canvas_items, and stylus ink that
 // lives in note_ink. The share API exposes only the ink half; /api/canvas/:noteId
 // is owner-authenticated with no share-scoped equivalent. So a guest sees and
 // draws the ink, and the cards are simply not reachable. The header says so
 // rather than rendering a board that looks empty for no visible reason.
 //
-// Everything about how ink is captured and drawn is InkSurface's, unchanged —
+// Everything about how ink is captured and drawn is InkSurface's, unchanged -
 // pointer capture, palm rejection, pressure, the two-canvas live/base split. This
 // file only supplies the viewport, the tool state and a share-scoped layer.
 
@@ -50,7 +50,7 @@ export default function SharedBoard({ ink, canEdit }: SharedBoardProps) {
   });
   const [fingerDraws, setFingerDraws] = useState(false);
 
-  // Frame whatever is already on the board, ONCE, as soon as it has loaded — so
+  // Frame whatever is already on the board, ONCE, as soon as it has loaded - so
   // arriving at a link does not drop you on empty space beside everyone else's
   // work. Latched, because re-fitting every time a stroke lands would yank the
   // view out from under whoever is drawing.
@@ -65,7 +65,7 @@ export default function SharedBoard({ ink, canEdit }: SharedBoardProps) {
 
   const handleBoardPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      // Middle-drag and space-drag pan regardless of tool — the convention every
+      // Middle-drag and space-drag pan regardless of tool - the convention every
       // spatial tool shares. In move mode a plain drag pans too.
       if (e.button === 1 || spaceHeld || (tool === 'move' && e.button === 0)) {
         beginPan(e);

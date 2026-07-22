@@ -4,7 +4,7 @@ import { expect, test } from './auth.fixture';
 import { apiCreateNotebook, editorBody, runDesktopImport, uniqueName } from './utils';
 
 // The repo is ESM ("type": "module" in the root package.json, set so Vercel compiles
-// api/index.ts as an ES module), so `__dirname` does not exist here — referencing it
+// api/index.ts as an ES module), so `__dirname` does not exist here - referencing it
 // threw at module load and took the WHOLE suite down, not just this file.
 const FIXTURES_DIR = fileURLToPath(new URL('fixtures', import.meta.url));
 
@@ -97,7 +97,7 @@ test.describe('Import (ImportModal)', () => {
 
     // The upstream-quota skip that used to live here now lives in runDesktopImport
     // (see skipIfUpstreamQuota in utils.ts), so every import kind gets it, not just
-    // this one — the TEXT pool exhausts under a parallel run just as the VISION pool
+    // this one - the TEXT pool exhausts under a parallel run just as the VISION pool
     // does, and only this test was classifying that correctly.
     await runDesktopImport(page, {
       kindLabel: /photo/i,

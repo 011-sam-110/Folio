@@ -1,5 +1,5 @@
 // Provider registry: the per-provider knobs (endpoints, scopes, PKCE support) plus the
-// two network calls each one needs — exchange an authorization code for an access token,
+// two network calls each one needs - exchange an authorization code for an access token,
 // and turn that token into a normalised profile with a VERIFIED-email signal.
 //
 // Adding Apple later is a matter of one more entry here (its endpoints, usePkce: true,
@@ -49,7 +49,7 @@ async function getJson(url: string, init: RequestInit & { label: string }): Prom
       body = null;
     }
     if (!res.ok) {
-      // Status only — the response body can carry tokens or provider internals.
+      // Status only - the response body can carry tokens or provider internals.
       throw new Error(`${init.label} failed with status ${res.status}`);
     }
     return body;
@@ -138,7 +138,7 @@ async function githubProfile(accessToken: string): Promise<OAuthProfileResult> {
   };
   const user = await getJson('https://api.github.com/user', { label: 'github user', headers });
 
-  // A GitHub email is only trustworthy if /user/emails marks it verified — user.email on
+  // A GitHub email is only trustworthy if /user/emails marks it verified - user.email on
   // the profile can be an unverified or self-set address. Read the emails and pick the
   // verified primary (falling back to any verified one).
   let email: string | null = null;
@@ -158,7 +158,7 @@ async function githubProfile(accessToken: string): Promise<OAuthProfileResult> {
       }
     }
   } catch {
-    // Emails scope unavailable — fall through to the profile email below, unverified.
+    // Emails scope unavailable - fall through to the profile email below, unverified.
   }
   if (!email && typeof user.email === 'string') {
     email = user.email;

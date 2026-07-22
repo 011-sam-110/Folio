@@ -123,7 +123,7 @@ function plainTextFallback(text: string): Record<string, unknown> {
 }
 
 /**
- * Convert Markdown into a TipTap JSON document. Signature is contract — seed.ts and
+ * Convert Markdown into a TipTap JSON document. Signature is contract - seed.ts and
  * imports.ts both rely on it staying synchronous and total (never throws). `resolve`
  * maps a [[wikilink]] title to a note id so imported/AI content renders as real,
  * clickable wikilinks (and $...$ / $$...$$ as real KaTeX math nodes).
@@ -177,7 +177,7 @@ export function markdownToPlainText(markdown: string): string {
   text = text.replace(/`([^`\n]+)`/g, '$1');
   // Images: drop the markup, keep the alt text (if any).
   text = text.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');
-  // Links: keep the visible text, drop the URL. (Leaves [[wikilinks]] untouched —
+  // Links: keep the visible text, drop the URL. (Leaves [[wikilinks]] untouched -
   // they have no `(...)` target so this pattern never matches them.)
   text = text.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
   // ATX headings.

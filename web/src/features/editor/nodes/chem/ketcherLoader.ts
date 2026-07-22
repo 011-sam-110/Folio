@@ -1,6 +1,6 @@
 // Lazy, OPTIONAL loader for the "Draw" structure editor.
 //
-// Draw editor choice: KETCHER (EPAM) — the gold-standard open-source 2D molecule editor.
+// Draw editor choice: KETCHER (EPAM) - the gold-standard open-source 2D molecule editor.
 // Paired with `ketcher-standalone` it runs the Indigo cheminformatics engine as in-browser
 // WASM, so drawing -> SMILES/molfile works fully OFFLINE (no server, no gateway). The trade
 // off is size (~5MB incl. WASM), which is why it is never in the initial bundle: it loads
@@ -13,7 +13,7 @@
 // It is loaded through a NON-STATIC specifier so this module builds and typechecks whether or
 // not ketcher-react / ketcher-standalone are installed. When they are absent, loadKetcher()
 // resolves to { available: false } and the dialog shows a friendly fallback instead of
-// crashing. TO ENABLE (parent/owner decision — a heavy WASM dep on a React 19 app):
+// crashing. TO ENABLE (parent/owner decision - a heavy WASM dep on a React 19 app):
 //   1) npm i ketcher-react ketcher-standalone
 //   2) add `import 'ketcher-react/dist/index.css'` once (e.g. in editor.css or app entry)
 //   3) optionally swap the two `import(specifier)` calls below for static

@@ -80,7 +80,7 @@ export default function ImportWizard({ open, initialSource, notebooks, onClose, 
   async function close() {
     const bId = batchId;
     onClose();
-    // Discard staging unless it was committed — nothing should linger in Postgres.
+    // Discard staging unless it was committed - nothing should linger in Postgres.
     if (bId && stage !== 'done') api.discardImportBatch(bId).catch(() => {});
   }
 
@@ -226,7 +226,7 @@ export default function ImportWizard({ open, initialSource, notebooks, onClose, 
               ) : (
                 <>
                   <div className="iw-ingest-head">
-                    <span>{connector.label} — reading {ingest?.total ?? 0} file{(ingest?.total ?? 0) === 1 ? '' : 's'}</span>
+                    <span>{connector.label} - reading {ingest?.total ?? 0} file{(ingest?.total ?? 0) === 1 ? '' : 's'}</span>
                     <span>{ingest?.done ?? 0} / {ingest?.total ?? 0}</span>
                   </div>
                   <div className="iw-progress"><span style={{ width: `${ingest && ingest.total ? Math.round((ingest.done / ingest.total) * 100) : 0}%` }} /></div>

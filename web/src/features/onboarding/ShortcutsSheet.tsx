@@ -1,7 +1,7 @@
 // Keyboard shortcut cheatsheet.
 //
 // Every binding listed here was read off the code that implements it, not off the
-// spec — lib/useShortcuts.ts for the global chords, NotePage.tsx for the note-page
+// spec - lib/useShortcuts.ts for the global chords, NotePage.tsx for the note-page
 // window listener (Ctrl+S/F/H), SearchPage.tsx for "/", ReviewTab.tsx for the review
 // keys, and TipTap's StarterKit defaults for the formatting marks. A cheatsheet that
 // lists a shortcut which does not fire is worse than no cheatsheet.

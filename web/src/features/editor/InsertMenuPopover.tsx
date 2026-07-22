@@ -1,4 +1,4 @@
-// InsertMenuPopover.tsx — the anchored popover shared by the gutter "+" and the toolbar
+// InsertMenuPopover.tsx - the anchored popover shared by the gutter "+" and the toolbar
 // "Insert" button. It wraps the shared InsertMenuList with a search field so both surfaces
 // filter and keyboard-navigate exactly like the "/" menu. Positioned with floating-ui so it
 // flips/shifts to stay on-screen (including at 390px), and dismisses on Escape / outside click.
@@ -15,7 +15,7 @@ interface InsertMenuPopoverProps {
   anchor: HTMLElement | null;
   onClose: () => void;
   placement?: Placement;
-  /** Runs on the editor just before the chosen item — e.g. move the caret to the "+" block. */
+  /** Runs on the editor just before the chosen item - e.g. move the caret to the "+" block. */
   prepare?: (editor: Editor) => void;
 }
 

@@ -2,7 +2,7 @@
 //
 // The whole design turns on one fact: POST /shares returns the raw token exactly
 // once and the server stores only its hash, so if the user closes this dialog
-// without copying the link, the link is gone — not "recoverable from settings",
+// without copying the link, the link is gone - not "recoverable from settings",
 // gone. That is the same contract as the account recovery key, so this borrows
 // RecoveryKeyPanel's deliberate friction: the freshly minted link takes over the
 // dialog, and dismissing it needs a copy plus an explicit acknowledgement. A
@@ -59,7 +59,7 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
     void load();
   }, [open, load]);
 
-  // Reset the form (but never the reveal — see close()) each time the dialog opens,
+  // Reset the form (but never the reveal - see close()) each time the dialog opens,
   // so a previous session's half-typed password does not linger.
   useEffect(() => {
     if (!open) return;
@@ -103,7 +103,7 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
   }
 
   /**
-   * Guard the close while a link is revealed — that is the one state where
+   * Guard the close while a link is revealed - that is the one state where
    * dismissing loses something unrecoverable.
    *
    * It refuses AND SAYS SO. A close button that silently does nothing reads as a
@@ -251,13 +251,13 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
  * acknowledgement because losing it is unrecoverable and the failure only
  * surfaces months later, when the user is locked out. A share link is neither:
  * losing it costs one click to mint a replacement, and you find out immediately.
- * Matching that severity here would be friction the outcome does not justify —
+ * Matching that severity here would be friction the outcome does not justify -
  * and a hard gate on "did you press Copy" is actively wrong, because the URL is
  * `user-select: all` and selecting it by hand is a perfectly good way to copy it,
  * which the button cannot observe. That combination would strand the user.
  *
- * So: the warning is loud, Copy is the prominent action, and "Done" — sitting
- * directly under the warning — counts as a deliberate dismissal. The routes that
+ * So: the warning is loud, Copy is the prominent action, and "Done" - sitting
+ * directly under the warning - counts as a deliberate dismissal. The routes that
  * dismiss a dialog by ACCIDENT (the X, Escape, clicking the backdrop) are the
  * ones held back, in ShareDialog.close().
  */

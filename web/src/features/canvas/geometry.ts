@@ -1,5 +1,5 @@
 // Pure viewport + hit-testing maths shared by the board, the connector layer and
-// the ink surface. No React, no DOM — so the tricky bits (screen<->world, edge
+// the ink surface. No React, no DOM - so the tricky bits (screen<->world, edge
 // clipping) are reasoned about and reused in exactly one place.
 
 export interface Viewport {
@@ -42,7 +42,7 @@ export function toWorld(p: Point, vp: Viewport): Point {
  * Zoom about a fixed screen point (the cursor, or a pinch centroid).
  *
  * The invariant is that the world point currently under `anchor` must still be
- * under `anchor` afterwards — that is what makes ctrl+wheel feel like the canvas
+ * under `anchor` afterwards - that is what makes ctrl+wheel feel like the canvas
  * is being pushed away from you rather than recentred on the origin.
  */
 export function zoomAt(vp: Viewport, anchor: Point, nextScale: number): Viewport {
@@ -99,7 +99,7 @@ export function rectFromPoints(a: Point, b: Point): Rect {
  * Connectors are anchored to the border rather than the centre, so an arrowhead
  * lands ON the card's edge instead of being hidden underneath it. Because this is
  * derived from the live rect every render, edges re-route for free as items move
- * — there is no stored routing to invalidate.
+ * - there is no stored routing to invalidate.
  */
 export function borderPoint(rect: Rect, toward: Point): Point {
   const c = centerOf(rect);
@@ -118,7 +118,7 @@ export function borderPoint(rect: Rect, toward: Point): Point {
   return { x: c.x + dx * t, y: c.y + dy * t };
 }
 
-/** Squared distance from p to segment ab — squared to keep the eraser's inner
+/** Squared distance from p to segment ab - squared to keep the eraser's inner
  *  loop free of sqrt, since it runs over every point of every stroke. */
 export function distToSegmentSq(p: Point, a: Point, b: Point): number {
   const dx = b.x - a.x;

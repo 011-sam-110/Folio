@@ -97,7 +97,7 @@
   /* Mandatory: without it the browser consumes pinch/drag as page scroll and
      zoom, and neither panning nor drawing ever receives its pointer events. */
   touch-action: none;
-  /* The board is a drawing surface, not a document — a stray double-click must
+  /* The board is a drawing surface, not a document - a stray double-click must
      not select "text" across items. */
   user-select: none;
   -webkit-user-select: none;
@@ -304,7 +304,7 @@
   position: absolute;
   inset: 0;
   /* Ink is always drawn ABOVE the items (you annotate over cards) but only
-     receives pointer events when an ink tool is armed — otherwise selecting a
+     receives pointer events when an ink tool is armed - otherwise selecting a
      sticky underneath would be impossible. */
   pointer-events: none;
   touch-action: none;
@@ -640,7 +640,7 @@
 
 @media (max-width: 720px) {
   .cv-tools {
-    /* Too many tools for a phone-width pill — let it scroll rather than wrap
+    /* Too many tools for a phone-width pill - let it scroll rather than wrap
        into a second row that would cover the board. */
     max-width: calc(100vw - 32px);
     overflow-x: auto;

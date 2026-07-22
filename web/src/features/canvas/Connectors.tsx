@@ -38,7 +38,7 @@ export default function Connectors({ items, edges, selectedEdgeId, onSelectEdge,
         const selected = edge.id === selectedEdgeId;
         return (
           <g key={edge.id} className={`cv-edge${selected ? ' is-selected' : ''}`}>
-            {/* Invisible fat line purely for hit-testing — a 1.5px arrow is
+            {/* Invisible fat line purely for hit-testing - a 1.5px arrow is
                 essentially impossible to click otherwise. */}
             <line
               x1={a.x}
@@ -88,7 +88,7 @@ export default function Connectors({ items, edges, selectedEdgeId, onSelectEdge,
 /** Two short strokes forming a V at `at`, opening back toward `from`. */
 function ArrowHead({ at, from, size, className }: { at: Point; from: Point; size: number; className?: string }) {
   const angle = Math.atan2(at.y - from.y, at.x - from.x);
-  const spread = 0.45; // radians either side — a ~26° half-angle reads as a clean arrow
+  const spread = 0.45; // radians either side - a ~26° half-angle reads as a clean arrow
   const p1 = { x: at.x - size * Math.cos(angle - spread), y: at.y - size * Math.sin(angle - spread) };
   const p2 = { x: at.x - size * Math.cos(angle + spread), y: at.y - size * Math.sin(angle + spread) };
   return (

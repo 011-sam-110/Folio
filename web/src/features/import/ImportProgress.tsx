@@ -1,4 +1,4 @@
-// Shared stepper UI for an in-flight import job — used by both ImportModal
+// Shared stepper UI for an in-flight import job - used by both ImportModal
 // (desktop) and CapturePage (mobile, via `compact`).
 import type { ImportJob } from '../../lib/types';
 import './ImportProgress.css';

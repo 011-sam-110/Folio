@@ -4,7 +4,7 @@
 // branches and the verified-email guard run with no Postgres and no network. The
 // provider gate and the signed-state integrity are exercised directly. A full live
 // round trip (real Google/GitHub) cannot be automated here without real credentials and
-// a browser at the provider — that part is verified by hand once creds exist; everything
+// a browser at the provider - that part is verified by hand once creds exist; everything
 // AROUND it is covered below.
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -154,7 +154,7 @@ describe('resolveOAuthUser', () => {
   });
 
   it('an already-linked identity wins even when the email is now unverified', async () => {
-    // Once bound, an identity is trusted regardless of the current email signal — the
+    // Once bound, an identity is trusted regardless of the current email signal - the
     // verified gate only guards the first link/create, not subsequent logins.
     const store = new FakeStore();
     store.seedIdentity('github', 'gh-9', 'user-c');

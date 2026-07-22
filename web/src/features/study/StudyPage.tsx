@@ -15,7 +15,7 @@ export default function StudyPage() {
   // Cram-one-module filter: scopes the review queue to a single notebook (fix 24).
   const [notebookFilter, setNotebookFilter] = useState<string | undefined>(undefined);
   // Bumped whenever the Review tab's "no cards at all" empty state sends the user to
-  // Browse wanting to add one manually — BrowseTab pops its composer open in response.
+  // Browse wanting to add one manually - BrowseTab pops its composer open in response.
   const [composerSignal, setComposerSignal] = useState(0);
 
   function goToBrowse(withComposer = false) {

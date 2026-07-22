@@ -1,4 +1,4 @@
-// Stylus ink layered over an ORDINARY document note — annotating your lecture
+// Stylus ink layered over an ORDINARY document note - annotating your lecture
 // notes rather than drawing on a board.
 //
 // The hard part is anchoring. Ink must stick to the TEXT, not to the screen, so
@@ -24,7 +24,7 @@ import './canvas.css';
 
 export interface NoteInkOverlayProps {
   noteId: string;
-  /** The element ink coordinates are measured from — the note body. */
+  /** The element ink coordinates are measured from - the note body. */
   anchorRef: React.RefObject<HTMLElement | null>;
   open: boolean;
   onClose: () => void;
@@ -71,7 +71,7 @@ export default function NoteInkOverlay({ noteId, anchorRef, open, onClose }: Not
       top: sRect.top,
       width: sRect.width,
       height: sRect.height,
-      // Offset of the note body's origin within the overlay — this IS the ink
+      // Offset of the note body's origin within the overlay - this IS the ink
       // viewport translation, and it changes on every scroll tick.
       offsetX: aRect.left - sRect.left,
       offsetY: aRect.top - sRect.top,
@@ -102,7 +102,7 @@ export default function NoteInkOverlay({ noteId, anchorRef, open, onClose }: Not
     };
   }, [open, measure, scheduleMeasure, anchorRef]);
 
-  // Ctrl/Cmd+Z belongs to the ink layer while it is open — the editor beneath is
+  // Ctrl/Cmd+Z belongs to the ink layer while it is open - the editor beneath is
   // not receiving input, so its own history would be the wrong thing to undo.
   useEffect(() => {
     if (!open) return;

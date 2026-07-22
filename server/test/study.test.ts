@@ -85,7 +85,7 @@ describe('GET /api/study/queue', () => {
   });
 });
 
-describe('POST /api/study/cards — manual creation', () => {
+describe('POST /api/study/cards - manual creation', () => {
   it('creates a card linked to a note with fresh SM-2 defaults, due now', async () => {
     const notebookId = await insertNotebook();
     const noteId = await insertNote(notebookId, 'Manual card note');
@@ -140,7 +140,7 @@ describe('POST /api/study/cards — manual creation', () => {
   });
 });
 
-describe('POST /api/study/review — SM-2 rating transitions', () => {
+describe('POST /api/study/review - SM-2 rating transitions', () => {
   it('again: resets reps and interval to 0, drops ease by 0.2 (floor 1.3), logs a lapse, due in ~1 minute', async () => {
     const notebookId = await insertNotebook();
     const noteId = await insertNote(notebookId);

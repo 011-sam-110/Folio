@@ -6,7 +6,7 @@
 // Speeds: the WASM figure for tiny is MEASURED in-browser (180s of real lecture audio
 // transcribed in ~36s => 5x realtime, CPU only). base/small are scaled from that using the
 // ratios observed locally with faster_whisper on the same audio (tiny 69s vs base 150s for a
-// 53-minute lecture). The WebGPU figures are ESTIMATES — see the note below.
+// 53-minute lecture). The WebGPU figures are ESTIMATES - see the note below.
 //
 // WebGPU could not be verified here: the only available environment was headless, where the
 // GPU path either hangs or fails inside onnxruntime. The code still prefers WebGPU when a
@@ -66,7 +66,7 @@ export function hasWebGPU(): boolean {
 
 /**
  * Whether WebGPU can actually be used, which is not the same question as whether
- * `navigator.gpu` exists — the object is present in browsers that cannot hand out an
+ * `navigator.gpu` exists - the object is present in browsers that cannot hand out an
  * adapter (no supported GPU, blocklisted driver, headless/software rendering). Trusting
  * the property alone selects the GPU path and then runs it on a software fallback, which
  * measured far SLOWER than simply using WASM. Ask for the adapter instead.
@@ -82,7 +82,7 @@ export async function detectWebGPU(): Promise<boolean> {
 }
 
 export function formatDuration(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return '—';
+  if (!Number.isFinite(seconds) || seconds < 0) return '-';
   const s = Math.round(seconds);
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);

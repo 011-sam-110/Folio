@@ -1,4 +1,4 @@
-// palette-nav — small local glyph for "Tags", matching Icon.tsx's stroke
+// palette-nav - small local glyph for "Tags", matching Icon.tsx's stroke
 // system (24x24, currentColor, 1.8px round strokes). Not added to Icon.tsx's
 // own set: tags render as "#hashtags" elsewhere in the app, so a hash reads
 // truer here than any existing entry, and Icon.tsx isn't this wave's file to

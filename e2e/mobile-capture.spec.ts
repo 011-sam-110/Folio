@@ -3,13 +3,13 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from './auth.fixture';
 import { apiCreateNotebook, exact, skipIfUpstreamQuota, uniqueName } from './utils';
 
-// See import.spec.ts — `__dirname` is not defined in this ESM repo.
+// See import.spec.ts - `__dirname` is not defined in this ESM repo.
 const FIXTURES_DIR = fileURLToPath(new URL('fixtures', import.meta.url));
 
 // Selectors are matched against CapturePage.tsx's real DOM
 // (web/src/features/import/CapturePage.tsx):
-//   • kind switch — role="tablist", items are role="tab"
-//   • notebook chips — role="radiogroup", items are role="radio". These used to be
+//   • kind switch - role="tablist", items are role="tab"
+//   • notebook chips - role="radiogroup", items are role="radio". These used to be
 //     plain buttons in a tablist; the owning agent corrected that (a tablist with no
 //     tabpanels is a lie, and "pick exactly one" is what radiogroup means), so the
 //     selectors here follow.
@@ -42,7 +42,7 @@ test.describe('Mobile capture page (Pixel 7)', () => {
 
     await page.goto('/capture');
 
-    // Default kind is "photo" — CTA label is "Photo of notes".
+    // Default kind is "photo" - CTA label is "Photo of notes".
     const captureButton = page.getByRole('button', { name: /photo of notes|capture|take photo|camera/i });
     await expect(captureButton.first()).toBeVisible({ timeout: 10_000 });
 

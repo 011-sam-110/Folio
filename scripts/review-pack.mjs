@@ -4,7 +4,7 @@
 // Boots an isolated Unote instance (fresh seeded DB on a dedicated port),
 // drives it with Playwright, and writes a numbered screenshot pack to
 // docs/review-pack/ plus a console-error/warning report. Every step is
-// wrapped so a single failing shot doesn't take down the run — failures are
+// wrapped so a single failing shot doesn't take down the run - failures are
 // logged and skipped, not thrown.
 //
 // Usage: npm run review-pack   (or: node scripts/review-pack.mjs)
@@ -61,7 +61,7 @@ function runSeed() {
     stdio: 'inherit',
     shell: true,
   });
-  if (res.status !== 0) throw new Error('seed failed — see output above');
+  if (res.status !== 0) throw new Error('seed failed - see output above');
 }
 
 function ensureWebBuild() {
@@ -70,9 +70,9 @@ function ensureWebBuild() {
     log('web/dist already built, skipping build');
     return;
   }
-  log('web/dist missing — building web...');
+  log('web/dist missing - building web...');
   const res = spawnSync('npm run build -w web', { cwd: ROOT, stdio: 'inherit', shell: true });
-  if (res.status !== 0) throw new Error('web build failed — see output above');
+  if (res.status !== 0) throw new Error('web build failed - see output above');
 }
 
 function startServer() {
@@ -195,7 +195,7 @@ async function main() {
     // Resolve seeded IDs we need for navigation.
     const { notebooks } = await apiGet('/api/notebooks');
     const algoNb = notebooks.find((nb) => /algorithm/i.test(nb.name)) ?? notebooks[0];
-    if (!algoNb) throw new Error('no seeded notebook found — did the seed run correctly?');
+    if (!algoNb) throw new Error('no seeded notebook found - did the seed run correctly?');
     const { results: bigOResults } = await apiGet(`/api/search/titles?q=${encodeURIComponent('Big-O')}&limit=5`);
     const bigONote = bigOResults[0];
     if (!bigONote) throw new Error('seeded "Big-O" note not found via /api/search/titles');
@@ -249,14 +249,14 @@ async function main() {
     await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
     await sleep(300);
 
-    // Set up a scratch paragraph at the end of a plain <p> block (not a list —
+    // Set up a scratch paragraph at the end of a plain <p> block (not a list -
     // avoids list-exit keymap edge cases) for the slash/wikilink menu demos,
     // then clean it back up so the note is unchanged for later shots.
     //
     // This is verify-and-retry rather than a single click+End+Enter: a late-resolving
     // async effect on the note page (unlinkedMentions/aiHealth) can occasionally call
     // editor.commands.focus('start') right as we're navigating the caret, which snaps
-    // the cursor back to the very start of the document (confirmed via repro — it only
+    // the cursor back to the very start of the document (confirmed via repro - it only
     // ever *repositions* the cursor, it never mutates content by itself). We verify the
     // cursor actually landed in a fresh empty paragraph BEFORE typing anything, and
     // retry the click if not, so we never type into the wrong place.
@@ -269,12 +269,12 @@ async function main() {
       for (let attempt = 1; attempt <= 8 && !scratchReady; attempt++) {
         const box = await scratchParagraph.boundingBox();
         if (!box) throw new Error('scratch paragraph has no bounding box');
-        // Click near the end of the paragraph's own box (not raw page coordinates —
+        // Click near the end of the paragraph's own box (not raw page coordinates -
         // this note is long, the paragraph starts out scrolled off-screen, and
         // locator.click() auto-scrolls it into view before resolving the position).
         // Small gaps between each key action give ProseMirror's own transaction
         // dispatch (incl. the UniqueID plugin's appendTransaction) time to settle
-        // before the next input — the observed misfire is a same-tick race, not a
+        // before the next input - the observed misfire is a same-tick race, not a
         // slow one, so this is cheap insurance on top of the verify-and-retry.
         await scratchParagraph.click({ position: { x: Math.max(box.width - 4, 1), y: Math.max(box.height - 4, 1) } });
         await sleep(150);
@@ -285,7 +285,7 @@ async function main() {
         if (await caretInEmptyEditorBlock(page)) {
           scratchReady = true;
         } else {
-          warn(`scratch paragraph setup landed unexpectedly (attempt ${attempt}) — retrying`);
+          warn(`scratch paragraph setup landed unexpectedly (attempt ${attempt}) - retrying`);
           await sleep(400);
         }
       }
@@ -294,7 +294,7 @@ async function main() {
       warn(`could not prepare scratch paragraph for slash/wikilink demos: ${e.message}`);
     }
 
-    mark('note editor — slash menu');
+    mark('note editor - slash menu');
     await shot('05-editor-slash-menu.png', async () => {
       if (!scratchReady) throw new Error('scratch paragraph unavailable');
       await page.keyboard.type('/', { delay: 15 });
@@ -306,7 +306,7 @@ async function main() {
       await page.keyboard.press('Backspace').catch(() => {});
     }
 
-    mark('note editor — wikilink menu');
+    mark('note editor - wikilink menu');
     await shot('06-editor-wikilink-menu.png', async () => {
       if (!scratchReady) throw new Error('scratch paragraph unavailable');
       if (!(await caretInEmptyEditorBlock(page))) throw new Error('caret drifted away from the scratch paragraph before the wikilink demo');
@@ -324,7 +324,7 @@ async function main() {
       await page.keyboard.press('Backspace').catch(() => {});
     }
 
-    mark('note editor — selection toolbar');
+    mark('note editor - selection toolbar');
     await shot('07-editor-selection-toolbar.png', async () => {
       const firstPara = page.locator('.folio-prosemirror p').first();
       await firstPara.waitFor({ state: 'visible', timeout: 10_000 });
@@ -345,7 +345,7 @@ async function main() {
     });
     await page.keyboard.press('ArrowRight').catch(() => {});
 
-    mark('note editor — history drawer');
+    mark('note editor - history drawer');
     await shot('08-editor-history-panel.png', async () => {
       await page.getByRole('button', { name: 'History', exact: true }).click();
       await page.waitForSelector('[data-testid="history-drawer"]', { timeout: 10_000 });
@@ -376,14 +376,14 @@ async function main() {
     });
     await page.keyboard.press('Escape').catch(() => {});
 
-    mark('study — review question');
+    mark('study - review question');
     await shot('11-study-review.png', async () => {
       await page.goto(`${BASE_URL}/study`, { waitUntil: 'load' });
       await page.waitForSelector('.sy-review-card__question', { timeout: 15_000 });
       await page.screenshot({ path: path.join(OUT_DIR, '11-study-review.png'), fullPage: true });
     });
 
-    mark('study — answer + ratings');
+    mark('study - answer + ratings');
     await shot('12-study-answer.png', async () => {
       await page.getByRole('button', { name: /show answer/i }).click();
       await page.waitForSelector('.sy-review-card.is-revealed', { timeout: 10_000 });
@@ -471,7 +471,7 @@ async function main() {
   log('---- summary ----');
   for (const s of shots) {
     if (s.status === 'ok') log(`  OK    ${s.name} (${s.bytes} bytes)`);
-    else log(`  FAIL  ${s.name} — ${s.reason}`);
+    else log(`  FAIL  ${s.name} - ${s.reason}`);
   }
   const failed = shots.filter((s) => s.status !== 'ok');
   const totalConsoleIssues = consoleEvents.length;

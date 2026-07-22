@@ -1,7 +1,7 @@
-// Local SM-2 *mirror* — the server (routes/study.ts) is the source of truth
+// Local SM-2 *mirror* - the server (routes/study.ts) is the source of truth
 // for actual scheduling; the queue response doesn't expose ease/interval, so
 // this only estimates a plausible current interval from `reps` to render
-// "next review" hints on the rating buttons. Approximations are fine here —
+// "next review" hints on the rating buttons. Approximations are fine here -
 // see docs/FRONTEND.md Study spec ('<10m', '1d', '3d', '7d'…).
 
 export type Rating = 'again' | 'hard' | 'good' | 'easy';

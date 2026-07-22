@@ -1,4 +1,4 @@
-// insertables.ts — the single catalog behind Folio's Insert experience.
+// insertables.ts - the single catalog behind Folio's Insert experience.
 //
 // Three surfaces share this one registry:
 //   - the "/" slash menu            (SlashCommand -> SlashMenu)
@@ -109,7 +109,7 @@ export const INSERT_ITEMS: InsertItem[] = [
     id: 'divider',
     title: 'Divider',
     description: 'Visually divide sections',
-    icon: '―',
+    icon: '-',
     section: 'Basic',
     keywords: ['hr', 'line', 'rule', 'separator'],
     run: (e, r) => at(e, r).setHorizontalRule().run(),

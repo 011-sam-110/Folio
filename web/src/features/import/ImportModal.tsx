@@ -115,7 +115,7 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
   }, [open, noteId]);
 
   // Layout effect (not a plain effect) so the new object URLs are committed
-  // before paint — otherwise adding/removing a page briefly renders
+  // before paint - otherwise adding/removing a page briefly renders
   // thumbnails against a stale, index-shifted URL list.
   useLayoutEffect(() => {
     if (kind !== 'photo' || files.length === 0) { setPagePreviews([]); return; }

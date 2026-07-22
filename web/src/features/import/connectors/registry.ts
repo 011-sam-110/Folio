@@ -29,7 +29,7 @@ const files: SourceConnector = {
 const photos: SourceConnector = {
   id: 'photos',
   label: 'Photos',
-  description: 'JPG, PNG, HEIC — text is read with OCR',
+  description: 'JPG, PNG, HEIC - text is read with OCR',
   icon: 'camera',
   accept: 'image/*',
   supportsFolder: true,
@@ -40,7 +40,7 @@ const photos: SourceConnector = {
 const markdown: SourceConnector = {
   id: 'markdown',
   label: 'Markdown / folder',
-  description: 'A folder of .md/.txt — folders become notebooks',
+  description: 'A folder of .md/.txt - folders become notebooks',
   icon: 'folder-plus',
   accept: '.md,.markdown,.txt,.text',
   supportsFolder: true,
@@ -48,7 +48,7 @@ const markdown: SourceConnector = {
   ingest: (fs) => toRawDocs(fs, (f) => classify(f) === 'text'),
 };
 
-// Advertised but not yet built — rendered greyed in the grid.
+// Advertised but not yet built - rendered greyed in the grid.
 const obsidian: SourceConnector = { id: 'obsidian', label: 'Obsidian vault', description: 'A vault folder or .zip', icon: 'layers', setup: 'coming-soon', ingest: () => [] };
 const notion: SourceConnector = { id: 'notion', label: 'Notion export', description: 'A .zip export', icon: 'layers', setup: 'coming-soon', ingest: () => [] };
 const gdocs: SourceConnector = { id: 'gdocs', label: 'Google Docs', description: 'Connect Drive', icon: 'link', setup: 'coming-soon', ingest: () => [] };

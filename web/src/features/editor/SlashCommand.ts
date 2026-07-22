@@ -1,4 +1,4 @@
-// The "/" Suggestion plugin wiring — pairs the shared Insert catalog (insertables.ts)
+// The "/" Suggestion plugin wiring - pairs the shared Insert catalog (insertables.ts)
 // with SlashMenu's popup. The catalog is the same one the gutter "+" and toolbar use.
 import { Extension } from '@tiptap/core';
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';

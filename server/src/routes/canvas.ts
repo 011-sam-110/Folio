@@ -79,7 +79,7 @@ function safeParse(s: string): Record<string, unknown> {
  * Confirm the note exists, belongs to the caller, and is a canvas.
  *
  * canvas_items has no user_id of its own, so every route below funnels through
- * this first — a bare `WHERE note_id = ?` would let any signed-in user read or
+ * this first - a bare `WHERE note_id = ?` would let any signed-in user read or
  * mutate another user's board by guessing its id.
  */
 async function assertOwnedCanvas(noteId: string, uid: string): Promise<boolean> {

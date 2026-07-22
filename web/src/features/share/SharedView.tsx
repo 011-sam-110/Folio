@@ -34,7 +34,7 @@ export default function SharedView({ token, initial }: SharedViewProps) {
   const [title, setTitle] = useState(initial.note.title);
   // The signed-in user, when there is one. Only the owner of the note can be
   // signed in AND reading a share link, and their events carry their user id as
-  // `actor` — which is the one case where the feed's own echo suppression works.
+  // `actor` - which is the one case where the feed's own echo suppression works.
   // A guest has no id it can compare against; see useShareSync for the rest.
   const { user } = useAuth();
 
@@ -150,7 +150,7 @@ function Presence({ you, others }: { you: string; others: Array<{ name: string; 
  * The honesty chip.
  *
  * Vercel's serverless functions cannot hold a WebSocket, so there is no live
- * connection to report the state of — only the age of the last poll. Showing
+ * connection to report the state of - only the age of the last poll. Showing
  * that age (and the real interval behind it) is the difference between a user
  * who waits two seconds and one who assumes the feature is broken.
  */

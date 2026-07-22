@@ -1,4 +1,4 @@
-// web-shell — generic dropdown menu (the "⋯" menus, "Import ▾", "Move to
+// web-shell - generic dropdown menu (the "⋯" menus, "Import ▾", "Move to
 // notebook" submenu, etc). Bespoke dual-panel positioning (menu + one level
 // of submenu) rather than the shared useFloatingPanel hook, since it has to
 // keep both panels open together and treat clicks inside either as "inside".

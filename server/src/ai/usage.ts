@@ -45,7 +45,7 @@ function periodResetAt(now = new Date()): string {
  * Store a keyed hash of the IP rather than the address itself.
  *
  * An IP is personal data, and this table exists only to answer "has this address used its
- * allowance?" — a question a one-way hash answers just as well. Keyed with SESSION_SECRET
+ * allowance?" - a question a one-way hash answers just as well. Keyed with SESSION_SECRET
  * so a database leak cannot be reversed by hashing the whole IPv4 space, which is only
  * ~4 billion guesses and trivially enumerable against an unkeyed digest.
  */
@@ -65,7 +65,7 @@ async function readCount(scope: QuotaScope, subject: string, period: string): Pr
  *
  * Read-then-write rather than a single atomic increment, and deliberately so. The counter
  * is incremented only by `recordUsage` AFTER a completion succeeds, which means a user is
- * never charged for a call that failed on the gateway's side — the common case with free
+ * never charged for a call that failed on the gateway's side - the common case with free
  * tiers, where a whole model chain can be rate-limited at once.
  *
  * The cost of that choice is a race: concurrent requests can each read the same count and

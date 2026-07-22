@@ -58,7 +58,7 @@ export interface SnippetSegment {
 /**
  * Splits a server-generated snippetHtml string (only ever containing plain
  * text plus <mark>…</mark> spans, per docs/API.md) into safe, renderable
- * segments — no dangerouslySetInnerHTML anywhere, any stray markup is
+ * segments - no dangerouslySetInnerHTML anywhere, any stray markup is
  * stripped defensively.
  */
 export function parseSnippetHtml(html: string): SnippetSegment[] {

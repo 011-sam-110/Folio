@@ -1,5 +1,5 @@
 // One board item. Positioned in WORLD coordinates inside the scaled `.cv-world`
-// layer, so it needs no knowledge of the viewport — the parent transform does the
+// layer, so it needs no knowledge of the viewport - the parent transform does the
 // pan/zoom. The only thing that must fight that transform is the selection chrome
 // (handles, outlines), which counter-scales so it stays a constant size on screen
 // however far the board is zoomed.
@@ -62,7 +62,7 @@ export default function CanvasItemView({
 
       {selected && (
         // Outline is a sibling rather than a border so it never changes the item's
-        // layout box — a 2px border would shift the content on selection.
+        // layout box - a 2px border would shift the content on selection.
         <div className="cv-item__outline" style={{ outlineWidth: 1.5 / scale, outlineOffset: 2 / scale }} aria-hidden="true" />
       )}
 
@@ -176,7 +176,7 @@ function ItemBody({
 
 /** Shared text rendering for sticky + text items. Swaps to a textarea while
  *  editing rather than using contenteditable, which would need its own
- *  sanitisation and paste handling for no gain — board text is plain text. */
+ *  sanitisation and paste handling for no gain - board text is plain text. */
 function TextBody({
   item,
   editing,

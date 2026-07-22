@@ -3,7 +3,7 @@ import { expect, test } from './auth.fixture';
 import { TESTIDS, apiCreateNote, apiCreateNotebook, skipIfUpstreamQuota, uniqueName } from './utils';
 
 // These specs hit the real local AI gateway (its base URL is pinned by playwright.config.ts)
-// through the server's /api/ai/* routes — no mocking. Generous timeouts throughout
+// through the server's /api/ai/* routes - no mocking. Generous timeouts throughout
 // since a single call can legitimately take up to ~90s, and the suite runs serial
 // so a slow/overloaded gateway doesn't cause cross-test interference.
 test.describe.configure({ mode: 'serial' });
@@ -18,7 +18,7 @@ most one, rebalancing via rotations after every insert or delete. Red-black tree
 a looser coloring invariant that permits fewer rotations on average, trading a
 slightly taller tree for cheaper maintenance. B-trees generalize this idea for disk-
 backed storage by allowing many keys per node, which minimizes the number of disk
-reads for a lookup — this is exactly why relational databases index tables with
+reads for a lookup - this is exactly why relational databases index tables with
 B-tree (or B+tree) structures rather than plain binary trees.
 `.trim();
 
@@ -40,10 +40,10 @@ system in a provably safe state.
  * answer. Two distinct situations get told apart here, because they call for
  * opposite responses:
  *
- *   • The gateway is unreachable or misconfigured — a setup error. Fail loudly;
+ *   • The gateway is unreachable or misconfigured - a setup error. Fail loudly;
  *     that is the only way a wrong FOLIO_AI_BASE_URL ever gets noticed.
  *   • The gateway answered, but every model in the pool refused (the free tier's
- *     burst/day allowance is spent) — an external quota condition. Skip, so a
+ *     burst/day allowance is spent) - an external quota condition. Skip, so a
  *     drought does not turn the whole file red and drown out real regressions.
  *
  * Before this split, a spent quota reported as "Start the gateway before running
@@ -59,7 +59,7 @@ async function ensureAiHealthy(request: APIRequestContext): Promise<void> {
 
   throw new Error(
     `ai.spec.ts requires a reachable AI gateway (FOLIO_AI_BASE_URL, pinned in ` +
-      `playwright.config.ts) — GET /api/meta/ai-health responded ${res.status()} ` +
+      `playwright.config.ts) - GET /api/meta/ai-health responded ${res.status()} ` +
       `${JSON.stringify(body)}.`,
   );
 }
@@ -67,7 +67,7 @@ async function ensureAiHealthy(request: APIRequestContext): Promise<void> {
 async function openAiMenuAction(page: import('@playwright/test').Page, actionPattern: RegExp): Promise<void> {
   // Scope to <main>: a notebook whose NAME contains the action word (e.g. "E2E AI
   // Flashcards Notebook") would otherwise make the sidebar's "Change emoji for
-  // <notebook>" button — or the breadcrumb link — match `actionPattern` first, so
+  // <notebook>" button - or the breadcrumb link - match `actionPattern` first, so
   // we'd open the emoji picker instead of the AI dropdown item. The sidebar lives in
   // <nav>, excluded from main. The AI dropdown (DropdownButton.tsx) renders its items
   // inline as <button>s inside main, so a button-role match is unambiguous there.
@@ -77,7 +77,7 @@ async function openAiMenuAction(page: import('@playwright/test').Page, actionPat
 }
 
 /**
- * Waits for an AI action to reach a terminal state — success OR the app's error toast.
+ * Waits for an AI action to reach a terminal state - success OR the app's error toast.
  *
  * Without the error branch these tests just burn their full ~95s budget and then
  * report "never rendered", which is indistinguishable between "the app is broken"
@@ -131,7 +131,7 @@ test.describe('AI features (real gateway)', () => {
 
     // The AI preview modal only mounts once the (real) summarize call returns, which
     // can legitimately take up to ~90s. One budget covers both "modal appeared" and
-    // "content rendered" — and now also "the call failed", so a dead gateway is
+    // "content rendered" - and now also "the call failed", so a dead gateway is
     // reported as such instead of as a silent timeout.
     const preview = page.getByTestId(TESTIDS.aiPreviewModal);
     await settleAi(
@@ -155,7 +155,7 @@ test.describe('AI features (real gateway)', () => {
     await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
 
     await openAiMenuAction(page, /flashcard/i);
-    // The AI menu asks "How many?" before generating — pick a count.
+    // The AI menu asks "How many?" before generating - pick a count.
     await page.locator('.folio-flashcard-count').getByRole('button', { name: '8' }).click();
 
     const banner = page.getByText(/\d+\s*cards?\s*added|flashcards?\s*(created|added|generated)/i);

@@ -3,7 +3,7 @@
 //
 // Correctness invariants (each backs a specific data-integrity bug):
 //  - The dirty flag is cleared ONLY after a save is confirmed 2xx AND no edit landed while it
-//    was in flight — a failed save keeps the note dirty so unmount/beforeunload still retry it.
+//    was in flight - a failed save keeps the note dirty so unmount/beforeunload still retry it.
 //  - A flush() that arrives while a save is in flight queues a follow-up instead of returning
 //    the older save's promise, so the newest keystrokes are never silently dropped.
 //  - Failed saves auto-retry with capped backoff, and the chip reflects saving/saved/error.
@@ -36,7 +36,7 @@ export function useAutosave(noteId: string, getPayload: () => AutosavePayload | 
   const retryTimerRef = useRef<number | undefined>(undefined);
   const retryDelayRef = useRef(RETRY_BASE_MS);
   const dirtyRef = useRef(false);
-  // Monotonic edit counter — lets a completing save tell whether an edit landed mid-flight
+  // Monotonic edit counter - lets a completing save tell whether an edit landed mid-flight
   // (in which case the note is still dirty and must be saved again).
   const editSeqRef = useRef(0);
   const flushingRef = useRef<Promise<void> | null>(null);
@@ -50,7 +50,7 @@ export function useAutosave(noteId: string, getPayload: () => AutosavePayload | 
   const flush = useCallback((): Promise<void> => {
     window.clearTimeout(timerRef.current);
     window.clearTimeout(retryTimerRef.current);
-    // A save is already running — chain a follow-up so newer edits aren't lost, rather than
+    // A save is already running - chain a follow-up so newer edits aren't lost, rather than
     // handing back the in-flight promise (which is bound to the OLDER payload).
     if (flushingRef.current) {
       return flushingRef.current.then(() => (dirtyRef.current ? flush() : undefined));
@@ -110,7 +110,7 @@ export function useAutosave(noteId: string, getPayload: () => AutosavePayload | 
     return () => window.clearInterval(id);
   }, []);
 
-  // Best-effort flush when the tab is closing (keepalive fetch — sendBeacon can't set JSON headers reliably).
+  // Best-effort flush when the tab is closing (keepalive fetch - sendBeacon can't set JSON headers reliably).
   useEffect(() => {
     function handleBeforeUnload() {
       if (!dirtyRef.current) return;
@@ -140,7 +140,7 @@ export function useAutosave(noteId: string, getPayload: () => AutosavePayload | 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reset dirty accounting when the note being edited changes (defensive — callers key the
+  // Reset dirty accounting when the note being edited changes (defensive - callers key the
   // workspace on note id, but a same-id remount must not carry a stale dirty flag).
   const markClean = useCallback(() => {
     dirtyRef.current = false;

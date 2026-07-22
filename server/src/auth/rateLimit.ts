@@ -7,14 +7,14 @@ import { clientIp } from '../lib/clientIp.js';
  * Login, recovery redemption and share-join each burn ~250ms of CPU and ~134MB at
  * N=2^17, deliberately even for unknown accounts (so response timing cannot reveal
  * whether an email is registered). That makes them a cheap amplifier: a security
- * review measured a legitimate login going from 284ms to 4456ms — 15.7x — under a
+ * review measured a legitimate login going from 284ms to 4456ms - 15.7x - under a
  * 64-request flood, with a ceiling around 11 logins/sec. The event loop stayed
  * responsive because scrypt runs on the libuv threadpool, so this starves auth
  * rather than downing the app; on serverless it converts into a billing problem
  * instead.
  *
  * Deliberately in-memory. A shared counter would mean a database round trip on the
- * hot path of every login, and on serverless each instance is short-lived anyway —
+ * hot path of every login, and on serverless each instance is short-lived anyway -
  * so this bounds what any ONE instance will do, and is honest about not being a
  * global limit. Anything stronger belongs at the edge (a WAF or platform rule),
  * not in application code.
@@ -111,7 +111,7 @@ export function rateLimit({ limit, windowMs, message, enabled }: RateLimitOption
   };
 }
 
-/** Reset all counters. Test-only — otherwise suites leak limits into each other. */
+/** Reset all counters. Test-only - otherwise suites leak limits into each other. */
 export function _resetRateLimits(): void {
   buckets.clear();
 }

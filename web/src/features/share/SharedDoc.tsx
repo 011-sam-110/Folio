@@ -1,7 +1,7 @@
 // The shared view of a DOCUMENT note, for whoever arrived through a share link.
 //
 // It reuses the app's real extension set (createFolioExtensions) so a guest sees
-// the note rendered exactly as its owner does — same callouts, tables, maths,
+// the note rendered exactly as its owner does - same callouts, tables, maths,
 // code highlighting. What it deliberately does NOT reuse is FolioEditor itself:
 // that component wires in the slash menu, image upload and drag handle, all of
 // which call owner-only endpoints. A guest clicking them would get a 401 and no
@@ -63,7 +63,7 @@ export default function SharedDoc({ token, initial, onSaved, registerDocHandler,
   const extensions = useMemo(
     // `editable: false` here selects the extension SET (no slash command); the
     // editor's own `editable` flag below decides whether typing is allowed.
-    // getNotebookId returns '' because a guest has no notebook context — the only
+    // getNotebookId returns '' because a guest has no notebook context - the only
     // consumer is the wikilink resolver, which then simply finds nothing.
     () =>
       createFolioExtensions({
@@ -161,14 +161,14 @@ export default function SharedDoc({ token, initial, onSaved, registerDocHandler,
    * The equality check IS the echo suppression: our own write comes back through
    * the feed as an event we cannot attribute (the API never reveals our actor
    * id), so instead we compare content. If the server's document is the one we
-   * already have, this is our echo and nothing moves — which is what keeps the
+   * already have, this is our echo and nothing moves - which is what keeps the
    * caret from jumping every time we save.
    */
   const pullRemote = useCallback(async () => {
     const ed = editorBox.current;
     if (!ed || ed.isDestroyed) return;
     // Never overwrite unsaved local work. The edit is still coming, and letting
-    // it land afterwards is last-write-wins — the same as the server's model.
+    // it land afterwards is last-write-wins - the same as the server's model.
     if (dirtyRef.current || savingRef.current) return;
 
     try {
@@ -183,8 +183,8 @@ export default function SharedDoc({ token, initial, onSaved, registerDocHandler,
       if (current === incoming) return; // our own echo
 
       // setContent resets the selection to the document start, so the caret is
-      // put back by offset afterwards. It is an approximation — an edit above the
-      // caret shifts it — but it beats being thrown to the top of the note, and
+      // put back by offset afterwards. It is an approximation - an edit above the
+      // caret shifts it - but it beats being thrown to the top of the note, and
       // this branch only runs when the reader had nothing unsaved anyway.
       const from = ed.state.selection.from;
       ed.commands.setContent(fresh.note.contentJson as JSONContent, { emitUpdate: false });
@@ -192,7 +192,7 @@ export default function SharedDoc({ token, initial, onSaved, registerDocHandler,
       ed.commands.setTextSelection(Math.min(from, max));
       setRemoteAt(new Date());
       // The "someone else changed this" flag is a transient acknowledgement, not
-      // a persistent state — leaving it up forever would make a board look
+      // a persistent state - leaving it up forever would make a board look
       // permanently contested.
       window.setTimeout(() => setRemoteAt(null), 4000);
     } catch {

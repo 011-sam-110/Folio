@@ -6,7 +6,7 @@ export type ImportKind = 'photo' | 'slides' | 'transcript';
 export interface KindConfig {
   key: ImportKind;
   label: string;
-  /** Vector icon (interactive chrome) — emoji is reserved for user content per Icon.tsx. */
+  /** Vector icon (interactive chrome) - emoji is reserved for user content per Icon.tsx. */
   iconName: IconName;
   accept: string;
   hint: string;

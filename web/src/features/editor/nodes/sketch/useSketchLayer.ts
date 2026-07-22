@@ -3,12 +3,12 @@
 // canvas/InkSurface is deliberately persistence-agnostic: it talks only to the InkLayer
 // interface ("knows nothing about boards, notes or persistence"). The board + doc-overlay
 // use canvas/useInkLayer, which POSTs to /api/canvas/:noteId/ink (the note_ink table). An
-// inline sketch must NOT do that — every sketch in a note would pile into one note-level
+// inline sketch must NOT do that - every sketch in a note would pile into one note-level
 // ink layer. So we implement the SAME interface here, writing strokes straight into the
 // node's `strokes` attr, which the editor already autosaves as part of the note's content.
 //
 // This is the whole reuse story: same drawing surface, same renderer (canvas/strokes.ts),
-// same undo stack — only the storage seam is swapped.
+// same undo stack - only the storage seam is swapped.
 
 import { useCallback, useRef, useState } from 'react';
 import type { InkLayer } from '../../../canvas/useInkLayer';
@@ -59,7 +59,7 @@ export function useSketchLayer(
   const restoreStrokes = useCallback(
     (toRestore: readonly LocalStroke[]): LocalStroke[] => {
       if (toRestore.length === 0) return [];
-      // New ids on restore — the erased originals' ids are gone, and an undo entry that
+      // New ids on restore - the erased originals' ids are gone, and an undo entry that
       // reused them would collide with a later stroke.
       const revived = toRestore.map((s) => ({ ...s, id: nextSketchId() }));
       commit([...ref.current, ...revived]);
@@ -73,7 +73,7 @@ export function useSketchLayer(
   }, [commit]);
 
   // Attrs are written synchronously through the editor transaction, so there is never a
-  // pending network batch to flush — but the interface requires it.
+  // pending network batch to flush - but the interface requires it.
   const flush = useCallback(async () => {}, []);
 
   return { strokes, ready: true, addStroke, removeStrokes, restoreStrokes, clearAll, flush };

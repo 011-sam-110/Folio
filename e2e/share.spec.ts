@@ -4,7 +4,7 @@
  * The interesting property here is that a guest has NO Unote account. Their access
  * is a per-share cookie that POST /api/share/:token/join sets, which is why
  * /join/:token sits outside RequireAuth in main.tsx. Every guest-side test below
- * therefore runs in its own browser context with no session at all — using the
+ * therefore runs in its own browser context with no session at all - using the
  * signed-in worker context would prove nothing, because the owner can already read
  * their own note.
  *
@@ -19,7 +19,7 @@ const MARKER = 'SHARED-CONTENT-MARKER';
 /**
  * Context options for a guest browser.
  *
- * `browser.newContext()` INHERITS the test's context options, storageState included —
+ * `browser.newContext()` INHERITS the test's context options, storageState included -
  * so without this the "guest" carried the worker account's session, JoinPage
  * recognised them as the note's owner (it deliberately does that for the owner's own
  * link), skipped the join gate entirely, and the specs proved nothing.
@@ -76,7 +76,7 @@ async function joinAsGuest(
 async function openOwnedNote(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
   const notebook = await apiCreateNotebook(request, uniqueName('E2E Share Notebook'));
   const note = await apiCreateNote(request, notebook.id, uniqueName('Shared Note'), {
-    contentText: `${MARKER} — the body a guest should be able to read.`,
+    contentText: `${MARKER} - the body a guest should be able to read.`,
   });
   await page.goto(`/note/${note.id}`);
   await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 15_000 });
@@ -176,7 +176,7 @@ test.describe('Guest join', () => {
       const editor = guest.getByTestId('shared-note-editor');
       await expect(editor).toContainText(MARKER, { timeout: 20_000 });
 
-      // TipTap marks a non-editable doc with contenteditable="false" — the guest can
+      // TipTap marks a non-editable doc with contenteditable="false" - the guest can
       // read every word and change none of them.
       await expect(editor).toHaveAttribute('contenteditable', 'false');
       // The title is static text rather than an input on a view-only share.
@@ -208,13 +208,13 @@ test.describe('Guest join', () => {
       await guest.keyboard.press('End');
       await guest.keyboard.type(` ${guestEdit}`, { delay: 10 });
 
-      // The shared editor has its own saved-state chip — wait on that, not a timer.
+      // The shared editor has its own saved-state chip - wait on that, not a timer.
       await expect(guest.locator('.sh-chip--ok')).toHaveText('Saved', { timeout: 20_000 });
     } finally {
       await guestContext.close();
     }
 
-    // The owner's copy of the note really changed — checked the way the owner would
+    // The owner's copy of the note really changed - checked the way the owner would
     // actually see it, by reopening the note in their own editor.
     await page.reload();
     await expect(page.getByTestId('note-editor')).toContainText(guestEdit, { timeout: 20_000 });

@@ -21,13 +21,13 @@ import { createSession, COOKIE_NAME } from '../src/auth/session.js';
  * stale column set) from an earlier run against a different schema version.
  *
  * migrate() memoises its promise in db.ts, so the module-level cache has to be cleared
- * too — otherwise the re-apply would be skipped and every table would be missing.
+ * too - otherwise the re-apply would be skipped and every table would be missing.
  */
 export async function resetDatabase(): Promise<void> {
   await pool.query('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;');
   // schema.sql is applied directly rather than via migrate(): migrate() memoises its
   // promise for the life of the process, so after a reset it would resolve instantly
-  // without recreating anything. Calling it afterwards just primes that memo — the
+  // without recreating anything. Calling it afterwards just primes that memo - the
   // script is idempotent (CREATE TABLE IF NOT EXISTS throughout), so the app.ts
   // request-time gate then finds the schema already in place.
   await pool.query(readSchema());
@@ -40,7 +40,7 @@ function readSchema(): string {
 }
 
 /**
- * Wipe all row data but keep the schema — the per-test reset.
+ * Wipe all row data but keep the schema - the per-test reset.
  *
  * `TRUNCATE users CASCADE` reaches everything: notebooks/notes/attachments/flashcards/
  * sessions/templates all reference users, and note_versions/note_tags/links/comments/
@@ -49,7 +49,7 @@ function readSchema(): string {
  * Caveat: it therefore also removes the shared built-in templates (user_id NULL), and
  * `seedBuiltinTemplates()` memoises its promise, so it will not put them back. A suite
  * that asserts on built-ins must call `resetDatabase()` in a fresh process or insert
- * them itself — see templates.test.ts.
+ * them itself - see templates.test.ts.
  */
 export async function resetData(): Promise<void> {
   await pool.query('TRUNCATE users CASCADE');

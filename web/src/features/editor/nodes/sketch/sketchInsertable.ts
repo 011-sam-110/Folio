@@ -1,4 +1,4 @@
-// Insert item: "Sketch" — an inline draw surface embedded directly in the note.
+// Insert item: "Sketch" - an inline draw surface embedded directly in the note.
 
 import { focusFrom, type InsertItem } from './insertTypes';
 import { SKETCH_WORLD_H_DEFAULT } from './sketchModel';

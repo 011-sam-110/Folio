@@ -3,7 +3,7 @@ import { db, newId, nowIso } from '../db.js';
 import { userId } from '../auth/middleware.js';
 
 /**
- * Margin comments — self-annotations anchored to a span of a note.
+ * Margin comments - self-annotations anchored to a span of a note.
  *
  * This router did not exist. The table, the client calls, the selection-toolbar
  * button, the comments panel and the dashboard's "unresolved comments" counter
@@ -12,7 +12,7 @@ import { userId } from '../auth/middleware.js';
  * The feature was fully built except for the part that stores anything.
  *
  * note_comments carries no user_id, so ownership is enforced by reaching through
- * `notes` on every statement — an INSERT…SELECT on the write side and a join on the
+ * `notes` on every statement - an INSERT…SELECT on the write side and a join on the
  * read side. A bare `WHERE note_id = ?` here would let any signed-in user read or
  * annotate someone else's note by guessing an id.
  */
@@ -91,7 +91,7 @@ router.post('/notes/:noteId/comments', async (req, res) => {
   res.status(201).json({ comment: serialize(row) });
 });
 
-/** PATCH /api/comments/:id — edit the body and/or resolve. */
+/** PATCH /api/comments/:id - edit the body and/or resolve. */
 router.patch('/comments/:id', async (req, res) => {
   const uid = userId(req);
   const b = (req.body ?? {}) as Record<string, unknown>;

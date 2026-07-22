@@ -1,4 +1,4 @@
-// web-shell — keep the prop signature exactly: { icon, title, hint?, action? }.
+// web-shell - keep the prop signature exactly: { icon, title, hint?, action? }.
 import type { ReactNode } from 'react';
 
 export default function EmptyState({
