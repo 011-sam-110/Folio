@@ -1,12 +1,16 @@
 // The TipTap editor wrapper: extensions, selection/table bubble menus, drag handle,
-// image paste/drop, and outline reporting. Content is only used to seed the editor —
-// callers should `key={note.id}` this component to fully reinitialize on note switch.
-import { useEffect, useMemo, useRef } from 'react';
+// the gutter "+" insert menu, image paste/drop, and outline reporting. Content is only
+// used to seed the editor — callers should `key={note.id}` this component to fully
+// reinitialize on note switch.
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor, type Editor, type JSONContent } from '@tiptap/react';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import DragHandle from '@tiptap/extension-drag-handle-react';
 import { createFolioExtensions } from './buildExtensions';
 import SelectionToolbar from './SelectionToolbar';
 import TableToolbar from './TableToolbar';
+import InsertMenuPopover from './InsertMenuPopover';
+import Icon from '../../components/Icon';
 import { uploadAndInsertImage } from './imageUpload';
 import { computeOutline, type OutlineItem } from './outline';
 import './editor.css';
@@ -18,13 +22,20 @@ export interface FolioEditorProps {
   onDestroy: () => void;
   onDocChange: () => void;
   onOutline: (items: OutlineItem[]) => void;
-  onTableOfContents?: () => void;
 }
 
-export default function FolioEditor({ content, notebookId, onReady, onDestroy, onDocChange, onOutline, onTableOfContents }: FolioEditorProps) {
+export default function FolioEditor({ content, notebookId, onReady, onDestroy, onDocChange, onOutline }: FolioEditorProps) {
   const editorBox = useRef<Editor | null>(null);
   const notebookIdRef = useRef(notebookId);
   notebookIdRef.current = notebookId;
+
+  // The block the drag handle is currently sitting beside, tracked live so the "+" knows
+  // where to insert. `pendingBlock` snapshots it at click time (the handle can move while
+  // the menu is open).
+  const hoveredBlock = useRef<{ node: PMNode | null; pos: number }>({ node: null, pos: -1 });
+  const pendingBlock = useRef<{ node: PMNode | null; pos: number }>({ node: null, pos: -1 });
+  const plusRef = useRef<HTMLButtonElement>(null);
+  const [insertOpen, setInsertOpen] = useState(false);
 
   // Stable for this component's lifetime — remount (key={note.id}) to rebuild for a new note.
   const extensions = useMemo(
@@ -33,7 +44,6 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
         editable: true,
         editorBox,
         getNotebookId: () => notebookIdRef.current,
-        onTableOfContents,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -124,15 +134,53 @@ export default function FolioEditor({ content, notebookId, onReady, onDestroy, o
 
   if (!editor) return null;
 
+  // Drop the caret into the block the "+" is sitting beside so the chosen item inserts
+  // there rather than wherever focus last was. Best-effort: a stale position falls back
+  // to the live selection.
+  function caretIntoPending(ed: Editor) {
+    const { node, pos } = pendingBlock.current;
+    if (!node || pos < 0) return;
+    try {
+      const end = Math.min(ed.state.doc.content.size - 1, pos + node.nodeSize - 1);
+      ed.chain().setTextSelection(Math.max(1, end)).run();
+    } catch {
+      /* position no longer valid — leave the selection as-is */
+    }
+  }
+
   return (
     <div className="folio-editor">
       <SelectionToolbar editor={editor} />
       <TableToolbar editor={editor} />
-      <DragHandle editor={editor}>
-        <div className="folio-drag-handle" aria-hidden="true">
-          ⠿
+      <DragHandle
+        editor={editor}
+        onNodeChange={({ node, pos }) => {
+          hoveredBlock.current = { node, pos };
+        }}
+      >
+        <div className="folio-block-gutter">
+          <button
+            ref={plusRef}
+            type="button"
+            className="folio-gutter-add"
+            aria-label="Insert block"
+            aria-haspopup="menu"
+            aria-expanded={insertOpen}
+            onClick={() => {
+              pendingBlock.current = hoveredBlock.current;
+              setInsertOpen(true);
+            }}
+          >
+            <Icon name="plus" size={15} />
+          </button>
+          <span className="folio-drag-handle" aria-hidden="true">
+            ⠿
+          </span>
         </div>
       </DragHandle>
+      {insertOpen && (
+        <InsertMenuPopover editor={editor} anchor={plusRef.current} onClose={() => setInsertOpen(false)} prepare={caretIntoPending} />
+      )}
       <EditorContent editor={editor} />
     </div>
   );

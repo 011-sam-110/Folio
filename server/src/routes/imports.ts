@@ -605,4 +605,26 @@ router.post('/image', handleUpload(uploadImage.single('file')), async (req, res)
   res.json({ url: attachmentUrl(storedName) });
 });
 
+// POST /api/import/file — plain binary upload for non-image files embedded in the editor
+// (e.g. 3D models: .glb/.gltf/.stl/.obj). Same storage model as /image (bytes live in the
+// attachments row, served via /uploads/:name), but with no image-mimetype gate and kind='file'.
+// Returns the attachmentId too, so the embedding node can reference the row directly.
+router.post('/file', handleUpload(uploadImage.single('file')), async (req, res) => {
+  const uid = userId(req);
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: 'file is required' });
+  const storedName = storedNameFor(file.originalname, file.mimetype);
+  const attachmentId = await insertAttachment({
+    uid,
+    noteId: null,
+    kind: 'file',
+    originalName: file.originalname,
+    storedName,
+    mime: file.mimetype || 'application/octet-stream',
+    bytes: file.buffer,
+    status: 'ready',
+  });
+  res.json({ url: attachmentUrl(storedName), attachmentId });
+});
+
 export default router;

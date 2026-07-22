@@ -1,0 +1,310 @@
+/* Chemistry structure block. Border-led, calm, "lab bench" surface; all colours from the
+   theme tokens so light + dark both work. Meaningful text uses --ink / --ink-2 only. */
+
+.folio-chem-node {
+  margin: 0.5em 0;
+}
+
+.folio-chem-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.folio-chem-node.is-selected .folio-chem-card {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ---- controls ---- */
+
+.folio-chem-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.folio-chem-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 200px;
+  min-width: 0; /* let the input shrink instead of overflowing at 390px */
+}
+
+.folio-chem-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.folio-chem-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  font-family: var(--font-ui);
+  transition: border-color var(--dur, 150ms) ease;
+}
+
+.folio-chem-field-smiles .folio-chem-input {
+  font-family: var(--font-mono);
+}
+
+.folio-chem-input::placeholder {
+  color: var(--ink-2);
+}
+
+.folio-chem-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.folio-chem-input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+/* ---- buttons ---- */
+
+.folio-chem-btn {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition:
+    background var(--dur, 150ms) ease,
+    border-color var(--dur, 150ms) ease;
+}
+
+.folio-chem-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.folio-chem-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.folio-chem-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.folio-chem-btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+
+.folio-chem-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, black);
+}
+
+.folio-chem-draw-btn {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--accent);
+}
+
+/* ---- structure stage (the signature surface) ---- */
+
+.folio-chem-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0) 0 0 / 16px 16px,
+    var(--bg);
+  background-blend-mode: normal;
+}
+
+.folio-chem-svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 320px;
+}
+
+.folio-chem-stage[data-state='empty'] .folio-chem-svg,
+.folio-chem-stage[data-state='invalid'] .folio-chem-svg {
+  display: none;
+}
+
+/* ---- empty + invalid states ---- */
+
+.folio-chem-empty,
+.folio-chem-invalid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 8px;
+}
+
+.folio-chem-empty-title {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+.folio-chem-empty-note {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.folio-chem-hint {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.folio-chem-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.folio-chem-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.folio-chem-chip:hover {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+
+.folio-chem-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ---- caption ---- */
+
+.folio-chem-caption {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.folio-chem-formula {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+/* ---- draw dialog ---- */
+
+.folio-chem-draw-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.folio-chem-ketcher {
+  height: 60vh;
+  min-height: 380px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.folio-chem-draw-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.folio-chem-draw-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-direction: column;
+  min-height: 160px;
+  text-align: center;
+  color: var(--ink-2);
+  padding: 20px;
+}
+
+.folio-chem-draw-title {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.folio-chem-draw-unavailable p {
+  margin: 0;
+  max-width: 42ch;
+}
+
+/* ---- spinner ---- */
+
+.folio-chem-spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  animation: folio-chem-spin 0.7s linear infinite;
+}
+
+@keyframes folio-chem-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folio-chem-spinner {
+    animation: none;
+  }
+  .folio-chem-input {
+    transition: none;
+  }
+}
+
+/* ---- narrow screens (<= 420px) ---- */
+
+@media (max-width: 420px) {
+  .folio-chem-field {
+    flex-basis: 100%;
+  }
+  .folio-chem-draw-btn,
+  .folio-chem-controls > .folio-chem-btn {
+    flex: 1 1 100%;
+  }
+  .folio-chem-ketcher {
+    height: 52vh;
+    min-height: 320px;
+  }
+}

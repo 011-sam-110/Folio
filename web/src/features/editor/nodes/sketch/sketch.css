@@ -1,0 +1,356 @@
+/* Inline sketch node + "insert from canvas" picker.
+   All colour comes from the shared tokens (styles/tokens.css), so both themes and WCAG-AA
+   contrast are inherited. Meaningful text uses --ink / --ink-2 only — never --ink-3. */
+
+/* ---- the pad ------------------------------------------------------------------ */
+
+.folio-sketch {
+  margin: 12px 0;
+}
+
+.sk-pad {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-elevated, var(--bg));
+  overflow: hidden;
+  /* The signature: a faint pencil-friendly grid that says "draw here" without ever
+     competing with the ink laid over it. Drawn in --line, so it flips with the theme. */
+  touch-action: none;
+}
+.sk-pad--dots {
+  background-image: radial-gradient(var(--line) 1.2px, transparent 1.2px);
+  background-size: 22px 22px;
+  background-position: 11px 11px;
+}
+.sk-pad--grid {
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.folio-sketch.is-selected .sk-pad {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* canvas/InkSurface renders a `.cv-ink` host with two stacked canvases. We do NOT pull in
+   canvas.css (it carries the whole board), so the few positioning rules it needs are
+   restated here, scoped to the pad. */
+.sk-pad .cv-ink {
+  position: absolute;
+  inset: 0;
+}
+.sk-pad .cv-ink.is-active {
+  cursor: crosshair;
+}
+.sk-pad .cv-ink[data-tool='eraser'] {
+  cursor: none;
+}
+.sk-pad .cv-ink__canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.sk-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+  padding: 12px;
+  pointer-events: none;
+}
+.sk-empty__title {
+  font-size: var(--fs-chrome-lg, 14px);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.sk-empty__hint {
+  font-size: var(--fs-chrome, 13px);
+  color: var(--ink-2);
+}
+
+/* ---- the toolbar -------------------------------------------------------------- */
+
+.sk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-elevated, var(--bg));
+  box-shadow: var(--shadow-1);
+}
+.sk-bar__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.sk-bar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 4px;
+  background: var(--line);
+}
+.sk-bar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background var(--dur-fast, 120ms), color var(--dur-fast, 120ms);
+}
+.sk-bar__btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+.sk-bar__btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.sk-bar__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.sk-bar__btn:focus-visible,
+.sk-bar__swatch:focus-visible,
+.sk-bar__width:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.sk-bar__swatch {
+  width: 22px;
+  height: 22px;
+  margin: 5px 2px;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  /* A ring rather than a border, so selecting a swatch does not resize it. */
+  box-shadow: inset 0 0 0 1px var(--ring-subtle);
+  transition: transform var(--dur-fast, 120ms);
+}
+.sk-bar__swatch:hover {
+  transform: scale(1.12);
+}
+.sk-bar__swatch.is-active {
+  box-shadow: 0 0 0 2px var(--bg-elevated, var(--bg)), 0 0 0 4px var(--accent);
+}
+
+.sk-bar__width {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.sk-bar__width span {
+  display: block;
+  border-radius: 50%;
+  background: var(--ink-2);
+}
+.sk-bar__width:hover {
+  background: var(--bg-hover);
+}
+.sk-bar__width.is-active {
+  background: var(--accent-soft);
+}
+.sk-bar__width.is-active span {
+  background: var(--accent);
+}
+
+/* Fatter targets on touch, matching canvas/InkToolbar's own mobile treatment. */
+@media (max-width: 640px) {
+  .sk-bar__btn {
+    width: 44px;
+    height: 44px;
+  }
+  .sk-bar__width {
+    width: 40px;
+    height: 44px;
+  }
+  .sk-bar__swatch {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* ---- the "insert from canvas" picker ------------------------------------------ */
+
+.sk-picker {
+  min-height: 160px;
+}
+.sk-picker__msg {
+  color: var(--ink-2);
+  padding: 24px 4px;
+  text-align: center;
+}
+.sk-picker__msg--error {
+  color: var(--danger);
+}
+.sk-picker__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 16px;
+  color: var(--ink-2);
+  text-align: center;
+}
+.sk-picker__grid {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.sk-picker__grid li {
+  margin: 0;
+}
+
+.sk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-elevated, var(--bg));
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--dur-fast, 120ms), box-shadow var(--dur-fast, 120ms);
+}
+.sk-card:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.sk-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent);
+}
+.sk-card:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.sk-card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.sk-card__thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--bg-hover);
+}
+.sk-card__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.sk-card__ph {
+  font-size: var(--fs-chrome, 13px);
+  color: var(--ink-2);
+}
+.sk-card__title {
+  font-size: var(--fs-chrome, 13px);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sk-picker__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.sk-picker__caption {
+  flex: 1 1 220px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--fs-chrome-lg, 14px);
+}
+.sk-picker__caption:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.sk-picker__caption::placeholder {
+  color: var(--ink-2);
+}
+.sk-picker__actions {
+  display: flex;
+  gap: 8px;
+}
+.sk-btn {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-elevated, var(--bg));
+  color: var(--ink);
+  font-size: var(--fs-chrome-lg, 14px);
+  cursor: pointer;
+  transition: background var(--dur-fast, 120ms);
+}
+.sk-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.sk-btn--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.sk-btn--primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.05);
+}
+.sk-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.sk-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-bar__btn,
+  .sk-bar__swatch,
+  .sk-card,
+  .sk-btn {
+    transition: none;
+  }
+}

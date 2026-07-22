@@ -23,6 +23,9 @@ import SlashCommand from './SlashCommand';
 import { createMathClickHandler } from './mathEdit';
 import { Column, ColumnList } from './Columns';
 import { createTextColorExtensions } from './TextColor';
+import ChemNode from './nodes/chem/ChemNode';
+import Model3d from './nodes/model3d/Model3dNode';
+import { SketchNode } from './nodes/sketch';
 
 const lowlight = createLowlight(common);
 
@@ -30,7 +33,6 @@ export interface BuildExtensionsOpts {
   editable: boolean;
   editorBox: { current: Editor | null };
   getNotebookId: () => string;
-  onTableOfContents?: () => void;
   /** Override the empty-paragraph placeholder. The default advertises the slash
    *  menu, which is wrong anywhere that menu is not mounted (the shared-link
    *  editor, for one). Pass '' for no placeholder at all. */
@@ -40,6 +42,7 @@ export interface BuildExtensionsOpts {
 const UNIQUE_ID_TYPES = [
   'heading', 'paragraph', 'bulletList', 'orderedList', 'taskList',
   'blockquote', 'codeBlock', 'table', 'image', 'callout', 'details', 'columnList',
+  'chem', 'model3d', 'sketch',
 ];
 
 export function createFolioExtensions(opts: BuildExtensionsOpts): Extensions {
@@ -101,11 +104,14 @@ export function createFolioExtensions(opts: BuildExtensionsOpts): Extensions {
     Wikilink.configure({ getNotebookId: opts.getNotebookId }),
     ColumnList,
     Column,
+    ChemNode,
+    Model3d,
+    SketchNode,
     ...createTextColorExtensions(),
   ];
 
   if (opts.editable) {
-    extensions.push(SlashCommand.configure({ context: { onTableOfContents: opts.onTableOfContents } }));
+    extensions.push(SlashCommand);
   }
 
   return extensions;

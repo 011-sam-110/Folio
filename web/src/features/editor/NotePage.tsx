@@ -20,6 +20,7 @@ import HistoryPanel from './HistoryPanel';
 import AssistantPanel from './AssistantPanel';
 import AiPreviewModal from './AiPreviewModal';
 import DropdownButton from './DropdownButton';
+import InsertMenuPopover from './InsertMenuPopover';
 import ImportModal from '../import/ImportModal';
 import { useAiAvailable } from '../../lib/aiStatus';
 import { useAutosave } from './useAutosave';
@@ -194,6 +195,8 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const [inkOpen, setInkOpen] = useState(false);
 
   const editorRef = useRef<Editor | null>(null);
+  const insertBtnRef = useRef<HTMLButtonElement>(null);
+  const [insertMenuOpen, setInsertMenuOpen] = useState(false);
   // Ink is stored relative to THIS element's top-left, so annotations stay pinned
   // to the text they mark up as the page scrolls or the window is resized.
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -573,17 +576,6 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     setImportOpen(true);
   }
 
-  function handleTableOfContents() {
-    const el = document.querySelector('.folio-outline');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('folio-flash');
-      window.setTimeout(() => el.classList.remove('folio-flash'), 1200);
-    } else {
-      toast('The outline panel needs a wider window (≥1200px)', 'info');
-    }
-  }
-
   const notebook = note.notebook;
   const savedLabel =
     autosave.status === 'saving'
@@ -612,6 +604,18 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
           </div>
 
           <div className="folio-action-bar">
+            <button
+              ref={insertBtnRef}
+              type="button"
+              className={'folio-btn' + (insertMenuOpen ? ' active' : '')}
+              aria-haspopup="menu"
+              aria-expanded={insertMenuOpen}
+              onClick={() => setInsertMenuOpen((v) => !v)}
+            >
+              <Icon name="plus" size={14} /> Insert
+              <span aria-hidden="true"> ▾</span>
+            </button>
+
             <button
               type="button"
               className={`folio-btn-icon${note.pinned ? ' active' : ''}`}
@@ -787,7 +791,6 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
             onDestroy={handleEditorDestroy}
             onDocChange={handleDocChange}
             onOutline={setOutline}
-            onTableOfContents={handleTableOfContents}
           />
 
           <section className="folio-links-section" data-testid="backlinks-section">
@@ -817,6 +820,10 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
       </div>
 
       <NoteInkOverlay noteId={note.id} anchorRef={shellRef} open={inkOpen} onClose={() => setInkOpen(false)} />
+
+      {insertMenuOpen && editorRef.current && (
+        <InsertMenuPopover editor={editorRef.current} anchor={insertBtnRef.current} onClose={() => setInsertMenuOpen(false)} />
+      )}
 
       <OutlinePane items={outline} editor={editorRef.current} />
 

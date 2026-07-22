@@ -384,6 +384,12 @@ const paths: Record<IconName, ReactNode> = {
   ),
 };
 
+/** Runtime membership test for the icon set — lets callers accept a string that is
+ *  either an Icon name (rendered as a vector) or a plain text glyph. */
+export function isIconName(value: string): value is IconName {
+  return value in paths;
+}
+
 export default function Icon({
   name,
   size = 16,
