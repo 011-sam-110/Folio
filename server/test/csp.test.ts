@@ -21,7 +21,13 @@ describe('Content-Security-Policy', () => {
     // browser running it and the app renders in the wrong theme until first paint. If this
     // fails, recompute the hash from the script body and update THEME_SCRIPT_HASH (and the
     // copy in vercel.json).
-    const html = fs.readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
+    // Newlines are normalised to LF before hashing. On Windows, core.autocrlf checks the
+    // file out with CRLF, so hashing the working copy verbatim produced a digest that
+    // could never match: the hash that matters is the one the browser computes over the
+    // file Vercel builds from, and Vercel checks out LF. Without this, the test failed on
+    // every Windows run regardless of the file's contents - and a test that always fails
+    // locally is a test nobody reads, which is how a genuine break slips through.
+    const html = fs.readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
     const inline = html.match(/<script>([\s\S]*?)<\/script>/);
     expect(inline, 'web/index.html no longer has an inline <script> to hash').not.toBeNull();
 

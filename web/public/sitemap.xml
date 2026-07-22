@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  One URL, honestly.
+
+  "/" is the only page on this site worth indexing: every other route is either behind a
+  login, a single-use surface (/capture, /join/:token), or an account form that is
+  explicitly noindex. Padding a sitemap with those would be asking Google to index pages
+  we have simultaneously told it to ignore.
+
+  This is hand-maintained on purpose while there is one entry. If a /learn section is ever
+  built, generate this file instead - and make lastmod reflect real edit dates, because a
+  sitemap that claims everything changed today is a sitemap Google stops trusting.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://unote-six.vercel.app/</loc>
+    <lastmod>2026-07-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

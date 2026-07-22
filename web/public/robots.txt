@@ -1,0 +1,25 @@
+# Unote
+#
+# Before this file existed, /robots.txt fell through the SPA catch-all rewrite in
+# vercel.json and returned 200 with the app shell - so crawlers were parsing HTML as a
+# robots file. Same for /sitemap.xml. Both are real static files now, and Vercel serves
+# real files ahead of the rewrite.
+
+User-agent: *
+Allow: /
+
+# Account and single-use surfaces. Nothing here is useful in an index, and share links
+# are unguessable by design - listing them would defeat the point. These are also sent
+# as X-Robots-Tag: noindex headers from vercel.json, which is the binding signal;
+# Disallow only asks a crawler not to fetch.
+Disallow: /login
+Disallow: /signup
+Disallow: /recover
+Disallow: /capture
+Disallow: /join/
+
+# AI crawlers are allowed deliberately. They execute no JavaScript, so all they can
+# currently see is this site's static HTML head - which is exactly why that head was
+# given a real description and JSON-LD.
+
+Sitemap: https://unote-six.vercel.app/sitemap.xml

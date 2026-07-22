@@ -1,15 +1,92 @@
 <!doctype html>
-<html lang="en">
+<!-- en-GB, not en: the audience, spelling and terminology (module, dissertation, 2:1) are
+     all British, and this is the signal that says so. -->
+<html lang="en-GB">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Unote: a premium, local-first notebook for students. Block editor, wikilinks, spaced-repetition flashcards, and AI-assisted capture." />
+
+    <!-- WARNING: the inline theme-bootstrap block at the bottom of this head is allowed by
+         a sha256 hash pinned in BOTH vercel.json and server/src/lib/csp.ts. Editing it by
+         even one character of a comment silently stops the browser running it, and the app
+         renders in the wrong theme until first paint. server/test/csp.test.ts guards this -
+         run it after any change here. Everything outside that block is safe to edit.
+         (Note: do not write the literal tag name in this comment - the test finds the
+         block by regex and would match the comment instead.) -->
+
+    <title>Unote - one place for your lecture notes, flashcards and boards</title>
+    <!-- Rewritten to match what the product actually is. The previous description said
+         "local-first" (it has been multi-user and cloud-backed since 2026-07-20) and sold
+         "AI-assisted capture" as a headline feature while AI is off unless configured. -->
+    <meta
+      name="description"
+      content="A free note-taking app for university students. Block editor, wikilinks, spaced-repetition flashcards, infinite canvas boards, and lecture import that turns a recording into slides and a transcript."
+    />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fdfcfa" />
+
+    <!-- Canonical and og:url are absolute, which means they are the ONE place to change
+         when a custom domain replaces the vercel.app hostname. -->
+    <link rel="canonical" href="https://unote-six.vercel.app/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Unote" />
+    <meta property="og:locale" content="en_GB" />
+    <meta property="og:url" content="https://unote-six.vercel.app/" />
+    <meta property="og:title" content="Unote - where your whole degree comes together" />
+    <meta
+      property="og:description"
+      content="Lecture notes, recordings, flashcards and boards in one place, with optional AI that only helps when you ask. Free to use."
+    />
+    <meta property="og:image" content="https://unote-six.vercel.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Unote: where your whole degree comes together." />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Unote - where your whole degree comes together" />
+    <meta
+      name="twitter:description"
+      content="Lecture notes, recordings, flashcards and boards in one place, with optional AI that only helps when you ask. Free to use."
+    />
+    <meta name="twitter:image" content="https://unote-six.vercel.app/og.png" />
+
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='84'%3E%F0%9F%93%93%3C/text%3E%3C/svg%3E"
     />
-    <title>Unote</title>
+
+    <!-- Static JSON-LD in the served HTML, deliberately not injected by React: crawlers
+         that matter here (GPTBot, ClaudeBot, PerplexityBot) execute no JavaScript at all,
+         so anything the SPA renders is invisible to them. This block and the meta tags
+         above are the entire machine-readable description of the product. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Unote",
+        "url": "https://unote-six.vercel.app/",
+        "applicationCategory": "ProductivityApplication",
+        "operatingSystem": "Web browser",
+        "inLanguage": "en-GB",
+        "description": "A free note-taking app for university students: block editor, wikilinks and backlinks, full-text search, spaced-repetition flashcards, infinite canvas boards with stylus ink, and lecture import that turns a recording into slides and a timestamped transcript.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "GBP"
+        },
+        "featureList": [
+          "Block editor with slash commands",
+          "Wikilinks and backlinks",
+          "Full-text search with operators",
+          "Spaced-repetition flashcards (SM-2)",
+          "Infinite canvas boards with stylus ink",
+          "Lecture, PDF, slide and photo import",
+          "Optional AI assistance, off by default"
+        ]
+      }
+    </script>
+
     <script>
       // Theme bootstrap — runs before first paint to avoid a light/dark FOUC.
       // Mirrors src/lib/theme.ts (kept inline: it must run before any module loads).

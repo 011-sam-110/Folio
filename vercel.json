@@ -22,6 +22,14 @@
           "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-veSIuHLosKHSOljLxUIX9uojGlyW+wrMWtW/rFfYzz8='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co https://cdn.jsdelivr.net; frame-ancestors 'none'; frame-src 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
         }
       ]
+    },
+    {
+      "source": "/(login|signup|recover|capture)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }]
+    },
+    {
+      "source": "/join/(.*)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     }
   ]
 }
