@@ -1,0 +1,98 @@
+/* Social sign-in buttons, shown above the email form inside the parchment auth panel.
+
+   The panel (landing.css) commits to a light parchment surface in BOTH light and dark
+   app themes and re-tints the shared tokens to its parchment values, so these controls
+   read those tokens (--bg, --line, --ink, --bg-hover, --focus-ring) and need no dark
+   variant of their own. Border-led to match the panel's inputs; the brand marks are the
+   only colour, and the label always takes the high-contrast --ink (never --ink-3). */
+
+.oauth {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+.oauth__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.oauth__btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px; /* touch target, and clears WCAG AA target size on every pointer */
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.oauth__btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--parchment-accent, var(--accent));
+}
+
+.oauth__btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.oauth__btn:active {
+  transform: translateY(1px);
+}
+
+.oauth__mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+
+.oauth__mark svg {
+  display: block;
+}
+
+/* The mark sits at the start; offsetting the label by the mark's width keeps the text
+   optically centred in the button. */
+.oauth__label {
+  flex: 1 1 auto;
+  text-align: center;
+  margin-right: 18px;
+}
+
+.oauth__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--ink-2); /* meaningful text — deliberately not --ink-3 */
+}
+
+.oauth__divider::before,
+.oauth__divider::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oauth__btn {
+    transition: none;
+  }
+  .oauth__btn:active {
+    transform: none;
+  }
+}

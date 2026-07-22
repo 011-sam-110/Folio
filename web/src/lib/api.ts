@@ -1,5 +1,5 @@
 import type {
-  AiKeyInfo, AiUsage,
+  AiKeyInfo, AiUsage, AuthProviderInfo,
   CanvasEdge, CanvasItem, CanvasItemData, CanvasItemKind,
   DashboardData, Flashcard, ImportJob, InkStroke, MetaInfo, Note, NoteKind, NoteLite, NotebookLite, Notebook,
   NoteComment, NoteVersion, NoteVersionMeta, SearchParsed, SearchResult, StudyStats,
@@ -77,6 +77,9 @@ export const api = {
     http<{ user: User; recoveryKey: string }>('/api/auth/recover', json('POST', b)),
   regenerateRecoveryKey: (b: { password: string }) =>
     http<{ recoveryKey: string }>('/api/auth/recovery/regenerate', json('POST', b)),
+  // Social sign-in: which providers are configured. Unauthenticated, and returns only
+  // enabled ones, so the auth pages can render a button per entry and nothing when empty.
+  authProviders: () => http<{ providers: AuthProviderInfo[] }>('/api/auth/providers'),
 
   // notebooks
   notebooks: () => http<{ notebooks: Notebook[] }>('/api/notebooks'),

@@ -8,6 +8,7 @@ import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
 import { AuthLanding } from './AuthLanding';
 import { AuthAlert, AuthAltLink, AuthShell, Field } from './AuthShell';
+import OAuthButtons from './OAuthButtons';
 import RecoveryKeyPanel from './RecoveryKeyPanel';
 import { emailError, newPasswordError, passwordStrength } from './validation';
 
@@ -112,6 +113,8 @@ export default function SignupPage() {
       panelSubtitle="Your notes, notebooks and flashcards, all in one place."
       panelFooter={<AuthAltLink prompt="Already have an account?" to="/login" label="Sign in" />}
     >
+      <OAuthButtons />
+
       <form className="auth-form" onSubmit={onSubmit} noValidate>
         {formError && <AuthAlert message={formError} />}
 

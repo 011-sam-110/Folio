@@ -38,6 +38,24 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
+-- Social (OAuth) identities linked to a local account. One user may have several — one
+-- per provider they have signed in with. The account itself is still a `users` row; an
+-- OAuth-only account simply has a password nobody holds (see routes/oauth.ts).
+--
+-- UNIQUE(provider, provider_user_id) is the anchor the callback resolves on first: a
+-- returning identity maps straight to its user. Linking by verified email inserts a row
+-- here pointing at the pre-existing user; a first-time user gets a fresh user + a row.
+CREATE TABLE IF NOT EXISTS oauth_identities (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,              -- 'google' | 'github' (and future providers)
+  provider_user_id TEXT NOT NULL,      -- the provider's stable subject id ('sub' / user id)
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email TEXT,                          -- the address seen at link time, for reference
+  created_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+  UNIQUE (provider, provider_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_identities_user ON oauth_identities(user_id);
+
 CREATE TABLE IF NOT EXISTS notebooks (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

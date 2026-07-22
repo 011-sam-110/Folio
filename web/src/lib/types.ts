@@ -9,6 +9,13 @@ export interface User {
   displayName: string;
 }
 
+/** A social sign-in provider the server reports as configured (GET /api/auth/providers).
+ *  Only enabled providers are returned, so the client renders a button per entry. */
+export interface AuthProviderInfo {
+  id: string;
+  label: string;
+}
+
 export interface NotebookLite {
   id: string;
   name: string;

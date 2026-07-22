@@ -1,12 +1,13 @@
 // Sign-in screen. Renders without the app shell (see main.tsx) - it is the first thing
 // a signed-out visitor sees, so it doubles as the marketing landing (AuthLanding).
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Spinner from '../../components/Spinner';
 import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
 import { AuthLanding } from './AuthLanding';
 import { AuthAlert, AuthAltLink, Field } from './AuthShell';
+import OAuthButtons, { oauthErrorMessage } from './OAuthButtons';
 import { emailError, loginPasswordError } from './validation';
 
 /** Bouncing back to an auth page after signing in would be a loop, so those are
@@ -22,6 +23,11 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const target = safeRedirect((location.state as { from?: unknown } | null)?.from);
+
+  // A failed OAuth attempt bounces here as /login?error=...&provider=... — turn that into
+  // a readable message rather than leaving the user staring at an unexplained login page.
+  const [searchParams] = useSearchParams();
+  const oauthError = oauthErrorMessage(searchParams.get('error'), searchParams.get('provider'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -75,6 +81,9 @@ export default function LoginPage() {
       panelSubtitle="Sign in to pick up where you left off."
       panelFooter={<AuthAltLink prompt="New to Unote?" to="/signup" label="Create an account" />}
     >
+      {oauthError && <AuthAlert message={oauthError} />}
+      <OAuthButtons />
+
       <form className="auth-form" onSubmit={onSubmit} noValidate>
         {formError && <AuthAlert message={formError} />}
 

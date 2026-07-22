@@ -133,6 +133,29 @@ export const config = {
      */
     kek: process.env.FOLIO_AI_KEK ?? `derived:${SESSION_SECRET}`,
   },
+
+  /**
+   * Social sign-in (OAuth). Credentials come from the environment ONLY and are never
+   * committed. A provider is treated as enabled only when BOTH its id and secret are
+   * present (see auth/oauthProviders.ts), which is what drives the feature-flag gate:
+   * with these unset — the default, and production until they are configured — no social
+   * buttons are shown and the routes refuse the provider.
+   *
+   * `baseUrl` is the public origin used to build the redirect_uri that must match what is
+   * registered with each provider. Leave it empty in production (the Vercel production
+   * hostname is used automatically); set OAUTH_BASE_URL for local dev and custom domains.
+   */
+  oauth: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+    },
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID ?? '',
+      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
+    },
+    baseUrl: process.env.OAUTH_BASE_URL ?? '',
+  },
 };
 
 // Serverless filesystems are read-only outside /tmp, and attachments live in

@@ -8,6 +8,7 @@ import { requireAuth } from './auth/middleware.js';
 import { CSP } from './lib/csp.js';
 
 import authRouter from './routes/auth.js';
+import oauthRouter from './routes/oauth.js';
 import notebooksRouter from './routes/notebooks.js';
 import notesRouter from './routes/notes.js';
 import searchRouter from './routes/search.js';
@@ -141,6 +142,11 @@ export function buildApp(): express.Express {
   // Unauthenticated by necessity: signup/login/logout/me are how a session is obtained
   // in the first place. This router guards its own one privileged route (/password).
   app.use('/api/auth', authRouter);
+
+  // Social sign-in shares the /api/auth prefix and is likewise unauthenticated — the
+  // provider redirect + callback ARE how the session is obtained. Also serves
+  // GET /api/auth/providers, which the signed-out login page reads to gate its buttons.
+  app.use('/api/auth', oauthRouter);
 
   // Public share links: guests have no account, so this router cannot sit behind
   // requireAuth. It guards each route individually instead — the owner-only routes
