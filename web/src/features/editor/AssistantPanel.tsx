@@ -38,7 +38,7 @@ export default function AssistantPanel({ noteId, attachments, open, onClose, onI
       setResult(res);
       setPhase('done');
     } catch (e) {
-      setError(e instanceof ApiError && e.status === 502 ? 'AI offline — is the gateway running?' : e instanceof Error ? e.message : 'Analysis failed');
+      setError(e instanceof ApiError && e.status === 502 ? 'AI offline. Is the gateway running?' : e instanceof Error ? e.message : 'Analysis failed');
       setPhase('error');
     }
   }
@@ -74,7 +74,7 @@ export default function AssistantPanel({ noteId, attachments, open, onClose, onI
         </div>
 
         <p className="folio-assistant__tagline">
-          Finds what's missing from your notes using your uploaded sources — it never rewrites them.
+          Finds what's missing from your notes using your uploaded sources. It never rewrites them.
         </p>
 
         {phase === 'idle' && (
@@ -82,7 +82,7 @@ export default function AssistantPanel({ noteId, attachments, open, onClose, onI
             <div className="folio-assistant__sources">
               {sourceCount > 0
                 ? `Will check against ${sourceCount} uploaded source${sourceCount === 1 ? '' : 's'} attached to this note.`
-                : 'No uploaded sources on this note yet — the check will use standard topic coverage. Import a transcript or slides to make it sharper.'}
+                : 'No uploaded sources on this note yet, so the check will use standard topic coverage. Import a transcript or slides to make it sharper.'}
             </div>
             <button type="button" className="folio-btn-primary" onClick={findGaps} data-testid="assistant-find-gaps">
               Find gaps in this note

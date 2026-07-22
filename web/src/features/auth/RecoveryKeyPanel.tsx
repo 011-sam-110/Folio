@@ -39,7 +39,7 @@ export default function RecoveryKeyPanel({
 
   const download = () => {
     const body =
-      `Folio recovery key\n` +
+      `Unote recovery key\n` +
       (email ? `Account: ${email}\n` : '') +
       `\n${recoveryKey}\n\n` +
       `Use this at the sign-in screen ("Forgot your password?") to regain access.\n` +
@@ -47,7 +47,7 @@ export default function RecoveryKeyPanel({
     const url = URL.createObjectURL(new Blob([body], { type: 'text/plain' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'folio-recovery-key.txt';
+    a.download = 'unote-recovery-key.txt';
     a.click();
     URL.revokeObjectURL(url);
     setSaved(true);
@@ -61,7 +61,7 @@ export default function RecoveryKeyPanel({
 
       <h2 className="auth-recovery__title">Save your recovery key</h2>
       <p className="auth-recovery__lede">
-        Folio can’t email you a reset link, so this key is the only way back into your
+        Unote can’t email you a reset link, so this key is the only way back into your
         account if you forget your password. <strong>You will not see it again.</strong>
       </p>
 

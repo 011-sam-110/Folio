@@ -125,7 +125,7 @@ export function useCanvasBoard(noteId: string): CanvasBoardDoc {
         // Re-queue, but let anything newer for the same id win: the newer value
         // is what the user is currently looking at.
         for (const p of batch) if (!pendingRef.current.has(p.id)) pendingRef.current.set(p.id, p);
-        toast('Canvas changes not saved — retrying', 'error');
+        toast('Canvas changes not saved, retrying', 'error');
       }
     })();
     inFlightRef.current = run;

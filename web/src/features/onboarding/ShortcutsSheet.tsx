@@ -33,7 +33,7 @@ function groups(mod: string, shift: string, alt: string): Group[] {
       name: 'Anywhere',
       rows: [
         { keys: [mod, 'K'], label: 'Jump to a note' },
-        { keys: [mod, 'P'], label: 'Command palette — run anything' },
+        { keys: [mod, 'P'], label: 'Command palette: run anything' },
         { keys: [mod, 'N'], label: 'New note in the current notebook' },
         { keys: [mod, shift, 'F'], label: 'Search your notes' },
         { keys: [mod, '\\'], label: 'Show or hide the sidebar' },
@@ -44,7 +44,7 @@ function groups(mod: string, shift: string, alt: string): Group[] {
     {
       name: 'Writing',
       rows: [
-        { keys: ['/'], label: 'Slash menu — headings, lists, tables, callouts' },
+        { keys: ['/'], label: 'Slash menu: headings, lists, tables, callouts' },
         { keys: ['[', '['], label: 'Link another note' },
         { keys: ['#', 'Space'], label: 'Heading (and "- " a bullet, "> " a quote)' },
         { keys: [mod, 'B'], label: 'Bold' },

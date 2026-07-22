@@ -1,6 +1,6 @@
 // One-time account recovery keys.
 //
-// Folio sends no email, so a forgotten password would otherwise mean an unrecoverable
+// Unote sends no email, so a forgotten password would otherwise mean an unrecoverable
 // account. Signup issues a key, shows it exactly once in the response, and stores only
 // its hash — so nobody, including the operator, can reproduce it afterwards.
 //
@@ -16,6 +16,27 @@ import { hashPassword, verifyPassword, type PasswordRecord } from './password.js
 const RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const RECOVERY_GROUPS = 4;
 const RECOVERY_GROUP_LEN = 5;
+
+/** Length of a key as this module emits it: every group, plus one dash between each pair. */
+const RECOVERY_KEY_LENGTH = RECOVERY_GROUPS * RECOVERY_GROUP_LEN + (RECOVERY_GROUPS - 1);
+
+/**
+ * Upper bound on a submitted recovery key, checked before it reaches the KDF.
+ *
+ * Redemption runs the submitted value through scrypt, whose PBKDF2 pass is linear in input
+ * length, on an UNAUTHENTICATED route sitting behind `express.json({ limit: '20mb' })`. The
+ * password cap in routes/auth.ts exists for exactly that reason; this field was missed, so a
+ * multi-megabyte `recoveryKey` still bought an attacker megabytes of hashing per request.
+ * Recovery redemption also hashes a dummy record for unknown accounts to keep its timing
+ * flat, so the cost is paid whether or not the email exists.
+ *
+ * Derived from the generator above rather than picked: this codebase issues every key it will
+ * ever accept, so the real bound is known. Doubling the canonical length is slack for how
+ * people actually paste a key (spaces instead of dashes, a trailing newline, a stray quote),
+ * all of which normalizeRecoveryKey strips. Nothing longer can normalise to the 20 significant
+ * characters a real key has, so the rejection costs a legitimate user nothing.
+ */
+export const MAX_RECOVERY_KEY = RECOVERY_KEY_LENGTH * 2;
 
 /**
  * A fresh recovery key, formatted as `XXXXX-XXXXX-XXXXX-XXXXX`.

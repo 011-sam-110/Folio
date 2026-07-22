@@ -42,7 +42,7 @@ function buildDecorations(doc: PMNode): DecorationSet {
         Decoration.inline(from, from + m[0].length, {
           class: 'folio-hashtag',
           'data-tag': tag,
-          title: `#${tag} — Ctrl+click to browse notes with this tag`,
+          title: `#${tag} (Ctrl+click to browse notes with this tag)`,
         }),
       );
     }

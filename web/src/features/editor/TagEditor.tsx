@@ -171,7 +171,7 @@ export default function TagEditor({ tags, autoTags, onChange, onOpenTag }: TagEd
               type="button"
               className="folio-tag-chip__label"
               onClick={() => onOpenTag(tag)}
-              title={`From #${tag} in the note body — edit the text to change it`}
+              title={`From #${tag} in the note body (edit the text to change it)`}
             >
               #{tag}
             </button>

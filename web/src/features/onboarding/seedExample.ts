@@ -26,7 +26,7 @@ export interface SeedResult {
 
 const NOTEBOOK_NAME = 'Algorithms (example)';
 const LINKED_TITLE = 'Sorting algorithms';
-const MAIN_TITLE = 'Lecture 1 — Big-O notation';
+const MAIN_TITLE = 'Lecture 1: Big-O notation';
 
 function p(text: string) {
   return { type: 'paragraph', content: [{ type: 'text', text }] };
@@ -57,7 +57,7 @@ export async function seedExampleNotebook(): Promise<SeedResult> {
   const { notebook } = await api.createNotebook({ name: NOTEBOOK_NAME, emoji: '📘', color: '#6366f1' });
 
   const linkedText = [
-    'Comparison sorts cannot beat O(n log n) in the worst case — the decision-tree argument gives the lower bound.',
+    'Comparison sorts cannot beat O(n log n) in the worst case. The decision-tree argument gives the lower bound.',
     'Merge sort: always O(n log n), stable, needs O(n) extra space.',
     'Quicksort: O(n log n) average, O(n^2) worst case, sorts in place.',
     'Stability matters when you sort by one key and then another. #revision',
@@ -71,12 +71,12 @@ export async function seedExampleNotebook(): Promise<SeedResult> {
     contentJson: {
       type: 'doc',
       content: [
-        p('Comparison sorts cannot beat O(n log n) in the worst case — the decision-tree argument gives the lower bound.'),
+        p('Comparison sorts cannot beat O(n log n) in the worst case. The decision-tree argument gives the lower bound.'),
         h(2, 'The three worth remembering'),
         bullets([
-          'Merge sort — always O(n log n), stable, needs O(n) extra space.',
-          'Quicksort — O(n log n) average, O(n^2) worst case, sorts in place.',
-          'Insertion sort — O(n^2), but genuinely fast on small or nearly-sorted input.',
+          'Merge sort: always O(n log n), stable, needs O(n) extra space.',
+          'Quicksort: O(n log n) average, O(n^2) worst case, sorts in place.',
+          'Insertion sort: O(n^2), but genuinely fast on small or nearly-sorted input.',
         ]),
         p('Stability matters when you sort by one key and then another. #revision'),
       ],
@@ -87,7 +87,7 @@ export async function seedExampleNotebook(): Promise<SeedResult> {
   const mainText = [
     'Big-O describes how the cost of an algorithm grows as the input grows. It is about the shape of the curve, not the constant.',
     'Dropping constants is the whole point: 3n + 40 and n both grow linearly, so both are O(n).',
-    `Worked examples are in [[${LINKED_TITLE}]] — that link is a wikilink, and this note now shows up in its backlinks.`,
+    `Worked examples are in [[${LINKED_TITLE}]]. That link is a wikilink, and this note now shows up in its backlinks.`,
     'Read before the seminar. #revision',
   ].join('\n\n');
 
@@ -102,10 +102,10 @@ export async function seedExampleNotebook(): Promise<SeedResult> {
         p('Big-O describes how the cost of an algorithm grows as the input grows. It is about the shape of the curve, not the constant.'),
         h(2, 'The ones that come up'),
         bullets([
-          'O(1) — constant. Array index, hash lookup.',
-          'O(log n) — logarithmic. Binary search, balanced tree lookup.',
-          'O(n log n) — the floor for comparison sorting.',
-          'O(n^2) — nested loops over the same input.',
+          'O(1): constant. Array index, hash lookup.',
+          'O(log n): logarithmic. Binary search, balanced tree lookup.',
+          'O(n log n): the floor for comparison sorting.',
+          'O(n^2): nested loops over the same input.',
         ]),
         p('Dropping constants is the whole point: 3n + 40 and n both grow linearly, so both are O(n).'),
         {
@@ -113,7 +113,7 @@ export async function seedExampleNotebook(): Promise<SeedResult> {
           content: [
             { type: 'text', text: 'Worked examples are in ' },
             { type: 'wikilink', attrs: { noteId: linked.id, title: LINKED_TITLE, alias: null } },
-            { type: 'text', text: ' — that link is a wikilink, and this note now shows up in its backlinks.' },
+            { type: 'text', text: '. That link is a wikilink, and this note now shows up in its backlinks.' },
           ],
         },
         p('Read before the seminar. #revision'),
@@ -166,7 +166,7 @@ export async function seedExampleNotebook(): Promise<SeedResult> {
     await api.createCard({
       noteId: main.id,
       question: 'What is the lower bound for comparison-based sorting?',
-      answer: 'O(n log n) in the worst case — from the decision-tree argument.',
+      answer: 'O(n log n) in the worst case, from the decision-tree argument.',
     });
     await api.createCard({
       noteId: linked.id,

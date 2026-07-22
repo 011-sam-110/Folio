@@ -346,7 +346,7 @@ const acidMarkdown = L(
   '',
   '## Durability',
   '',
-  "Once a transaction commits, it survives a crash — even if the power dies one instruction later. Engines achieve this with a **write-ahead log (WAL)**: changes are appended to a durable log *before* being applied to the actual data pages, so a crash mid-write can be replayed from the log on restart. SQLite's WAL mode (which Folio itself runs in) is a direct application of this.",
+  "Once a transaction commits, it survives a crash — even if the power dies one instruction later. Engines achieve this with a **write-ahead log (WAL)**: changes are appended to a durable log *before* being applied to the actual data pages, so a crash mid-write can be replayed from the log on restart. SQLite's WAL mode (which Unote itself runs in) is a direct application of this.",
   '',
   '## Isolation and deadlock',
   '',

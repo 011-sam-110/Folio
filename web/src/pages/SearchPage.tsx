@@ -303,7 +303,7 @@ export default function SearchPage() {
           <EmptyState
             icon="🔎"
             title={`No results for "${trimmedQuery}"`}
-            hint="Try fewer words, check spelling, or drop a tag:/notebook: filter — or browse by tag instead."
+            hint="Try fewer words, check spelling, or drop a tag:/notebook: filter. You can also browse by tag instead."
             action={
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setQuery('')}>

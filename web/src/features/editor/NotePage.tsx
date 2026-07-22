@@ -326,7 +326,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
       };
       api.unlinkedMentions(note.id).then((r) => setUnlinked(r.notes)).catch(() => {});
     } catch {
-      toast('Could not refresh the note — reload to see the latest', 'error');
+      toast('Could not refresh the note. Reload to see the latest', 'error');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.id]);
@@ -340,7 +340,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   }, [note.id]);
 
   useEffect(() => {
-    document.title = `${title || 'Untitled'} · Folio`;
+    document.title = `${title || 'Untitled'} · Unote`;
   }, [title]);
 
   useEffect(() => {
@@ -462,7 +462,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   }
 
   function aiError(e: unknown) {
-    if (e instanceof ApiError && e.status === 502) toast('AI offline — is the gateway running?', 'error');
+    if (e instanceof ApiError && e.status === 502) toast('AI offline. Is the gateway running?', 'error');
     else toast(e instanceof Error ? e.message : 'AI request failed', 'error');
   }
 
@@ -872,7 +872,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
 
       {flashcardBanner != null && (
         <div className="folio-flashcard-banner">
-          {flashcardBanner} flashcards added —{' '}
+          {flashcardBanner} flashcards added.{' '}
           <Link to="/study" onClick={() => setFlashcardBanner(null)}>
             Study now →
           </Link>
@@ -902,11 +902,11 @@ function AttachmentStrip({ attachments }: { attachments?: Attachment[] }) {
     <div className="folio-attachments" aria-label="Original source files">
       {items.map((a) =>
         isImage(a) ? (
-          <a key={a.id} className="folio-attachment folio-attachment--photo" href={a.url} target="_blank" rel="noopener noreferrer" title={`Open original — ${a.originalName}`}>
+          <a key={a.id} className="folio-attachment folio-attachment--photo" href={a.url} target="_blank" rel="noopener noreferrer" title={`Open original: ${a.originalName}`}>
             <img src={a.url} alt={a.originalName} loading="lazy" />
           </a>
         ) : (
-          <a key={a.id} className="folio-attachment folio-attachment--file" href={a.url} target="_blank" rel="noopener noreferrer" title={`Open original — ${a.originalName}`}>
+          <a key={a.id} className="folio-attachment folio-attachment--file" href={a.url} target="_blank" rel="noopener noreferrer" title={`Open original: ${a.originalName}`}>
             <Icon name="file-text" size={16} />
             <span className="folio-attachment__name">{a.originalName}</span>
             <span className="folio-attachment__size">{formatBytes(a.size)}</span>

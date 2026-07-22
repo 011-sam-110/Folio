@@ -1,4 +1,4 @@
--- Folio database schema (PostgreSQL / Neon). Applied idempotently on boot (db.ts).
+-- Unote database schema (PostgreSQL / Neon). Applied idempotently on boot (db.ts).
 --
 -- Ported from the original SQLite schema. Two deliberate carry-overs keep the
 -- port honest rather than clever:
@@ -283,3 +283,45 @@ CREATE TABLE IF NOT EXISTS note_events (
   created_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
 );
 CREATE INDEX IF NOT EXISTS idx_note_events_note ON note_events(note_id, seq);
+
+-- ---------------------------------------------------------------------------
+-- AI: shared-pool accounting and user-supplied provider keys.
+-- ---------------------------------------------------------------------------
+
+-- Monthly spend against the shared free-tier pool, counted along two dimensions:
+-- 'user' (subject = user id) and 'ip' (subject = a keyed hash of the address, never
+-- the address itself). A request must clear both, since an account cap alone falls
+-- to registering again and an IP cap alone falls to a hotspot.
+--
+-- Durable rather than in-memory because the budget is monthly: serverless instances
+-- are short-lived, so an in-process counter would reset constantly and the real
+-- ceiling would become (limit x number of warm instances).
+CREATE TABLE IF NOT EXISTS ai_usage (
+  scope TEXT NOT NULL,              -- user | ip
+  subject TEXT NOT NULL,            -- user id, or HMAC(ip)
+  period TEXT NOT NULL,             -- UTC calendar month, 'YYYY-MM'
+  calls INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+  PRIMARY KEY (scope, subject, period)
+);
+-- Supports the monthly sweep that drops periods nobody will read again.
+CREATE INDEX IF NOT EXISTS idx_ai_usage_period ON ai_usage(period);
+
+-- A user's own provider key, which takes them off the shared pool entirely: their
+-- calls are billed to their key and skip the quota check.
+--
+-- The key is encrypted at rest with AES-256-GCM rather than hashed, because unlike a
+-- password it has to be recoverable to be used. `hint` is the last four characters,
+-- stored separately so the settings UI can show which key is saved without the
+-- server ever having to decrypt one just to render a page.
+CREATE TABLE IF NOT EXISTS ai_keys (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  -- Optional: lets a user point at their own OpenAI-compatible endpoint, not just
+  -- swap the credential for the default one.
+  base_url TEXT,
+  ciphertext TEXT NOT NULL,
+  iv TEXT NOT NULL,
+  auth_tag TEXT NOT NULL,
+  hint TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+);

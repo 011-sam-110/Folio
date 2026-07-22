@@ -149,7 +149,7 @@ export default function CanvasBoard({ note }: CanvasBoardProps) {
     }, 600);
   }
   useEffect(() => {
-    document.title = `${title || 'Untitled canvas'} · Folio`;
+    document.title = `${title || 'Untitled canvas'} · Unote`;
   }, [title]);
 
   // --- helpers --------------------------------------------------------------

@@ -49,7 +49,7 @@ export default function ChangePasswordModal({ open, onClose }: { open: boolean; 
     setSaving(true);
     try {
       await api.changePassword({ currentPassword: current, newPassword: next });
-      toast('Password changed — other devices have been signed out', 'ok');
+      toast('Password changed. Other devices have been signed out', 'ok');
       onClose();
     } catch (err) {
       const msg = errorMessage(err, 'Could not change your password');

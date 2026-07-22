@@ -78,7 +78,7 @@ export function loadVideo(file: File): Promise<{ video: HTMLVideoElement; url: s
       cleanup();
       if (!Number.isFinite(video.duration) || video.duration <= 0) {
         URL.revokeObjectURL(url);
-        reject(new Error('Could not read the video duration — the file may be corrupt or use an unsupported codec.'));
+        reject(new Error('Could not read the video duration. The file may be corrupt or use an unsupported codec.'));
         return;
       }
       resolve({ video, url });
@@ -86,7 +86,7 @@ export function loadVideo(file: File): Promise<{ video: HTMLVideoElement; url: s
     const onError = () => {
       cleanup();
       URL.revokeObjectURL(url);
-      reject(new Error("This video couldn't be opened. Your browser may not support its codec — try an MP4 (H.264)."));
+      reject(new Error("This video couldn't be opened. Your browser may not support its codec. Try an MP4 (H.264)."));
     };
 
     video.addEventListener('loadedmetadata', onMeta);

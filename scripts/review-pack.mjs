@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Reusable visual-evidence generator for design critics.
 //
-// Boots an isolated Folio instance (fresh seeded DB on a dedicated port),
+// Boots an isolated Unote instance (fresh seeded DB on a dedicated port),
 // drives it with Playwright, and writes a numbered screenshot pack to
 // docs/review-pack/ plus a console-error/warning report. Every step is
 // wrapped so a single failing shot doesn't take down the run — failures are
@@ -435,7 +435,7 @@ async function main() {
     await shot('17-mobile-drawer.png', async () => {
       await mobilePage.getByRole('button', { name: 'Open menu' }).click();
       await mobilePage.waitForSelector('.app-sidebar-wrap[data-mobile-open="true"]', { timeout: 5_000 });
-      await mobilePage.getByRole('navigation', { name: 'Folio' }).waitFor({ state: 'visible', timeout: 5_000 });
+      await mobilePage.getByRole('navigation', { name: 'Unote' }).waitFor({ state: 'visible', timeout: 5_000 });
       await mobilePage.screenshot({ path: path.join(OUT_DIR, '17-mobile-drawer.png') });
     });
 

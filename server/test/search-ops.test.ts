@@ -224,7 +224,7 @@ describe('GET /api/search — operator regressions', () => {
   it('notebook:"Two Words" filters by the quoted name instead of dropping the filter', async () => {
     // Phrase extraction used to run before operator parsing, so the quoted value was
     // stripped away and `notebook:` was discarded as empty — the name then fell
-    // through as a plain text search. Folio's own default notebook is "My notes".
+    // through as a plain text search. Unote's own default notebook is "My notes".
     const ml = await insertNotebook('Machine Learning');
     const db2 = await insertNotebook('Databases');
     const a = await insertNote(ml, 'Gradient descent', 'iterative optimisation');

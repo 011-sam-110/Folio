@@ -1,4 +1,4 @@
-/* Folio editor — TipTap content typography, node views, suggestion popups, bubble menus.
+/* Unote editor — TipTap content typography, node views, suggestion popups, bubble menus.
    Scoped under .folio-editor / .folio-prosemirror. Uses tokens from src/styles/tokens.css. */
 
 @import 'katex/dist/katex.min.css';

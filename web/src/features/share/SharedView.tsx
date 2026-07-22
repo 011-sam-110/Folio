@@ -60,7 +60,7 @@ export default function SharedView({ token, initial }: SharedViewProps) {
   );
 
   useEffect(() => {
-    document.title = `${title || 'Untitled'} · Shared on Folio`;
+    document.title = `${title || 'Untitled'} · Shared on Unote`;
   }, [title]);
 
   const others = sync.presence.filter((p) => p.name !== initial.you);
@@ -110,7 +110,7 @@ export default function SharedView({ token, initial }: SharedViewProps) {
               owner's stickies to be here would otherwise think the board failed
               to load. */}
           <p className="sh-session__note">
-            Shared boards carry the drawing layer only — stickies and cards stay with the owner.
+            Shared boards carry the drawing layer only. Stickies and cards stay with the owner.
           </p>
         </>
       ) : (

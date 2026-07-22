@@ -193,7 +193,7 @@ function AppShell() {
         </button>
         <div className="app-topbar__brand">
           <span aria-hidden="true">📓</span>
-          <span>Folio</span>
+          <span>Unote</span>
         </div>
         <div className="app-topbar__spacer" />
         <button type="button" className="icon-btn" aria-label="Search notes" onClick={() => setQuickSwitcherOpen(true)}>

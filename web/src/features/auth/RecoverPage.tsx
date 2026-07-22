@@ -61,7 +61,7 @@ export default function RecoverPage() {
         <RecoveryKeyPanel
           recoveryKey={replacementKey}
           email={email.trim()}
-          continueLabel="Open Folio"
+          continueLabel="Open Unote"
           onContinue={() => navigate('/', { replace: true })}
         />
       </AuthShell>
@@ -71,7 +71,7 @@ export default function RecoverPage() {
   return (
     <AuthShell
       title="Use your recovery key"
-      subtitle="Folio can’t email a reset link, so the key you saved at signup is the way back in."
+      subtitle="Unote can’t email a reset link, so the key you saved at signup is the way back in."
       footer={<AuthAltLink prompt="Remembered it?" to="/login" label="Sign in" />}
     >
       <form className="auth-form" onSubmit={onSubmit} noValidate>

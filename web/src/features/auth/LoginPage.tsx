@@ -71,7 +71,7 @@ export default function LoginPage() {
     <AuthShell
       title="Welcome back"
       subtitle="Sign in to pick up where you left off."
-      footer={<AuthAltLink prompt="New to Folio?" to="/signup" label="Create an account" />}
+      footer={<AuthAltLink prompt="New to Unote?" to="/signup" label="Create an account" />}
     >
       <form className="auth-form" onSubmit={onSubmit} noValidate>
         {formError && <AuthAlert message={formError} />}

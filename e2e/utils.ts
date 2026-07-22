@@ -2,7 +2,7 @@ import { type APIRequestContext, type Locator, type Page } from '@playwright/tes
 import { expect, test } from './auth.fixture';
 
 /**
- * Shared helpers for the Folio e2e suite.
+ * Shared helpers for the Unote e2e suite.
  *
  * Selector policy (per the build contract): prefer getByRole/getByPlaceholder/getByText
  * matched against the literal copy in docs/FRONTEND.md, or against real DOM already
@@ -42,7 +42,7 @@ export function uniqueName(prefix: string): string {
 }
 
 /**
- * Failures that come from the AI provider rather than from Folio.
+ * Failures that come from the AI provider rather than from Unote.
  *
  *  • "All AI models failed (…)" — every model in the pool refused; the free
  *    gateway's burst/day allowance is spent.
@@ -63,7 +63,7 @@ export const UPSTREAM_QUOTA_RE =
  *
  * The three gateway-backed spec files drive a real, shared, free-tier gateway. When
  * its pool is spent every one of them fails identically and for a reason that has
- * nothing to do with Folio — which is exactly the situation in which a red suite
+ * nothing to do with Unote — which is exactly the situation in which a red suite
  * stops carrying information. Skipping loudly (with the provider's own message)
  * keeps a quota drought from masking real regressions elsewhere.
  *
@@ -133,11 +133,11 @@ export async function createNotebookViaSidebar(page: Page, name: string): Promis
   await expect(sidebarNav(page).getByRole('link', { name: exact(name) })).toBeVisible({ timeout: 10_000 });
 }
 
-/** The sidebar `<nav aria-label="Folio">`. Notebook links elsewhere (breadcrumb,
+/** The sidebar `<nav aria-label="Unote">`. Notebook links elsewhere (breadcrumb,
  * dashboard columns/hero) share the same name, so notebook navigation must scope
  * to this nav to stay unambiguous. */
 export function sidebarNav(page: Page): Locator {
-  return page.getByRole('navigation', { name: 'Folio' });
+  return page.getByRole('navigation', { name: 'Unote' });
 }
 
 /** Opens a notebook from the sidebar by name (partial match). */

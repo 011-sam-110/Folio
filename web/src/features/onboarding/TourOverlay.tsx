@@ -335,7 +335,7 @@ export default function TourOverlay({
 
   useEffect(() => {
     if (phase === 'welcome') {
-      setAnnouncement('Welcome to Folio. A short tour of what is here.');
+      setAnnouncement('Welcome to Unote. A short tour of what is here.');
       return;
     }
     if (phase !== 'steps' || !step || resolution.status === 'locating') return;
@@ -477,10 +477,10 @@ export default function TourOverlay({
         {phase === 'welcome' && (
           <>
             <h2 className="tour-card__title" id={titleId}>
-              Welcome to Folio
+              Welcome to Unote
             </h2>
             <p className="tour-card__body" id={bodyId}>
-              There is more here than a blank page suggests — linked notes, flashcards, lecture import, canvas
+              There is more here than a blank page suggests: linked notes, flashcards, lecture import, canvas
               boards. This is a two-minute tour of the parts worth knowing about. You can leave at any point and
               pick it up later.
             </p>
@@ -491,12 +491,12 @@ export default function TourOverlay({
               <p className="tour-card__seed-hint">
                 {seedSurvives
                   ? 'The tour will use the “Algorithms (example)” notebook you already have, rather than making a second copy of it.'
-                  : 'Creates one notebook with two short notes, a board and two flashcards, so the tour has something real to point at. It is yours — edit or delete it like anything else.'}
+                  : 'Creates one notebook with two short notes, a board and two flashcards, so the tour has something real to point at. It is yours. Edit or delete it like anything else.'}
               </p>
             </div>
             {seedError && (
               <p className="tour-card__error" role="alert">
-                {seedError} — you can still take the tour without it.
+                {seedError}. You can still take the tour without it.
               </p>
             )}
             <div className="tour-card__actions">

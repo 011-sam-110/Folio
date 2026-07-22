@@ -7,6 +7,9 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const MIN_PASSWORD = 8;
+/** Mirrors MAX_PASSWORD in the server's auth.ts, where it bounds how much input scrypt
+ *  will hash per request. Enforced here purely so the message arrives before the submit. */
+export const MAX_PASSWORD = 128;
 
 export function emailError(value: string): string | null {
   const email = value.trim();
@@ -19,12 +22,17 @@ export function emailError(value: string): string | null {
  *  so telling someone their correct password is "too short" would be a dead end. */
 export function loginPasswordError(value: string): string | null {
   if (!value) return 'Enter your password';
+  // The maximum is mirrored even here, where the minimum deliberately is not: the server
+  // rejects an over-long password before it compares anything, so signalling it early
+  // beats a submit that can only ever come back as an error.
+  if (value.length > MAX_PASSWORD) return `Password must be at most ${MAX_PASSWORD} characters`;
   return null;
 }
 
 export function newPasswordError(value: string): string | null {
   if (!value) return 'Choose a password';
   if (value.length < MIN_PASSWORD) return `Password must be at least ${MIN_PASSWORD} characters`;
+  if (value.length > MAX_PASSWORD) return `Password must be at most ${MAX_PASSWORD} characters`;
   return null;
 }
 
@@ -59,7 +67,7 @@ export function passwordStrength(value: string): Strength {
   if (value.length >= 16) score += 1;
   if (variety >= 3) score += 1;
 
-  if (score >= 3) return { level: 3, label: 'Strong', hint: 'Nice — that will hold up.' };
+  if (score >= 3) return { level: 3, label: 'Strong', hint: 'Nice, that will hold up.' };
   if (score >= 1) return { level: 2, label: 'Good', hint: 'A longer passphrase would be even better.' };
-  return { level: 1, label: 'Weak', hint: 'Longer is stronger — try a memorable phrase.' };
+  return { level: 1, label: 'Weak', hint: 'Longer is stronger. Try a memorable phrase.' };
 }

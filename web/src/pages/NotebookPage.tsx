@@ -445,7 +445,7 @@ export default function NotebookPage() {
           <EmptyState
             icon="📝"
             title={`No notes yet in ${notebook.name}`}
-            hint="New note starts you writing right away — or import a photo of your lecture notes."
+            hint="New note starts you writing right away, or import a photo of your lecture notes."
             action={
               <button type="button" className="btn btn-primary" onClick={createNewNote}>
                 <Icon name="plus" size={14} />

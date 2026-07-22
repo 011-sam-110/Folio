@@ -6,6 +6,7 @@ import { syncLinksForNote, renameWikilinksToTitle, resyncNotesReferencingTitle }
 import { tiptapToMarkdown, type TTNode } from '../lib/export.js';
 import { recordNoteEvent } from '../lib/events.js';
 import { plainTextFromDoc } from '../lib/plainText.js';
+import { claimAttachmentsForNote } from '../lib/attachments.js';
 
 const router = Router();
 
@@ -232,6 +233,10 @@ router.post('/', async (req, res) => {
 
   if (b.tags !== undefined) await setTags(uid, id, b.tags);
   if (contentText) await syncLinksForNote(uid, id, contentText);
+  // Images the client uploaded before this note existed (the lecture import posts every
+  // slide, then creates the note around the returned URLs) are only reachable by a share
+  // guest once they are filed against it. See claimAttachmentsForNote.
+  if (b.contentJson !== undefined) await claimAttachmentsForNote(uid, id, contentJson);
 
   const row = (await getNoteRow(uid, id))!;
   res.status(201).json({ note: await noteFull(row) });
@@ -319,6 +324,10 @@ router.patch('/:id', async (req, res) => {
 
   if (b.tags !== undefined) await setTags(uid, row.id, b.tags);
   if (b.contentText !== undefined || b.contentJson !== undefined) await syncLinksForNote(uid, row.id, newContentText);
+  // The editor uploads an image before it knows which note it lands in, so this autosave is
+  // the first owner-authenticated moment the pairing is knowable. Recording it here is what
+  // lets a share guest load the picture without the read path having to trust note body text.
+  if (b.contentJson !== undefined) await claimAttachmentsForNote(uid, row.id, newContentJson);
   // Renaming a note is link-preserving: fix up the [[oldTitle]] references in every note
   // that links here so backlinks (and the on-screen wikilink text) follow the new title.
   // Confined to this user's notes — a shared title must not rewrite anyone else's text.

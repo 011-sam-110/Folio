@@ -42,13 +42,55 @@ export const SESSION_SECRET = (() => {
   return 'dev-only-insecure-session-secret';
 })();
 
+/**
+ * Read a positive integer setting, falling back to the default when the value is missing
+ * or not a usable number.
+ *
+ * `Number('')`, `Number('100 ')` and `Number('one hundred')` do not fail loudly, they
+ * produce `NaN`. That matters for the AI quotas specifically, because every comparison
+ * against `NaN` is false: `remaining <= 0` never fires, and a single typo in a Vercel
+ * environment variable would silently remove the ceiling rather than break anything
+ * visible. A limit that fails open is worse than no limit, because nobody looks at it.
+ */
+export function positiveIntEnv(raw: string | undefined, fallback: number): number {
+  const parsed = Number(raw);
+  if (raw === undefined || raw.trim() === '' || !Number.isFinite(parsed) || parsed < 0) {
+    if (raw !== undefined && raw.trim() !== '') {
+      console.warn(`[config] ignoring unusable numeric env value ${JSON.stringify(raw)}, using ${fallback}`);
+    }
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
 export const config = {
   port: Number(process.env.FOLIO_PORT ?? 4780),
   host: process.env.FOLIO_HOST ?? '0.0.0.0',
   // Extra allowed CORS origins (comma-separated), on top of the built-in localhost +
   // private-LAN allowance in app.ts. Empty by default.
+  //
+  // On serverless this is the ONLY way to add an origin, because the LAN allowance is off
+  // there (see isAllowedOrigin). A custom domain needs listing here: Vercel does not expose
+  // one through the environment, so deployedOrigins below cannot discover it.
   extraCorsOrigins: (process.env.FOLIO_CORS_ORIGINS ?? '')
     .split(',').map(s => s.trim()).filter(Boolean),
+
+  /**
+   * Origins this deployment is actually served from, read from Vercel's own environment.
+   *
+   * VERCEL_PROJECT_PRODUCTION_URL is the stable production hostname; VERCEL_URL and
+   * VERCEL_BRANCH_URL are the per-deployment and per-branch preview hostnames, which is what
+   * a preview build is browsed at. All are bare hostnames, so the scheme is added here.
+   *
+   * Same-origin requests are not CORS-checked by the browser at all, so this is not what
+   * keeps the site working; it is here so that the deployment's own preview and production
+   * hostnames still resolve as allowed when they differ from the one being browsed.
+   */
+  deployedOrigins: [
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VERCEL_URL,
+    process.env.VERCEL_BRANCH_URL,
+  ].filter(Boolean).map((h) => `https://${h}`),
   ai: {
     baseUrl: (process.env.FOLIO_AI_BASE_URL ?? 'http://localhost:3001/v1').replace(/\/$/, ''),
     apiKey: process.env.FOLIO_AI_KEY ?? '',
@@ -60,6 +102,36 @@ export const config = {
     visionModels: (process.env.FOLIO_AI_VISION_MODELS ?? 'gemini-2.5-flash,gemini-3.5-flash,gemini-2.5-flash-lite')
       .split(',').map(s => s.trim()).filter(Boolean),
     timeoutMs: Number(process.env.FOLIO_AI_TIMEOUT_MS ?? 90_000),
+
+    /**
+     * Monthly ceiling on shared-pool AI calls, per account and per IP.
+     *
+     * The shared pool is one set of free-tier provider keys funded by the operator, so
+     * every user spends from the same budget. Without a cap, one enthusiastic user (or
+     * one script) exhausts the month for everyone else on day two.
+     *
+     * Two dimensions, because either alone is trivially defeated: an account cap alone
+     * falls to signing up ten times, and an IP cap alone falls to a phone hotspot. A
+     * request must clear BOTH.
+     *
+     * The IP ceiling is deliberately much higher than the account one. This is a student
+     * app, and a university or halls-of-residence NAT can put hundreds of legitimate
+     * users behind a single address — sized at 10x the per-account allowance so a shared
+     * egress does not lock out a whole campus. Users who need more than either limit can
+     * add their own provider key, which bypasses the pool entirely.
+     */
+    freeMonthlyPerUser: positiveIntEnv(process.env.FOLIO_AI_FREE_MONTHLY_USER, 100),
+    freeMonthlyPerIp: positiveIntEnv(process.env.FOLIO_AI_FREE_MONTHLY_IP, 1000),
+
+    /**
+     * Key-encryption key for user-supplied provider keys (AES-256-GCM at rest).
+     *
+     * Falls back to a value derived from SESSION_SECRET so local development needs no
+     * extra setup. The consequence is real and worth stating: rotating SESSION_SECRET
+     * without setting this makes every stored key undecryptable, and users must re-enter
+     * them. Production should set FOLIO_AI_KEK explicitly and rotate it independently.
+     */
+    kek: process.env.FOLIO_AI_KEK ?? `derived:${SESSION_SECRET}`,
   },
 };
 

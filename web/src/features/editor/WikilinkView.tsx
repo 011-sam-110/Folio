@@ -103,7 +103,7 @@ export default function WikilinkView({ node, extension, updateAttributes }: Node
         className={`folio-wikilink${isMissing ? ' folio-wikilink--missing' : ''}`}
         data-note-id={noteId ?? ''}
         data-missing={isMissing || undefined}
-        title={isMissing ? `"${title}" doesn't exist yet — click to create it` : undefined}
+        title={isMissing ? `"${title}" doesn't exist yet. Click to create it` : undefined}
         onClick={handleClick}
         contentEditable={false}
       >

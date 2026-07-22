@@ -309,3 +309,30 @@ export interface ShareEvents {
   revision: number;
   presence: Array<{ name: string; color: string }>;
 }
+
+/** One dimension of the shared-pool AI allowance. */
+export interface AiQuotaState {
+  scope: 'user' | 'ip';
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+/**
+ * AI allowance and key status for the signed-in user. `usingOwnKey` makes the two
+ * quota fields irrelevant: a personal key is billed to its owner and is not metered.
+ */
+export interface AiUsage {
+  usingOwnKey: boolean;
+  keyHint: string;
+  baseUrl: string | null;
+  user: AiQuotaState;
+  ip: AiQuotaState;
+  resetAt: string;
+}
+
+export interface AiKeyInfo {
+  present: boolean;
+  hint: string;
+  baseUrl: string | null;
+}

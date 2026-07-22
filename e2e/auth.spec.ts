@@ -42,7 +42,7 @@ async function signUpThroughForm(
 
 /** Clears the recovery-key gate (copy + acknowledge) and enters the app. */
 async function leaveRecoveryPanel(page: import('@playwright/test').Page) {
-  const continueBtn = page.getByRole('button', { name: /open folio/i });
+  const continueBtn = page.getByRole('button', { name: /open unote/i });
   await expect(continueBtn).toBeDisabled();
 
   await page.getByRole('button', { name: 'Copy' }).click();

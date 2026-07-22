@@ -211,7 +211,7 @@ export default function CommentsPanel({ noteId, open, onClose, editor, onUnresol
 
         {comments != null && comments.length === 0 && !loadError && (
           <div className="folio-comments-empty">
-            No comments yet — select some text and choose <strong>Comment</strong> to leave one in the margin.
+            No comments yet. Select some text and choose <strong>Comment</strong> to leave one in the margin.
           </div>
         )}
 

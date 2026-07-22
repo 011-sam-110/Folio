@@ -1,7 +1,7 @@
 /**
  * Share links and guest join (web/src/features/share/, server/src/routes/share.ts).
  *
- * The interesting property here is that a guest has NO Folio account. Their access
+ * The interesting property here is that a guest has NO Unote account. Their access
  * is a per-share cookie that POST /api/share/:token/join sets, which is why
  * /join/:token sits outside RequireAuth in main.tsx. Every guest-side test below
  * therefore runs in its own browser context with no session at all — using the
@@ -156,7 +156,7 @@ test.describe('Guest join', () => {
       await expect(guest.getByLabel('People on this link')).toContainText('Visiting Student', {
         timeout: 15_000,
       });
-      // And they are still not signed in to Folio itself.
+      // And they are still not signed in to Unote itself.
       const me = await guestContext.request.get('/api/auth/me');
       expect(me.status()).toBe(401);
     } finally {

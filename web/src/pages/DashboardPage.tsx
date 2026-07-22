@@ -149,7 +149,7 @@ export default function DashboardPage() {
             <EmptyState
               icon="📝"
               title="Your notes will show up here"
-              hint="Write one from scratch, or bring in what you already have — lecture slides, a PDF, a photo of your handwriting, even a recording of the lecture itself."
+              hint="Write one from scratch, or bring in what you already have: lecture slides, a PDF, a photo of your handwriting, even a recording of the lecture itself."
               action={
                 <div className="dash__empty-actions">
                   <button type="button" className="btn btn-primary" onClick={createFirstNote}>
@@ -222,7 +222,7 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <div className="rail-card__celebrate">You're all caught up — 0 due 🎉</div>
+              <div className="rail-card__celebrate">You're all caught up. 0 due 🎉</div>
               <Link to="/study" className="btn btn-secondary" style={{ width: '100%' }}>
                 Browse cards
               </Link>
@@ -447,7 +447,7 @@ function OnboardingCreateNotebook({ onCreated }: { onCreated: (nb: Notebook) => 
     <EmptyState
       icon="📓"
       title="Add your first notebook"
-      hint="One notebook per course or module — Folio's only real piece of structure. Add as many as you like, any time."
+      hint="One notebook per course or module. It is Unote's only real piece of structure. Add as many as you like, any time."
       action={
         <form className="notebook-create-form" onSubmit={submit}>
           <div className="notebook-create-form__row">

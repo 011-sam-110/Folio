@@ -93,7 +93,7 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
     setRevoking(id);
     try {
       await api.revokeShare(id);
-      toast('Link revoked — it no longer opens', 'ok');
+      toast('Link revoked. It no longer opens', 'ok');
       await load();
     } catch (e) {
       toast(errorMessage(e, 'Could not revoke that link'), 'error');
@@ -112,7 +112,7 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
    */
   function close() {
     if (minted) {
-      toast('Copy the link first — Folio cannot show it again. Press Done when you have it.', 'info');
+      toast('Copy the link first. Unote cannot show it again. Press Done when you have it.', 'info');
       return;
     }
     onClose();
@@ -131,7 +131,7 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
       ) : (
         <div className="sh-dialog">
           <p className="sh-dialog__lede">
-            Anyone with the link can open <strong>{noteTitle || 'Untitled'}</strong> — no Folio account
+            Anyone with the link can open <strong>{noteTitle || 'Untitled'}</strong>. No Unote account
             needed. They pick a display name when they join.
           </p>
 
@@ -160,7 +160,7 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
               />
               <span className="sh-perm__body">
                 <span className="sh-perm__title">Can view</span>
-                <span className="sh-perm__hint">Read only — they see updates but cannot change anything</span>
+                <span className="sh-perm__hint">Read only: they see updates but cannot change anything</span>
               </span>
             </label>
           </fieldset>
@@ -233,7 +233,7 @@ export default function ShareDialog({ open, onClose, noteId, noteTitle, kind, on
               // this feature, and the moment to say it is while looking at the list
               // you cannot read the links out of.
               <p className="sh-existing__note">
-                Links can be revoked but never re-read — only a hash of each one is stored.
+                Links can be revoked but never re-read. Only a hash of each one is stored.
               </p>
             )}
           </div>
@@ -294,8 +294,8 @@ function MintedLink({
 
       <h2 className="sh-minted__title">Your link is ready</h2>
       <p className="sh-minted__lede">
-        Copy it now. Folio stores only a hash of this link, so{' '}
-        <strong>it cannot be shown again</strong> — if you lose it you will have to create a new one.
+        Copy it now. Unote stores only a hash of this link, so{' '}
+        <strong>it cannot be shown again</strong>. If you lose it you will have to create a new one.
       </p>
 
       <output className="sh-minted__url" aria-label="Your share link">

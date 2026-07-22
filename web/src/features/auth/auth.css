@@ -545,3 +545,44 @@
   font-size: 0.8125rem;
   color: var(--ink-3);
 }
+
+/* AI settings dialog: allowance readout and personal-key form. */
+.ai-settings__status {
+  margin: 0 0 10px;
+  font-size: var(--fs-chrome);
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.ai-settings__status code {
+  font-family: var(--font-mono);
+  background: var(--bg-hover);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.ai-settings__meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.ai-settings__meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width 160ms ease;
+}
+
+/* A spent allowance is a state the user needs to act on, so it stops reading as
+   ordinary progress once it is full. */
+.ai-settings__meter-fill[style*="width: 100%"] {
+  background: var(--warn);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-settings__meter-fill { transition: none; }
+}

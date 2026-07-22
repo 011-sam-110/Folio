@@ -7,6 +7,7 @@ import { toast } from '../../components/Toast';
 import { errorMessage } from '../../lib/format';
 import { useAuth } from './AuthContext';
 import ChangePasswordModal from './ChangePasswordModal';
+import AiSettingsModal from './AiSettingsModal';
 import { openShortcuts, startTour } from '../onboarding/onboardingBus';
 import './auth.css';
 
@@ -21,6 +22,7 @@ export default function AccountMenu() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   if (!user) return null;
 
@@ -63,6 +65,14 @@ export default function AccountMenu() {
             icon: 'lock',
             onSelect: () => setPasswordOpen(true),
           }),
+          // Sits with the account actions rather than under Help: the thing people come
+          // here for is "how much AI have I got left", which is account state.
+          menuItem({
+            key: 'ai',
+            label: 'AI usage and key',
+            icon: 'sparkles',
+            onSelect: () => setAiOpen(true),
+          }),
           menuDivider('d0'),
           // Help lives here because this is where people look for it a week in,
           // once the first-run prompts are long gone.
@@ -84,6 +94,7 @@ export default function AccountMenu() {
       />
 
       <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+      <AiSettingsModal open={aiOpen} onClose={() => setAiOpen(false)} />
     </div>
   );
 }

@@ -173,18 +173,60 @@ describe('share-link guests and embedded images', () => {
     return guest;
   }
 
-  async function shareNote(owner: TestUser, noteId: string): Promise<string> {
+  async function shareNote(
+    owner: TestUser,
+    noteId: string,
+    permission: 'view' | 'edit' = 'view',
+  ): Promise<string> {
     const res = await owner.agent
       .post(`/api/notes/${noteId}/shares`)
-      .send({ permission: 'view' })
+      .send({ permission })
       .expect(201);
     return res.body.token;
   }
 
-  it('lets a guest load an image embedded in the note they were given access to', async () => {
+  // Access is decided ONLY by attachments.note_id — a column no requester can write. These
+  // cover both halves of that: the owner's own writes file editor uploads against the note
+  // so legitimate images still render, and nothing a guest can type grants anything.
+
+  it('files an editor upload against the note when the owner saves, so a guest can load it', async () => {
     const notebookId = await insertNotebook(alice.id);
-    const { url, storedName } = await store(alice);
-    // The image is referenced from the note body, which is how editor uploads appear.
+
+    // Exactly the real flow: upload with no note_id, then save the note that embeds it.
+    const up = await alice.agent
+      .post('/api/import/image')
+      .attach('file', PNG, { filename: 'shot.png', contentType: 'image/png' })
+      .expect(200);
+    const url: string = up.body.url;
+    const storedName = url.slice('/uploads/'.length);
+
+    const created = await alice.agent
+      .post('/api/notes')
+      .send({ notebookId, title: 'With a picture' })
+      .expect(201);
+    const noteId: string = created.body.note.id;
+
+    await alice.agent
+      .patch(`/api/notes/${noteId}`)
+      .send({ contentJson: { type: 'doc', content: [{ type: 'image', attrs: { src: url } }] } })
+      .expect(200);
+
+    // The association is now a real column value, not an inference from body text.
+    const row = await db
+      .prepare('SELECT note_id FROM attachments WHERE stored_name = ?')
+      .get<{ note_id: string | null }>(storedName);
+    expect(row?.note_id).toBe(noteId);
+
+    const guest = await joinAsGuest(await shareNote(alice, noteId));
+    const res = await guest.get(url).expect(200);
+    expect(Buffer.from(res.body).equals(PNG)).toBe(true);
+  });
+
+  it('files images embedded before this rule existed when the note is shared', async () => {
+    // A note written when uploads carried no note_id at all. Sharing it is the last
+    // owner-authenticated moment before a guest exists, so the backfill happens there.
+    const notebookId = await insertNotebook(alice.id);
+    const { url, storedName } = await store(alice, { noteId: null });
     const noteId = await insertNote(alice.id, notebookId, {
       content_json: JSON.stringify({
         type: 'doc',
@@ -192,11 +234,74 @@ describe('share-link guests and embedded images', () => {
       }),
     });
 
-    const token = await shareNote(alice, noteId);
-    const guest = await joinAsGuest(token);
-
+    const guest = await joinAsGuest(await shareNote(alice, noteId));
     const res = await guest.get(`/uploads/${storedName}`).expect(200);
     expect(Buffer.from(res.body).equals(PNG)).toBe(true);
+
+    const row = await db
+      .prepare('SELECT note_id FROM attachments WHERE stored_name = ?')
+      .get<{ note_id: string | null }>(storedName);
+    expect(row?.note_id).toBe(noteId);
+  });
+
+  it('does not let an edit-permission guest mint access by writing a URL into the note', async () => {
+    // The reported flaw. Mallory owns a note, shares it to herself with edit rights, and
+    // pastes a victim's attachment URL into the body. Access used to be granted from that
+    // body text, which she fully controls; it must now come only from attachments.note_id.
+    const victimAttachment = await store(bob);
+
+    const mallorysNotebook = await insertNotebook(alice.id);
+    const mallorysNote = await insertNote(alice.id, mallorysNotebook);
+    const token = await shareNote(alice, mallorysNote, 'edit');
+    const guest = await joinAsGuest(token);
+
+    await guest
+      .patch(`/api/share/${token}/note`)
+      .send({
+        contentJson: {
+          type: 'doc',
+          content: [{ type: 'image', attrs: { src: victimAttachment.url } }],
+        },
+      })
+      .expect(200);
+
+    // The write landed — this is not passing because the edit was rejected.
+    const note = await db
+      .prepare('SELECT content_json FROM notes WHERE id = ?')
+      .get<{ content_json: string }>(mallorysNote);
+    expect(note?.content_json).toContain(victimAttachment.storedName);
+
+    // But it bought her nothing, and Bob's row was not re-pointed at her note either.
+    await guest.get(victimAttachment.url).expect(404);
+    const row = await db
+      .prepare('SELECT note_id FROM attachments WHERE stored_name = ?')
+      .get<{ note_id: string | null }>(victimAttachment.storedName);
+    expect(row?.note_id).toBeNull();
+  });
+
+  it('does not let an owner claim another user\'s attachment by referencing its URL', async () => {
+    // The same attack from the authenticated side: the backfill is scoped to rows the
+    // session user already owns, so quoting someone else's URL cannot capture it.
+    const victimAttachment = await store(bob);
+    const notebookId = await insertNotebook(alice.id);
+    const created = await alice.agent
+      .post('/api/notes')
+      .send({
+        notebookId,
+        contentJson: {
+          type: 'doc',
+          content: [{ type: 'image', attrs: { src: victimAttachment.url } }],
+        },
+      })
+      .expect(201);
+
+    const row = await db
+      .prepare('SELECT note_id FROM attachments WHERE stored_name = ?')
+      .get<{ note_id: string | null }>(victimAttachment.storedName);
+    expect(row?.note_id).toBeNull();
+
+    const guest = await joinAsGuest(await shareNote(alice, created.body.note.id));
+    await guest.get(victimAttachment.url).expect(404);
   });
 
   it('lets a guest load a figure filed against the shared note by note_id', async () => {

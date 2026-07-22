@@ -1,5 +1,5 @@
 // `/join/:token` — the guest entry point. Public: mounted OUTSIDE RequireAuth,
-// because the whole point is that the person opening it has no Folio account.
+// because the whole point is that the person opening it has no Unote account.
 //
 // Three states, in order:
 //   1. peek    GET /share/:token tells us the title, the kind and whether there
@@ -153,7 +153,7 @@ function JoinGate({
       } else if (err instanceof ApiError && err.status === 404) {
         setError('This link has expired or been revoked.');
       } else {
-        setError(errorMessage(err, 'Could not join — try again'));
+        setError(errorMessage(err, 'Could not join. Try again'));
       }
       setBusy(false);
     }
@@ -165,7 +165,7 @@ function JoinGate({
     <ShareShell>
       <h1 className="sh-card__title">{peek.title || 'Untitled'}</h1>
       <p className="sh-card__subtitle">
-        You’ve been invited to a Folio {what}
+        You’ve been invited to a Unote {what}
         {peek.permission === 'edit' ? ' you can edit' : ' to read'}. No account needed.
       </p>
 

@@ -44,7 +44,7 @@ export const MODELS: Record<WhisperSize, ModelChoice> = {
     downloadMb: { webgpu: 278, wasm: 73 },
     speed: { webgpu: 7, wasm: 2.3 },
     accuracy: 'Balanced',
-    detail: 'The sensible default — noticeably better on jargon than Tiny, still practical.',
+    detail: 'The sensible default. Noticeably better on jargon than Tiny, still practical.',
   },
   small: {
     size: 'small',

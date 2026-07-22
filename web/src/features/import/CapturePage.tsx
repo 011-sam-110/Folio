@@ -123,7 +123,7 @@ export default function CapturePage() {
       }
       setPhase('done');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Upload failed — check your connection and try again');
+      setError(err instanceof ApiError ? err.message : 'Upload failed. Check your connection and try again');
       setPhase('error');
     }
   }
@@ -153,7 +153,7 @@ export default function CapturePage() {
   return (
     <div className="cp-page">
       <header className="cp-header">
-        <div className="cp-wordmark">Folio</div>
+        <div className="cp-wordmark">Unote</div>
         <div className="cp-tagline">Capture a page in seconds</div>
       </header>
 
@@ -212,7 +212,7 @@ export default function CapturePage() {
             notebooksLoading ? (
               <div className="cp-notebooks__hint" role="status">Loading notebooks…</div>
             ) : notebooksFailed ? (
-              <div className="cp-notebooks__hint" role="alert">Couldn't load notebooks — check your connection</div>
+              <div className="cp-notebooks__hint" role="alert">Couldn't load notebooks. Check your connection</div>
             ) : notebooks.length === 0 ? (
               <div className="cp-notebooks__hint">Create a notebook on desktop first</div>
             ) : (

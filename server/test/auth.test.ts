@@ -94,6 +94,58 @@ describe('POST /api/auth/signup', () => {
   });
 });
 
+// scrypt's first pass is linear in the length of its input and express.json accepts 20mb
+// bodies, so an uncapped password field is a CPU amplifier on unauthenticated routes.
+// Every route that accepts a password must refuse an over-long one BEFORE it hashes.
+describe('password length cap', () => {
+  const TOO_LONG = 'x'.repeat(129);
+
+  it('rejects an over-long password at signup', async () => {
+    const res = await request(app)
+      .post('/api/auth/signup')
+      .send({ email: 'long@example.com', password: TOO_LONG });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/at most 128/);
+  });
+
+  it('accepts one exactly at the limit', async () => {
+    const res = await request(app)
+      .post('/api/auth/signup')
+      .send({ email: 'atlimit@example.com', password: 'y'.repeat(128) });
+    expect(res.status).toBe(201);
+  });
+
+  it('rejects an over-long password at login without attempting a hash', async () => {
+    await request(app).post('/api/auth/signup').send({ email: 'cap@example.com', password: PASSWORD });
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'cap@example.com', password: TOO_LONG });
+    // 400, not the usual 401 — this is a rejected request shape, not a failed credential.
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/at most 128/);
+  });
+
+  it('rejects an over-long new password on change and on recovery redemption', async () => {
+    const agent = request.agent(app);
+    const signup = await agent
+      .post('/api/auth/signup')
+      .send({ email: 'capchange@example.com', password: PASSWORD });
+    const recoveryKey: string = signup.body.recoveryKey;
+
+    const changed = await agent
+      .post('/api/auth/password')
+      .send({ currentPassword: PASSWORD, newPassword: TOO_LONG });
+    expect(changed.status).toBe(400);
+    expect(changed.body.error).toMatch(/at most 128/);
+
+    const recovered = await request(app)
+      .post('/api/auth/recover')
+      .send({ email: 'capchange@example.com', recoveryKey, newPassword: TOO_LONG });
+    expect(recovered.status).toBe(400);
+    expect(recovered.body.error).toMatch(/at most 128/);
+  });
+});
+
 describe('POST /api/auth/login', () => {
   beforeEach(async () => {
     await request(app).post('/api/auth/signup').send({ email: 'login@example.com', password: PASSWORD });

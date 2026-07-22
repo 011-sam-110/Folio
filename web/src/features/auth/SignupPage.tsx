@@ -44,7 +44,7 @@ export default function SignupPage() {
         <RecoveryKeyPanel
           recoveryKey={issuedKey}
           email={email.trim()}
-          continueLabel="Open Folio"
+          continueLabel="Open Unote"
           onContinue={() => navigate(target, { replace: true })}
         />
       </AuthShell>
@@ -103,7 +103,7 @@ export default function SignupPage() {
   return (
     <AuthShell
       title="Create your account"
-      subtitle="Your notes, notebooks and flashcards — all in one place."
+      subtitle="Your notes, notebooks and flashcards, all in one place."
       footer={<AuthAltLink prompt="Already have an account?" to="/login" label="Sign in" />}
     >
       <form className="auth-form" onSubmit={onSubmit} noValidate>

@@ -24,7 +24,7 @@ const BLANK_SENTINEL: Template = {
   id: '__blank__',
   name: 'Blank note',
   emoji: '📄',
-  description: 'Start writing right away — no structure imposed.',
+  description: 'Start writing right away, no structure imposed.',
   contentJson: { type: 'doc', content: [{ type: 'paragraph' }] },
   builtin: true,
   createdAt: '',

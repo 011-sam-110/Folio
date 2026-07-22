@@ -1,4 +1,4 @@
-# Folio backlog
+# Unote backlog
 
 ## MVP checklist
 - [ ] Editor: TipTap 3.28.0 block-based document per note (single content_json blob), with StarterKit-derived Paragraph, Heading (H1-H3), Bulleted/Numbered lists (unlimited nesting via Tab/Shift+Tab), Task list (checkbox to-dos), Blockquote, Divider/HorizontalRule
@@ -26,8 +26,8 @@
 - [ ] Organization: Backlinks pane per note showing every linking note grouped with a context snippet (~150 chars) captured at save time
 - [ ] Organization: Unlinked mentions list (case-insensitive plain-text title matches not yet wrapped in [[ ]]) with one-click 'Link' fix
 - [ ] Organization: Tags with # autocomplete, nested tag support (cs201/dp), dedicated tag browser/pane with counts, pill/chip rendering
-- [ ] Organization: Quick switcher (Ctrl/Cmd+K) — fuzzy note-title-only finder, strictly separate keybind and ranking logic from any command palette, 'Create new note: X' fallback row
-- [ ] Organization: Command palette (Ctrl/Cmd+P) — fuzzy action finder (toggle sidebar, open today's/last note, star note, run AI actions) backed by a single client-side command registry
+- [ ] Organization: Quick switcher (Ctrl/Cmd+K) as a fuzzy note-title-only finder, with strictly separate keybind and ranking logic from any command palette and a 'Create new note: X' fallback row
+- [ ] Organization: Command palette (Ctrl/Cmd+P) fuzzy action finder (toggle sidebar, open today's/last note, star note, run AI actions) backed by a single client-side command registry
 - [ ] Organization: Per-note outline pane (live heading tree, scroll-to + viewport-highlight)
 - [ ] Organization: Home dashboard combining a reverse-chronological cross-notebook Timeline, a Week view (Mon-Sun grid of which notebook had activity which day), per-notebook 'Last time in [Notebook]' recall card with a mini self-test from that note's flagged cue/definition spans, pinned/starred shelf, live word/note/flashcards-due stats, and a 14-day activity heatmap
 - [ ] Organization: Weekly review checklist card (notes missing a summary, cue self-tests not done, overdue flashcard count, unresolved comments) computed from live table state, not a manual template
@@ -39,16 +39,16 @@
 - [ ] Capture: PPTX import via officeparser (ignoreNotes:true) mapped into the same per-slide block structure
 - [ ] Capture: Transcript import (.txt/.md/.pdf) with new / append / improve-merge modes into a session note, server-side Markdown→TipTap-JSON conversion so imports open natively in the editor
 - [ ] Capture: General image upload/embed endpoint independent of the OCR pipeline
-- [ ] AI: Ask-your-notes RAG Q&A — FTS-based top-k retrieval across notes, answer synthesized by the local gateway with clickable citations back to source note titles/blocks, graceful empty-corpus message instead of an error
+- [ ] AI: Ask-your-notes RAG Q&A over FTS-based top-k retrieval across notes, answer synthesized by the local gateway with clickable citations back to source note titles/blocks, graceful empty-corpus message instead of an error
 - [ ] AI: Improve writing / fix grammar / adjust tone on a text selection, rendered as an accept/reject/try-again preview, never silently overwriting
 - [ ] AI: Summarize block, section, or whole page into a TL;DR + key points + terms
 - [ ] AI: Extract flashcards from a note into real, human-approved, editable-before-insert flashcard rows (never silently auto-committed)
 - [ ] AI: Auto-generate a note title (<=60 chars) on demand or on first save
 - [ ] AI: Extract action items from freeform text into real interactive to-do blocks (not pasted markdown text)
-- [ ] AI: Cue-question and summary suggestions surfaced in a review/approve panel (tick which to keep, edit wording, reorder) rather than auto-inserted — wired to fire automatically right after a photo-capture transcription completes
+- [ ] AI: Cue-question and summary suggestions surfaced in a review/approve panel (tick which to keep, edit wording, reorder) rather than auto-inserted. Wired to fire automatically right after a photo-capture transcription completes
 - [ ] AI: On-demand grammar & style check pass returned as accept/reject tracked suggestions, reusing the same gateway call pattern as improve-writing
 - [ ] AI: All AI calls hit pinned models with an explicit fallback list (never 'auto' routing), return 502 with attempt detail if every model fails, and tolerate long-running calls (<=90s) with a visible thinking/loading state
-- [ ] Flashcards/SRS: Inline flashcard creation — select any text (cue, definition, transcribed line) -> hotkey or context menu -> live-linked flashcard referencing the source note+block+anchor text (auto-fills answer from adjacent cue/notes pairing where detectable), with a chain-link indicator on text that already has a card
+- [ ] Flashcards/SRS: Inline flashcard creation: select any text (cue, definition, transcribed line) -> hotkey or context menu -> live-linked flashcard referencing the source note+block+anchor text (auto-fills answer from adjacent cue/notes pairing where detectable), with a chain-link indicator on text that already has a card
 - [ ] Flashcards/SRS: SM-2-lite scheduling engine (ease factor default 2.5, floor 1.3, 1-day/6-day/interval*ease progression, Again resets reps/interval) implemented as a pure, unit-tested function
 - [ ] Flashcards/SRS: Daily due queue aggregated across ALL notebooks (not per-notebook, to support interleaved practice), full-screen distraction-free review flow (question -> reveal -> Again/Hard/Good/Easy -> auto-advance), due-today badge in the nav
 - [ ] Flashcards/SRS: Cue-column self-test mode inside a session note (hide notes column, reveal-to-check each cue, one-click convert a missed cue into a flashcard)
@@ -70,25 +70,25 @@
 ## V2 checklist (later iterations)
 - [ ] Full database views (board/Kanban, gallery, calendar, timeline) layered on top of the simple table block for an 'Assignments' or 'Flashcards' tracker
 - [ ] Synced blocks (single source, multiple mirrored instances with 'editing in N other pages' banner)
-- [ ] Note embeds & block transclusion (![[Note]], ![[Note#Heading]], [[Note#^block-id]]) — sequence after plain wikilinks/backlinks are proven solid
+- [ ] Note embeds & block transclusion (![[Note]], ![[Note#Heading]], [[Note#^block-id]]), sequenced after plain wikilinks/backlinks are proven solid
 - [ ] Live embedded queries (Dataview-style ```query``` blocks compiling to parameterized SQL against notes/tags/links)
 - [ ] Global whole-vault graph view with filters and color groups (local per-note graph and its settings ship in v2 alongside it, or earlier if scoped down)
 - [ ] Canvas / infinite whiteboard view (react-flow or tldraw-backed, entirely separate from the TipTap linear editor) for system-design diagrams and mind-maps
 - [ ] Version diff/compare view (side-by-side or inline highlighted text diff between two versions or a version vs. current)
 - [ ] AI: translate selected text to another language
 - [ ] AI: autofill database properties (only meaningful once full database views exist)
-- [ ] AI-generated page icons (blocked on the gateway actually exposing an image-gen model — verify before scoping)
+- [ ] AI-generated page icons (blocked on the gateway actually exposing an image-gen model, so verify before scoping)
 - [ ] Embed/bookmark blocks with link-preview unfurling (OpenGraph fetch) for pasted URLs
 - [ ] Page icon + cover image chips beyond the existing notebook emoji/color (per-note icon, banner cover with reposition-drag)
 - [ ] Full-width / small-text per-page display toggle
 - [ ] Breadcrumb block as a standalone inline node (distinct from any always-visible chrome, if/when nested sub-pages are ever introduced)
 - [ ] Advanced search operators: line:/block:/section: scoping, /regex/ matching, explicit OR + parenthesized grouping
-- [ ] Tag rename/merge-across-vault UI (single UPDATE under the hood since tags are already normalized — cheap to slip in once core tags ship)
+- [ ] Tag rename/merge-across-vault UI (single UPDATE under the hood since tags are already normalized, cheap to slip in once core tags ship)
 - [ ] Interleaved cross-module 'Exam mode' revision session (auto-banner when 2+ modules have a near-term exam date, shuffled due-queue avoiding consecutive same-notebook cards)
 - [ ] Post-lecture voice-memo reflection capture (tap-hold record -> local-gateway transcription -> tagged callout), reusing the photo-capture upload plumbing
 - [ ] Essay draft note type with parallel tutor-feedback margin layer (scanned/photographed marked scripts vision-transcribed the same way as handwritten notes), 'New draft from this one' non-destructive cloning, addressed/unaddressed comment counter
 - [ ] Lightweight concept cross-links surfaced without a graph visualization, if the local-graph view above is deferred rather than shipped
-- [ ] Continuous (as-you-type, not on-demand) grammar/style checking — evaluate self-hosted LanguageTool as the local-first upgrade path if on-demand AI checking proves too coarse
+- [ ] Continuous (as-you-type, not on-demand) grammar/style checking: evaluate self-hosted LanguageTool as the local-first upgrade path if on-demand AI checking proves too coarse
 - [ ] Template gallery / publish flow beyond the single-user save-as-template mechanic already in MVP
 - [ ] Full nested infinite sub-pages / page-as-block hierarchy (currently deliberately flattened to Notebook > Notes + tags per the locked IA) if real usage demands deeper nesting later
 - [ ] Polish: reposition-drag UI refinement for any future cover images, richer color-group configuration for graph views, and any remaining could-tier cosmetic settings not required for a premium v1 feel

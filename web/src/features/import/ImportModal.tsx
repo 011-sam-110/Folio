@@ -210,7 +210,7 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
       }
       setPhase('done');
     } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.message : 'Import failed — check the server is running');
+      setErrorMessage(err instanceof ApiError ? err.message : 'Import failed. Check the server is running');
       setPhase('error');
     }
   }
@@ -310,11 +310,11 @@ export default function ImportModal({ open, onClose, notebookId, noteId, default
                     <div className="im-mode">
                       <label className={`im-mode-option${mergeMode === 'append' ? ' is-active' : ''}`}>
                         <input type="radio" name="import-merge-mode" value="append" checked={mergeMode === 'append'} onChange={() => setMergeMode('append')} />
-                        <span><strong>Append</strong> — add to the end of the note</span>
+                        <span><strong>Append</strong>: add to the end of the note</span>
                       </label>
                       <label className={`im-mode-option${mergeMode === 'improve' ? ' is-active' : ''}`}>
                         <input type="radio" name="import-merge-mode" value="improve" checked={mergeMode === 'improve'} onChange={() => setMergeMode('improve')} />
-                        <span><strong>Improve &amp; merge</strong> — AI blends this into the existing note</span>
+                        <span><strong>Improve &amp; merge</strong>: AI blends this into the existing note</span>
                       </label>
                     </div>
                   </>

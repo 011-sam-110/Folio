@@ -12,13 +12,30 @@ import {
 } from '../auth/session.js';
 import { requireAuth, userId } from '../auth/middleware.js';
 import { rateLimit } from '../auth/rateLimit.js';
-import { generateRecoveryKey, hashRecoveryKey, verifyRecoveryKey } from '../auth/recovery.js';
+import { generateRecoveryKey, hashRecoveryKey, verifyRecoveryKey, MAX_RECOVERY_KEY } from '../auth/recovery.js';
 import { seedNewUser } from '../seed.js';
 
 const router = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD = 8;
+/**
+ * Upper bound on any password this server will hash.
+ *
+ * scrypt's initial PBKDF2 pass is linear in the length of its input, and `express.json`
+ * accepts bodies up to 20mb (app.ts — a photo import posts its image inline, so it cannot
+ * simply be lowered). Without a cap, a single unauthenticated request carrying a
+ * multi-megabyte `password` makes the server burn CPU proportional to it, and the login
+ * and recovery routes deliberately run a full hash even for unknown accounts to keep their
+ * timing flat — so the cost is paid whether or not the address exists. 128 characters is
+ * far above any real passphrase and turns that into a constant.
+ *
+ * Checked before the hash on EVERY route that accepts a password, including the ones that
+ * only verify an existing one: an over-long value cannot match a stored hash anyway, so
+ * rejecting it early costs a legitimate caller nothing.
+ */
+const MAX_PASSWORD = 128;
+const TOO_LONG = `Password must be at most ${MAX_PASSWORD} characters`;
 
 interface UserRow {
   id: string;
@@ -40,6 +57,7 @@ function validate(body: unknown): { email: string; password: string; error?: str
   if (password.length < MIN_PASSWORD) {
     return { email, password, error: `Password must be at least ${MIN_PASSWORD} characters` };
   }
+  if (password.length > MAX_PASSWORD) return { email, password, error: TOO_LONG };
   return { email, password };
 }
 
@@ -63,7 +81,7 @@ router.post('/signup', rateLimit({ limit: 12, windowMs: 15 * 60_000 }), async (r
     .slice(0, 80);
   const { hash, salt } = await hashPassword(password);
 
-  // Folio sends no email, so a forgotten password would otherwise be an
+  // Unote sends no email, so a forgotten password would otherwise be an
   // unrecoverable account. The key is shown exactly once in the signup response
   // and only its hash is kept, so nobody — including us — can reproduce it later.
   const recoveryKey = generateRecoveryKey();
@@ -103,6 +121,14 @@ router.post('/login', rateLimit({ limit: 12, windowMs: 5 * 60_000, message: 'Too
   const b = (req.body ?? {}) as Record<string, unknown>;
   const email = String(b.email ?? '').trim().toLowerCase();
   const password = String(b.password ?? '');
+
+  // Length only — no minimum here, since an account may predate any change to that rule and
+  // telling someone their correct password is "too short" would be a dead end. The maximum
+  // is different: it is a cost bound, and it is applied before the hash below runs.
+  if (password.length > MAX_PASSWORD) {
+    res.status(400).json({ error: TOO_LONG });
+    return;
+  }
 
   const user = await db
     .prepare(
@@ -158,6 +184,12 @@ router.post('/password', requireAuth, async (req, res) => {
     res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD} characters` });
     return;
   }
+  // Both values reach scrypt on this route — `current` through verifyPassword and `next`
+  // through hashPassword — so both are bounded.
+  if (next.length > MAX_PASSWORD || current.length > MAX_PASSWORD) {
+    res.status(400).json({ error: TOO_LONG });
+    return;
+  }
   const id = userId(req);
   const user = await db
     .prepare('SELECT id, email, display_name, password_hash, password_salt FROM users WHERE id = ?')
@@ -195,6 +227,24 @@ router.post('/recover', rateLimit({ limit: 8, windowMs: 15 * 60_000, message: 'T
 
   if (newPassword.length < MIN_PASSWORD) {
     res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD} characters` });
+    return;
+  }
+  // Unauthenticated, and it always spends scrypt time even for an unknown account, so the
+  // bound has to be here — before the deliberate constant-time work below.
+  if (newPassword.length > MAX_PASSWORD) {
+    res.status(400).json({ error: TOO_LONG });
+    return;
+  }
+  // `recoveryKey` reaches scrypt too, on both paths below: the real verify, and the dummy
+  // verify that keeps an unknown account indistinguishable by latency. It needs its own
+  // bound, not MAX_PASSWORD, because a recovery key is not a passphrase whose length we
+  // have to guess at: this server generates every key it will ever accept, so the cap can
+  // come from the generator itself. See MAX_RECOVERY_KEY in auth/recovery.ts.
+  //
+  // Checked before the lookup, so it is a flat rejection that reveals nothing about the
+  // account. An over-long value could never normalise to a valid key anyway.
+  if (key.length > MAX_RECOVERY_KEY) {
+    res.status(400).json({ error: `Recovery key must be at most ${MAX_RECOVERY_KEY} characters` });
     return;
   }
 
@@ -261,6 +311,12 @@ router.post('/recovery/regenerate', requireAuth, async (req, res) => {
   const b = (req.body ?? {}) as Record<string, unknown>;
   const password = String(b.password ?? '');
   const id = userId(req);
+
+  // Re-auth below hashes this value, so it is bounded like every other password input.
+  if (password.length > MAX_PASSWORD) {
+    res.status(400).json({ error: TOO_LONG });
+    return;
+  }
 
   const user = await db
     .prepare('SELECT id, email, display_name, password_hash, password_salt FROM users WHERE id = ?')

@@ -96,7 +96,7 @@ export function buildLectureNote({
     const next = slides[i + 1];
     const rangeEnd = next ? next.slide.startTime : durationSeconds;
     const stamp = formatTimestamp(slide.startTime);
-    const heading = `Slide ${i + 1} — ${stamp}`;
+    const heading = `Slide ${i + 1} (${stamp})`;
 
     content.push({ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: heading }] });
     content.push({ type: 'image', attrs: { src: url, alt: `Slide ${i + 1} at ${stamp}`, title: null } });

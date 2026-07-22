@@ -149,7 +149,7 @@ export default function HistoryPanel({ noteId, open, onClose, onRestored }: Hist
           <div className="folio-history-list">
             {versions == null && <Spinner />}
             {versions?.length === 0 && (
-              <div className="folio-history-empty">No history yet — edits are snapshotted automatically as you go.</div>
+              <div className="folio-history-empty">No history yet. Edits are snapshotted automatically as you go.</div>
             )}
             {grouped.map(([day, items]) => (
               <div key={day} className="folio-history-day">

@@ -28,7 +28,7 @@ export interface InkToolbarProps {
 const TOOLS: Array<{ id: InkTool; icon: 'pen' | 'highlighter' | 'eraser'; label: string }> = [
   { id: 'pen', icon: 'pen', label: 'Pen' },
   { id: 'highlighter', icon: 'highlighter', label: 'Highlighter' },
-  { id: 'eraser', icon: 'eraser', label: 'Eraser — tap a stroke to remove it' },
+  { id: 'eraser', icon: 'eraser', label: 'Eraser: tap a stroke to remove it' },
 ];
 
 export default function InkToolbar({
@@ -109,7 +109,7 @@ export default function InkToolbar({
         <Tooltip
           content={
             fingerDraws
-              ? 'Finger drawing is on — turn it off to use a finger for panning'
+              ? 'Finger drawing is on. Turn it off to use a finger for panning'
               : 'Finger drawing is off. A stylus always draws; a finger pans and zooms'
           }
         >

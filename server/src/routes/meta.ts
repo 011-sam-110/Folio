@@ -18,7 +18,7 @@ function lanUrls(): string[] {
 
 router.get('/', (_req, res) => {
   res.json({
-    name: 'Folio',
+    name: 'Unote',
     version: '0.1.0',
     port: config.port,
     ai: { configured: Boolean(config.ai.apiKey), baseUrl: config.ai.baseUrl, textModels: config.ai.textModels },

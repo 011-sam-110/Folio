@@ -1,6 +1,6 @@
 // Delta-polling sync for a shared note.
 //
-// WHY POLLING AND NOT A SOCKET: Folio's API runs as Vercel serverless functions,
+// WHY POLLING AND NOT A SOCKET: Unote's API runs as Vercel serverless functions,
 // which cannot hold a WebSocket open. The server therefore exposes a monotonic
 // change feed (note_events) and clients ask "what has happened since revision N".
 // That is a real constraint, not a shortcut, and the UI says so rather than

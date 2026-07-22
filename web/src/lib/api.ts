@@ -1,4 +1,5 @@
 import type {
+  AiKeyInfo, AiUsage,
   CanvasEdge, CanvasItem, CanvasItemData, CanvasItemKind,
   DashboardData, Flashcard, ImportJob, InkStroke, MetaInfo, Note, NoteKind, NoteLite, NotebookLite, Notebook,
   NoteComment, NoteVersion, NoteVersionMeta, SearchParsed, SearchResult, StudyStats,
@@ -136,6 +137,10 @@ export const api = {
   aiGaps: (noteId: string) =>
     http<{ markdown: string; model: string; sources: Array<{ name: string; kind: string }> }>('/api/ai/gaps', json('POST', { noteId })),
   aiHealth: () => http<{ ok: boolean; model?: string; error?: string }>('/api/meta/ai-health'),
+  aiUsage: () => http<AiUsage>('/api/ai/usage'),
+  aiSaveKey: (apiKey: string, baseUrl?: string) =>
+    http<AiKeyInfo>('/api/ai/key', json('PUT', { apiKey, baseUrl: baseUrl || undefined })),
+  aiDeleteKey: () => http<AiKeyInfo>('/api/ai/key', { method: 'DELETE' }),
 
   // import
   import: (form: FormData) => http<{ jobId: string }>('/api/import', { method: 'POST', body: form }),

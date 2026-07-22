@@ -84,7 +84,7 @@ export default function LectureImport({ notebookId, onBusyChange, onClose, onImp
       video.load();
       URL.revokeObjectURL(url);
       if (secs / 60 > MAX_REASONABLE_MINUTES) {
-        setError(`That video is ${formatDuration(secs)} long — too long to process in a browser tab.`);
+        setError(`That video is ${formatDuration(secs)} long, too long to process in a browser tab.`);
         return;
       }
       setFile(picked);
@@ -205,7 +205,7 @@ export default function LectureImport({ notebookId, onBusyChange, onClose, onImp
         >
           <div className="im-drop__icon" aria-hidden="true"><Icon name="layers" size={26} /></div>
           <div className="im-drop__label">Drop a lecture recording here, or click to browse</div>
-          <div className="im-drop__hint">MP4, WebM or MOV · any size — the video stays on your device</div>
+          <div className="im-drop__hint">MP4, WebM or MOV · any size · the video stays on your device</div>
           <input
             ref={inputRef}
             type="file"
@@ -232,8 +232,8 @@ export default function LectureImport({ notebookId, onBusyChange, onClose, onImp
               <button type="button" className="im-icon-btn" aria-label="Remove video" onClick={() => { setFile(null); setError(null); }}>×</button>
             </div>
             <p className="lec-note">
-              Folio reads the slides and audio out of this file in your browser. Only the slide
-              images and the transcript are ever uploaded — the recording itself is not.
+              Unote reads the slides and audio out of this file in your browser. Only the slide
+              images and the transcript are ever uploaded. The recording itself is not.
             </p>
           </>
         )}
@@ -285,7 +285,7 @@ export default function LectureImport({ notebookId, onBusyChange, onClose, onImp
 
         {slides.length === 0 ? (
           <div className="lec-empty">
-            No slide changes found. That can happen with a talking-head recording — you can still
+            No slide changes found. That can happen with a talking-head recording. You can still
             import just the transcript.
           </div>
         ) : (
@@ -319,7 +319,7 @@ export default function LectureImport({ notebookId, onBusyChange, onClose, onImp
         <label className="lec-toggle">
           <input type="checkbox" checked={withTranscript} onChange={e => setWithTranscript(e.target.checked)} />
           <span>
-            <strong>Transcribe the audio</strong> — adds what was said under each slide
+            <strong>Transcribe the audio</strong>: adds what was said under each slide
           </span>
         </label>
 

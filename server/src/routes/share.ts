@@ -8,6 +8,7 @@ import { requireAuth, userId } from '../auth/middleware.js';
 import { plainTextFromDoc } from '../lib/plainText.js';
 import { syncLinksForNote } from '../lib/links.js';
 import { rateLimit } from '../auth/rateLimit.js';
+import { claimAttachmentsForNote } from '../lib/attachments.js';
 import { COOKIE_NAME, readCookie, resolveSession } from '../auth/session.js';
 
 const router = Router();
@@ -82,12 +83,19 @@ router.post('/notes/:noteId/shares', requireAuth, async (req, res) => {
   const uid = userId(req);
   const { noteId } = req.params;
   const owned = await db
-    .prepare('SELECT id FROM notes WHERE id = ? AND user_id = ?')
-    .get<{ id: string }>(noteId, uid);
+    .prepare('SELECT id, content_json FROM notes WHERE id = ? AND user_id = ?')
+    .get<{ id: string; content_json: string }>(noteId, uid);
   if (!owned) {
     res.status(404).json({ error: 'Note not found' });
     return;
   }
+
+  // Attachment reads below are authorised purely by attachments.note_id. Notes written
+  // before that column was populated on save still embed images whose rows have note_id
+  // NULL, and they would go blank the moment they were shared. This is the last
+  // owner-authenticated point before any guest exists, so file them here too.
+  // `owned.id`, not the raw path param: it comes from the owner-scoped lookup above.
+  await claimAttachmentsForNote(uid, owned.id, owned.content_json ?? '');
 
   const b = (req.body ?? {}) as Record<string, unknown>;
   const permission = b.permission === 'view' ? 'view' : 'edit';
@@ -325,9 +333,21 @@ function ctx(req: Request): ShareContext {
  *
  * The cookies a guest received at join time are the credential we do have, so this walks
  * them: for each `folio_guest_<shareId>` cookie, confirm the guest row is live and the
- * share is neither revoked nor expired, then confirm the shared note actually references
- * this attachment. That last check is what keeps this narrow — holding a share link
- * grants the images in *that* note, not the run of every attachment in the database.
+ * share is neither revoked nor expired, then confirm the attachment is filed against the
+ * shared note. That last check is what keeps this narrow — holding a share link grants the
+ * images in *that* note, not the run of every attachment in the database.
+ *
+ * The membership test is `attachments.note_id`, and only that, because it is a column no
+ * requester can write. A previous version also allowed the read when the note's
+ * `content_json` contained the `/uploads/<stored_name>` URL, which was not access control
+ * at all: `PATCH /share/:token/note` lets any edit-permission guest put arbitrary content
+ * into that same note, so an attacker could share a note with themselves, join it, paste a
+ * victim's attachment URL into the body and have the server serve back another user's file.
+ * Authorisation must never be derived from data the requester supplied.
+ *
+ * Editor uploads used to depend on that branch, because they are stored with note_id NULL
+ * (the image is posted before it is placed). They are now filed against the note on the
+ * owner's own write instead — see claimAttachmentsForNote in lib/attachments.ts.
  */
 export async function shareGrantsAttachmentAccess(req: Request, storedName: string): Promise<boolean> {
   const header = req.headers.cookie;
@@ -359,9 +379,7 @@ export async function shareGrantsAttachmentAccess(req: Request, storedName: stri
     if (!share || share.revoked === 1) continue;
     if (share.expires_at && share.expires_at <= now) continue;
 
-    // Two ways the attachment can belong to the shared note: it was filed against it
-    // (import figures set note_id), or its URL appears in the note body (editor uploads
-    // are referenced by URL and carry no note_id).
+    // The one way an attachment belongs to the shared note: it is filed against it.
     const owned = await db
       .prepare(
         `SELECT 1 AS ok FROM attachments
@@ -369,11 +387,6 @@ export async function shareGrantsAttachmentAccess(req: Request, storedName: stri
       )
       .get<{ ok: number }>(storedName, share.note_id);
     if (owned) return true;
-
-    const note = await db
-      .prepare('SELECT content_json FROM notes WHERE id = ?')
-      .get<{ content_json: string }>(share.note_id);
-    if (note?.content_json?.includes(`/uploads/${storedName}`)) return true;
   }
 
   return false;

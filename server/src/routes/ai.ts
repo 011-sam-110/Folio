@@ -5,7 +5,12 @@ import { db, tx, newId, nowIso } from '../db.js';
 // lookup per request. `userId(req)` throws if that mount ever loses the guard, so the
 // failure mode is a loud 500, never an unscoped query.
 import { userId } from '../auth/middleware.js';
-import { chat, extractJson, AiError, capForAi } from '../ai/client.js';
+import { extractJson, AiError, capForAi } from '../ai/client.js';
+import { aiQuotaGate, aiCtx, complete } from '../ai/gate.js';
+import { checkQuota } from '../ai/usage.js';
+import { clientIp } from '../lib/clientIp.js';
+import { checkUserSuppliedUrl } from '../lib/publicHost.js';
+import { getKeyHint, setUserKey, deleteUserKey } from '../ai/keys.js';
 import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt } from '../ai/prompts.js';
 import type { NoteRow } from '../lib/serialize.js';
 
@@ -60,6 +65,77 @@ function sanitizeAskQuery(raw: string): string {
   return tokens.join(' OR ');
 }
 
+// ---------------------------------------------------------------------------
+// Account routes. Registered BEFORE the quota gate on purpose: a user who has
+// exhausted their allowance still has to be able to see that they have, and to
+// save a key that lifts it. Gating these would lock the door and hide the handle.
+// ---------------------------------------------------------------------------
+
+/** GET /api/ai/usage — what the settings screen and the AI menu footer display. */
+router.get('/usage', async (req, res) => {
+  const uid = userId(req);
+  const [verdict, key] = await Promise.all([
+    checkQuota(uid, clientIp(req)),
+    getKeyHint(uid),
+  ]);
+  res.json({
+    // With a key saved the limits do not apply, so the UI shows "unlimited" rather
+    // than a bar that is meaningless to the person reading it.
+    usingOwnKey: key.present,
+    keyHint: key.hint,
+    baseUrl: key.baseUrl,
+    user: verdict.user,
+    ip: verdict.ip,
+    resetAt: verdict.resetAt,
+  });
+});
+
+/** PUT /api/ai/key { apiKey, baseUrl? } — save a personal provider key. */
+router.put('/key', async (req, res) => {
+  const uid = userId(req);
+  const { apiKey, baseUrl } = (req.body ?? {}) as { apiKey?: unknown; baseUrl?: unknown };
+
+  if (typeof apiKey !== 'string' || !apiKey.trim()) {
+    res.status(400).json({ error: 'An API key is required.' });
+    return;
+  }
+  // Bounded so the field cannot be used to push arbitrary blobs into the database.
+  // Real provider keys are well under this.
+  if (apiKey.length > 512) {
+    res.status(400).json({ error: 'That does not look like an API key.' });
+    return;
+  }
+
+  let cleanBaseUrl: string | null = null;
+  if (typeof baseUrl === 'string' && baseUrl.trim()) {
+    // The server is what dereferences this, and callOnce echoes part of a non-200 body back
+    // to the caller, so an unchecked value here is a readable SSRF. checkUserSuppliedUrl
+    // covers scheme, embedded credentials, and private/loopback/link-local targets.
+    const verdict = checkUserSuppliedUrl(baseUrl.trim());
+    if (!verdict.ok) {
+      res.status(400).json({ error: verdict.reason });
+      return;
+    }
+    cleanBaseUrl = new URL(baseUrl.trim()).toString().replace(/\/$/, '');
+  }
+
+  await setUserKey(uid, apiKey.trim(), cleanBaseUrl);
+  res.json(await getKeyHint(uid));
+});
+
+/** DELETE /api/ai/key — go back to the shared pool. */
+router.delete('/key', async (req, res) => {
+  await deleteUserKey(userId(req));
+  res.json({ present: false, hint: '', baseUrl: null });
+});
+
+// ---------------------------------------------------------------------------
+// Everything below spends AI budget, so everything below is gated. Applied once
+// here rather than per handler: a new endpoint added beneath this line is metered
+// by default, which is the failure mode we want.
+// ---------------------------------------------------------------------------
+router.use(aiQuotaGate);
+
 // POST /api/ai/improve { noteId?, text?, instruction? }
 router.post('/improve', async (req, res) => {
   const uid = userId(req);
@@ -77,7 +153,7 @@ router.post('/improve', async (req, res) => {
   }
 
   try {
-    const { text: markdown, model } = await chat(improvePrompt(capForAi(content), typeof instruction === 'string' ? instruction : undefined));
+    const { text: markdown, model } = await complete(aiCtx(req), improvePrompt(capForAi(content), typeof instruction === 'string' ? instruction : undefined));
     res.json({ markdown: markdown.trim(), model });
   } catch (e) {
     sendAiError(res, e);
@@ -93,7 +169,7 @@ router.post('/summarize', async (req, res) => {
   if (!note) return res.status(404).json({ error: 'note not found' });
 
   try {
-    const { text, model } = await chat(summarizePrompt(capForAi(note.content_text), note.title || 'Untitled'));
+    const { text, model } = await complete(aiCtx(req), summarizePrompt(capForAi(note.content_text), note.title || 'Untitled'));
     res.json({ markdown: text.trim(), model });
   } catch (e) {
     sendAiError(res, e);
@@ -122,7 +198,7 @@ router.post('/flashcards', async (req, res) => {
     let cards: Array<{ question: string; answer: string }> | null = null;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS && !cards; attempt++) {
-      const { text, model } = await chat(flashcardsPrompt(capForAi(note.content_text), note.title || 'Untitled', target));
+      const { text, model } = await complete(aiCtx(req), flashcardsPrompt(capForAi(note.content_text), note.title || 'Untitled', target));
 
       let parsed: unknown;
       try {
@@ -262,7 +338,7 @@ router.post('/ask', async (req, res) => {
   const contextNotes = rows.map(r => ({ title: r.title || 'Untitled', text: r.content_text.slice(0, 2500) }));
 
   try {
-    const { text, model } = await chat(askPrompt(question, contextNotes));
+    const { text, model } = await complete(aiCtx(req), askPrompt(question, contextNotes));
     res.json({ answer: text.trim(), sources: rows.map(r => ({ id: r.id, title: r.title || 'Untitled' })), model });
   } catch (e) {
     sendAiError(res, e);
@@ -279,7 +355,7 @@ router.post('/clean', async (req, res) => {
   if (!note) return res.status(404).json({ error: 'note not found' });
 
   try {
-    const { text, model } = await chat(cleanPrompt(capForAi(note.content_text)));
+    const { text, model } = await complete(aiCtx(req), cleanPrompt(capForAi(note.content_text)));
     res.json({ markdown: text.trim(), model });
   } catch (e) {
     sendAiError(res, e);
@@ -315,7 +391,7 @@ router.post('/gaps', async (req, res) => {
   }));
 
   try {
-    const { text, model } = await chat(gapsPrompt(note.title || 'Untitled', capForAi(note.content_text, 12_000), sources));
+    const { text, model } = await complete(aiCtx(req), gapsPrompt(note.title || 'Untitled', capForAi(note.content_text, 12_000), sources));
     res.json({
       markdown: text.trim(),
       model,
@@ -335,7 +411,7 @@ router.post('/title', async (req, res) => {
   if (!note) return res.status(404).json({ error: 'note not found' });
 
   try {
-    const { text } = await chat(titlePrompt(capForAi(note.content_text, 8_000)));
+    const { text } = await complete(aiCtx(req), titlePrompt(capForAi(note.content_text, 8_000)));
     const title = cleanTitle(text) || note.title || 'Untitled';
     res.json({ title });
   } catch (e) {

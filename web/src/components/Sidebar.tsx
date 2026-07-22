@@ -192,10 +192,10 @@ export default function Sidebar({
   }
 
   return (
-    <nav className="sidebar" aria-label="Folio">
+    <nav className="sidebar" aria-label="Unote">
       <div className="sidebar__brand">
         <span className="sidebar__brand-mark" aria-hidden="true">📓</span>
-        <span className="sidebar__brand-name">Folio</span>
+        <span className="sidebar__brand-name">Unote</span>
         <Tooltip content={<>Collapse sidebar <kbd>⌘\</kbd></>} placement="right">
           <button
             type="button"
@@ -382,7 +382,7 @@ export default function Sidebar({
             <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} />
           </button>
         </Tooltip>
-        <Tooltip content="Phone capture — scan to add notes from your phone">
+        <Tooltip content="Phone capture. Scan to add notes from your phone">
           <button type="button" className="sidebar__icon-btn" aria-label="Phone capture" onClick={onOpenQr}>
             <Icon name="phone" size={15} />
           </button>
@@ -395,8 +395,8 @@ export default function Sidebar({
         <Tooltip
           content={
             aiOn
-              ? 'Turn off all AI features — Folio becomes a plain notebook'
-              : 'AI features are off — click to turn them back on'
+              ? 'Turn off all AI features. Unote becomes a plain notebook'
+              : 'AI features are off. Click to turn them back on'
           }
         >
           <button
@@ -406,7 +406,7 @@ export default function Sidebar({
             data-testid="ai-toggle"
             onClick={() => {
               setAiOn(!aiOn);
-              toast(aiOn ? 'AI features turned off — your notes are yours alone' : 'AI features turned back on', 'ok');
+              toast(aiOn ? 'AI features turned off. Your notes are yours alone' : 'AI features turned back on', 'ok');
             }}
           >
             <Icon name={aiOn ? 'sparkles' : 'sparkles-off'} size={15} />
@@ -498,7 +498,7 @@ function PhoneCaptureModal({ open, onClose }: { open: boolean; onClose: () => vo
             </div>
             <div style={{ marginTop: 10, fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5 }}>
               Scan with your phone's camera on the same Wi-Fi. If it can't connect, check that Mullvad
-              (or any VPN) is off — VPNs block traffic to your LAN.
+              (or any VPN) is off. VPNs block traffic to your LAN.
             </div>
           </>
         )}

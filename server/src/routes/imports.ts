@@ -4,7 +4,8 @@ import path from 'node:path';
 import { IS_SERVERLESS } from '../config.js';
 import { db, tx, newId, nowIso } from '../db.js';
 import { userId } from '../auth/middleware.js';
-import { chat, AiError, capForAi } from '../ai/client.js';
+import { AiError, capForAi } from '../ai/client.js';
+import { aiQuotaGate, aiCtx, complete, type AiContext } from '../ai/gate.js';
 import { ocrPhotoPrompt, slidesRestructurePrompt, transcriptNotesPrompt, improvePrompt, titlePrompt, cleanTitle } from '../ai/prompts.js';
 import { extractFromUpload } from '../lib/extract.js';
 import { extractPptxImages, type SlideImage } from '../lib/slideImages.js';
@@ -153,9 +154,9 @@ function titleFromFilename(name: string): string {
   return cleaned || 'Imported note';
 }
 
-async function resolveTitle(markdown: string, contentText: string, originalName: string): Promise<string> {
+async function resolveTitle(ctx: AiContext, markdown: string, contentText: string, originalName: string): Promise<string> {
   try {
-    const { text } = await chat(titlePrompt(capForAi(contentText || markdown, 8_000)));
+    const { text } = await complete(ctx, titlePrompt(capForAi(contentText || markdown, 8_000)));
     const cleaned = cleanTitle(text);
     if (cleaned) return cleaned;
   } catch {
@@ -164,8 +165,8 @@ async function resolveTitle(markdown: string, contentText: string, originalName:
   return firstHeading(markdown) || titleFromFilename(originalName);
 }
 
-async function createNoteFromMarkdown(markdown: string, notebookId: string, originalName: string, uid: string): Promise<string> {
-  const title = await resolveTitle(markdown, markdownToPlainText(markdown), originalName);
+async function createNoteFromMarkdown(ctx: AiContext, markdown: string, notebookId: string, originalName: string, uid: string): Promise<string> {
+  const title = await resolveTitle(ctx, markdown, markdownToPlainText(markdown), originalName);
   // Don't duplicate the title as the first body heading (fix: imported notes showed it twice).
   const body = stripLeadingTitleHeading(markdown, title);
   const contentJson = markdownToTipTap(body, await createTitleResolver(uid, body));
@@ -217,7 +218,7 @@ export async function appendMarkdownToNote(noteId: string, markdown: string, uid
   return noteId;
 }
 
-async function mergeMarkdownIntoNote(noteId: string, markdown: string, uid: string): Promise<string> {
+async function mergeMarkdownIntoNote(ctx: AiContext, noteId: string, markdown: string, uid: string): Promise<string> {
   // Read a snapshot for the AI prompt (this is the only async step — it happens BEFORE the
   // write transaction re-reads, so the transaction can detect a concurrent change).
   const snapshot = await db
@@ -231,7 +232,7 @@ async function mergeMarkdownIntoNote(noteId: string, markdown: string, uid: stri
   const instruction =
     'Merge the NEW MATERIAL into the EXISTING NOTES into one coherent, deduplicated set of notes. Preserve every fact from both — do not drop anything. ' +
     'Where they overlap, keep the clearer/more complete version. Add new sections for genuinely new topics. Keep the existing structure where it still fits.';
-  const { text } = await chat(improvePrompt(combined, instruction));
+  const { text } = await complete(ctx, improvePrompt(combined, instruction));
   const mergedMarkdown = text.trim();
 
   // Both branches below convert markdown to TipTap, and the resolver has to be built before the
@@ -354,12 +355,23 @@ interface ProcessArgs {
   mode: ImportMode;
   /** Owner of the import — taken from the session, never from the request body. */
   uid: string;
+  /**
+   * Whose AI budget this job spends, resolved from the request before it was queued.
+   *
+   * Carried on the args rather than re-resolved in here because the job outlives its
+   * request: by the time the model is called there is no `req` to read a key or a quota
+   * verdict from. Threading it explicitly also keeps the charge attached to the user who
+   * actually asked for the import, not to whoever the process happens to be serving next.
+   */
+  aiCtx: AiContext;
   notebookId?: string;
   noteId?: string;
 }
 
 async function processImport(args: ProcessArgs): Promise<void> {
-  const { jobId, attachmentId, bytes, mime, originalName, kind, mode, uid, notebookId, noteId } = args;
+  // Renamed on the way out of the args: `aiCtx` is also the imported request-narrowing
+  // helper, and shadowing it here would read as if the context could still be re-derived.
+  const { jobId, attachmentId, bytes, mime, originalName, kind, mode, uid, aiCtx: ctx, notebookId, noteId } = args;
   await updateJob(jobId, { status: 'running', step: 'Extracting text…' });
   await markAttachment(attachmentId, 'extracting', uid);
 
@@ -373,7 +385,7 @@ async function processImport(args: ProcessArgs): Promise<void> {
       const messages = ocrPhotoPrompt();
       const userMsg = messages[1];
       if (Array.isArray(userMsg.content)) userMsg.content.push({ type: 'image_url', image_url: { url: dataUrl } });
-      const { text } = await chat(messages, { vision: true });
+      const { text } = await complete(ctx, messages, { vision: true });
       extractedMarkdown = text.trim();
     } else if (kind === 'slides') {
       // One temp file serves both passes: the extractors take a path, not a buffer.
@@ -396,7 +408,7 @@ async function processImport(args: ProcessArgs): Promise<void> {
         .map(s => s.trim())
         .filter(Boolean);
       await updateJob(jobId, { step: 'Improving with AI…' });
-      const { text } = await chat(slidesRestructurePrompt(pages.length ? pages : [rawText]));
+      const { text } = await complete(ctx, slidesRestructurePrompt(pages.length ? pages : [rawText]));
       extractedMarkdown = text.trim();
     } else {
       const rawText = await withTempFile(bytes, ext, async (filePath) => {
@@ -404,7 +416,7 @@ async function processImport(args: ProcessArgs): Promise<void> {
         return text;
       });
       await updateJob(jobId, { step: 'Improving with AI…' });
-      const { text } = await chat(transcriptNotesPrompt(rawText));
+      const { text } = await complete(ctx, transcriptNotesPrompt(rawText));
       extractedMarkdown = text.trim();
     }
 
@@ -412,13 +424,13 @@ async function processImport(args: ProcessArgs): Promise<void> {
 
     let resultNoteId: string;
     if (mode === 'new') {
-      resultNoteId = await createNoteFromMarkdown(extractedMarkdown, notebookId!, originalName, uid);
+      resultNoteId = await createNoteFromMarkdown(ctx, extractedMarkdown, notebookId!, originalName, uid);
     } else if (mode === 'append') {
       // Serialize per note so concurrent imports (or an import racing another append) can't
       // read-modify-write over each other.
       resultNoteId = await withNoteLock(noteId!, () => appendMarkdownToNote(noteId!, extractedMarkdown, uid));
     } else {
-      resultNoteId = await withNoteLock(noteId!, () => mergeMarkdownIntoNote(noteId!, extractedMarkdown, uid));
+      resultNoteId = await withNoteLock(noteId!, () => mergeMarkdownIntoNote(ctx, noteId!, extractedMarkdown, uid));
     }
 
     // Figures go in after the note exists, so they can be filed against it — that note_id
@@ -453,7 +465,12 @@ async function processImport(args: ProcessArgs): Promise<void> {
 }
 
 // POST /api/import — multipart: file, kind, notebookId?, noteId?, mode?
-router.post('/', handleUpload(upload.single('file')), async (req, res) => {
+//
+// The quota gate runs BEFORE multer deliberately. Every import kind ends in at least one
+// model call, so a caller who is out of allowance is going to be refused either way — and
+// checking first means we answer the 429 without first buffering their upload (up to
+// MAX_SIZE) into this process's memory.
+router.post('/', aiQuotaGate, handleUpload(upload.single('file')), async (req, res) => {
   const uid = userId(req);
   const file = req.file;
   const body = (req.body ?? {}) as { kind?: string; notebookId?: string; noteId?: string; mode?: string };
@@ -504,6 +521,11 @@ router.post('/', handleUpload(upload.single('file')), async (req, res) => {
 
   const jobId = newId();
   await createJob(jobId, uid, { status: 'queued', attachmentId });
+
+  // Read the context while the request is still alive — the job below runs after the
+  // response has been sent, and `req` is not something to reach into from there.
+  const ctx = aiCtx(req);
+
   res.json({ jobId });
 
   setImmediate(() => {
@@ -516,6 +538,7 @@ router.post('/', handleUpload(upload.single('file')), async (req, res) => {
       kind,
       mode,
       uid,
+      aiCtx: ctx,
       notebookId,
       noteId,
     }).catch(async err => {

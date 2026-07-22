@@ -155,7 +155,7 @@ function deleteBlock(editor: Editor, pos: number, node: PMNode) {
 async function copyBlockLink(node: PMNode, noteId: string | undefined) {
   const blockId = node.attrs.id as string | undefined;
   if (!noteId || !blockId) {
-    toast("This block needs a moment to settle before it can be linked — try again", 'info');
+    toast("This block needs a moment to settle before it can be linked. Try again", 'info');
     return;
   }
   const url = `${window.location.origin}/note/${noteId}#block-${blockId}`;

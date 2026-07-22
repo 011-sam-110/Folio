@@ -11,6 +11,48 @@ export class AiError extends Error {
   }
 }
 
+/**
+ * Which endpoint and credential a call should use.
+ *
+ * Passed per request rather than read from config inside the call, because two callers now
+ * exist: the shared free-tier pool the operator funds, and a user's own saved key. Making
+ * this explicit at the call site means a route cannot accidentally spend the shared budget
+ * on a user who supplied their own credential, or vice versa.
+ */
+export interface AiCreds {
+  baseUrl: string;
+  apiKey: string;
+  textModels: string[];
+  visionModels: string[];
+}
+
+/** The operator-funded pool, used by anyone who has not saved a key of their own. */
+export function sharedPoolCreds(): AiCreds {
+  return {
+    baseUrl: config.ai.baseUrl,
+    apiKey: config.ai.apiKey,
+    textModels: config.ai.textModels,
+    visionModels: config.ai.visionModels,
+  };
+}
+
+/**
+ * Credentials for a user-supplied key.
+ *
+ * The model chains stay the operator's defaults unless the user also overrode the base URL.
+ * A bare key almost always belongs to the same gateway the app already targets, so reusing
+ * the tuned fallback chain is what the user expects. A custom endpoint is a different
+ * service whose model names we cannot guess, so the caller supplies those.
+ */
+export function userKeyCreds(apiKey: string, baseUrl?: string | null): AiCreds {
+  return {
+    baseUrl: (baseUrl ?? config.ai.baseUrl).replace(/\/$/, ''),
+    apiKey,
+    textModels: config.ai.textModels,
+    visionModels: config.ai.visionModels,
+  };
+}
+
 /** Upper bound on note text handed to the LLM. Beyond this a large note can blow past a
  *  fallback model's context window on every attempt, hanging for minutes before failing. */
 export const AI_MAX_CHARS = 24_000;
@@ -23,15 +65,15 @@ export function capForAi(text: string, max = AI_MAX_CHARS): string {
   return `${text.slice(0, max)}\n\n[truncated]`;
 }
 
-async function callOnce(model: string, messages: ChatMessage[], opts: { maxTokens?: number; temperature?: number; json?: boolean }): Promise<string> {
+async function callOnce(model: string, messages: ChatMessage[], opts: { maxTokens?: number; temperature?: number; json?: boolean }, creds: AiCreds): Promise<string> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), config.ai.timeoutMs);
   try {
-    const res = await fetch(`${config.ai.baseUrl}/chat/completions`, {
+    const res = await fetch(`${creds.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.ai.apiKey}`,
+        Authorization: `Bearer ${creds.apiKey}`,
       },
       body: JSON.stringify({
         model,
@@ -63,14 +105,15 @@ const RATE_LIMIT_RETRY_DELAY_MS = Number(process.env.FOLIO_AI_RATELIMIT_RETRY_MS
  * If EVERY model failed with a rate-limit-class error (free-tier providers throttle in
  * bursts), wait once and re-run the whole chain — per-minute limits usually clear.
  */
-export async function chat(messages: ChatMessage[], opts: { vision?: boolean; maxTokens?: number; temperature?: number; json?: boolean } = {}): Promise<{ text: string; model: string }> {
-  const models = opts.vision ? config.ai.visionModels : config.ai.textModels;
+export async function chat(messages: ChatMessage[], opts: { vision?: boolean; maxTokens?: number; temperature?: number; json?: boolean; creds?: AiCreds } = {}): Promise<{ text: string; model: string }> {
+  const creds = opts.creds ?? sharedPoolCreds();
+  const models = opts.vision ? creds.visionModels : creds.textModels;
 
   const runChain = async (): Promise<{ text: string; model: string } | Array<{ model: string; error: string }>> => {
     const attempts: Array<{ model: string; error: string }> = [];
     for (const model of models) {
       try {
-        const text = await callOnce(model, messages, opts);
+        const text = await callOnce(model, messages, opts, creds);
         return { text, model };
       } catch (e) {
         attempts.push({ model, error: e instanceof Error ? e.message : String(e) });
@@ -108,11 +151,47 @@ export function extractJson<T>(text: string): T {
   return JSON.parse(candidate.slice(s, e + 1)) as T;
 }
 
-export async function aiHealth(): Promise<{ ok: boolean; model?: string; error?: string }> {
-  try {
-    const { model } = await chat([{ role: 'user', content: 'Reply with exactly: OK' }], { maxTokens: 5, temperature: 0 });
-    return { ok: true, model };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+export type AiHealthResult = { ok: boolean; model?: string; error?: string };
+
+/**
+ * Cached health, shared by every caller on this instance.
+ *
+ * The probe is a real completion, and the client probes on first paint, so without a cache
+ * every page load anyone makes spends one call from the shared free-tier pool. At that
+ * point the pool is mostly funding a status light. The answer is also the same for all
+ * users — it describes the gateway, not the caller — so one probe per instance per minute
+ * is all the information there is to have.
+ *
+ * A failure is cached far more briefly than a success: when the gateway is down the
+ * useful behaviour is to notice it coming back quickly, and a failed probe costs nothing
+ * on the provider side anyway.
+ */
+let healthCache: { at: number; result: AiHealthResult } | null = null;
+let healthInFlight: Promise<AiHealthResult> | null = null;
+const HEALTH_TTL_OK_MS = 60_000;
+const HEALTH_TTL_BAD_MS = 10_000;
+
+export async function aiHealth(): Promise<AiHealthResult> {
+  const now = Date.now();
+  if (healthCache) {
+    const ttl = healthCache.result.ok ? HEALTH_TTL_OK_MS : HEALTH_TTL_BAD_MS;
+    if (now - healthCache.at < ttl) return healthCache.result;
   }
+
+  // De-duplicate concurrent probes. A cold instance can take several simultaneous requests
+  // before the first result lands, and without this each one starts its own completion.
+  healthInFlight ??= (async (): Promise<AiHealthResult> => {
+    try {
+      const { model } = await chat([{ role: 'user', content: 'Reply with exactly: OK' }], { maxTokens: 5, temperature: 0 });
+      return { ok: true, model };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  })().then((result) => {
+    healthCache = { at: Date.now(), result };
+    healthInFlight = null;
+    return result;
+  });
+
+  return healthInFlight;
 }

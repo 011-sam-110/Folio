@@ -81,6 +81,48 @@ export async function findAttachmentByStoredName(storedName: string): Promise<At
     .get<AttachmentRow>(storedName);
 }
 
+/** The `/uploads/<stored_name>` URL shape note content carries. Bounded to the same
+ *  length routes/uploads.ts accepts, so a pathological body cannot make this scan wide. */
+const UPLOAD_REF_RE = /\/uploads\/([A-Za-z0-9._-]{1,128})/g;
+
+/**
+ * File the caller's own not-yet-attached attachments against the note that references them.
+ *
+ * Why this exists: a share-link guest loads embedded images as plain `<img src="/uploads/…">`
+ * requests, and the only thing authorising those reads is `attachments.note_id = <shared note>`.
+ * Editor uploads carry no note_id — the image is posted before it is placed, so the note is not
+ * known yet — and that gap used to be papered over on the read side by checking whether the
+ * note's *body text* mentioned the URL. That was authorisation by requester-writable data:
+ * a guest holding an edit share could type any `/uploads/<name>` into the note they were given
+ * and the server would hand back those bytes. The association is therefore recorded here, on
+ * an owner-authenticated write, and the read path is left trusting only the column.
+ *
+ * Both predicates in the UPDATE are load-bearing:
+ *  - `user_id = ?` is the session user, never a value from the request body, so an owner can
+ *    only ever claim rows they already own. content_json is owner-controlled at this point,
+ *    but it cannot reach across an account boundary.
+ *  - `note_id IS NULL` means a claim never re-points an attachment already filed against some
+ *    other note, so quoting an existing image URL cannot steal it.
+ *
+ * Deliberately never called from the share-link guest write path: a guest must not be able to
+ * manufacture the relationship that grants them access.
+ */
+export async function claimAttachmentsForNote(
+  uid: string,
+  noteId: string,
+  contentJson: string,
+): Promise<void> {
+  const names = new Set<string>();
+  for (const m of contentJson.matchAll(UPLOAD_REF_RE)) names.add(m[1]);
+  for (const storedName of names) {
+    await db
+      .prepare(
+        'UPDATE attachments SET note_id = ? WHERE stored_name = ? AND user_id = ? AND note_id IS NULL',
+      )
+      .run(noteId, storedName, uid);
+  }
+}
+
 /**
  * Materialise bytes as a real file for the length of one call, then remove it.
  *

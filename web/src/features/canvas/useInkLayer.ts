@@ -123,7 +123,7 @@ export function useInkLayer(noteId: string, enabled: boolean): InkLayer {
         // Put the batch back so the next flush retries it, rather than silently
         // losing the strokes the user can still see on screen.
         queueRef.current = [...batch, ...queueRef.current];
-        toast('Ink not saved yet — retrying', 'error');
+        toast('Ink not saved yet, retrying', 'error');
       }
     })();
 

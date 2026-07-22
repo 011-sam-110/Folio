@@ -1,6 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom'
+// The /react entry point, not /next: this is a Vite SPA, and the Next.js build of this
+// package imports next/navigation, which does not resolve here. Route changes are picked
+// up from the History API, so one mount at the root covers every page.
+import { Analytics } from '@vercel/analytics/react'
 import App from './App'
 import DashboardPage from './pages/DashboardPage'
 import NotebookPage from './pages/NotebookPage'
@@ -39,7 +43,7 @@ const router = createBrowserRouter([
       { path: '/recover', element: <RecoverPage /> },
 
       // Share links. PUBLIC and outside RequireAuth by design — a guest opening
-      // one has no Folio account at all; their access is a per-share cookie the
+      // one has no Unote account at all; their access is a per-share cookie the
       // join call sets. It stays inside AuthRoot so the page can still recognise
       // the note's OWNER when they open their own link.
       { path: '/join/:token', element: <JoinPage /> },
@@ -71,5 +75,6 @@ const router = createBrowserRouter([
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <RouterProvider router={router} />
+    <Analytics />
   </StrictMode>,
 )

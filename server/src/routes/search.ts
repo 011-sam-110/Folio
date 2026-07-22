@@ -60,7 +60,7 @@ export function parseSearchQuery(raw: string): ParsedSearch {
    * operator was then dropped for having an empty value and the name fell through
    * as a plain text phrase — so the query silently answered a different question
    * instead of failing. Quoting is the only way to express a name containing a
-   * space, and Folio's own default notebook is called "My notes".
+   * space, and Unote's own default notebook is called "My notes".
    */
   rest = rest.replace(
     /(-?)(tag|notebook):(?:"([^"]*)"|(\S*))/gi,

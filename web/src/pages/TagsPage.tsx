@@ -155,7 +155,7 @@ export default function TagsPage() {
         <EmptyState
           icon="🏷️"
           title="No tags yet"
-          hint="Open a note and add a tag under its title — or just type #revision anywhere in the body. Either way it shows up here as a filterable pill."
+          hint="Open a note and add a tag under its title, or just type #revision anywhere in the body. Either way it shows up here as a filterable pill."
           action={
             <button type="button" className="btn btn-primary" onClick={() => navigate('/')}>
               Go to your notes
@@ -221,7 +221,7 @@ export default function TagsPage() {
               <EmptyState
                 icon="👆"
                 title="Pick a tag to see its notes"
-                hint="Select one or more pills above — with more than one, only notes carrying every selected tag are shown."
+                hint="Select one or more pills above. With more than one, only notes carrying every selected tag are shown."
               />
             ) : notesLoading ? (
               <div className="note-list">
@@ -313,7 +313,7 @@ function ManageTagDialog({ tag, allTags, onClose, onDone }: ManageTagDialogProps
       await fn();
       done();
     } catch (e) {
-      toast(errorMessage(e, 'That didn’t work — nothing was changed'), 'error');
+      toast(errorMessage(e, 'That didn’t work, nothing was changed'), 'error');
     } finally {
       setBusy(null);
     }
@@ -377,7 +377,7 @@ function ManageTagDialog({ tag, allTags, onClose, onDone }: ManageTagDialogProps
           )}
           {renameCollides && (
             <p className="tg-manage__hint tg-manage__hint--warn">
-              #{renameNormalized} already exists — the two will be merged.
+              #{renameNormalized} already exists, so the two will be merged.
             </p>
           )}
         </section>
@@ -466,7 +466,7 @@ function ManageTagDialog({ tag, allTags, onClose, onDone }: ManageTagDialogProps
 
         <p className="tg-manage__footnote">
           Tags typed straight into a note as <code>#{tag.tag}</code> live in that note&rsquo;s text. Renaming or deleting
-          here updates the tag list, but the words in the body stay as they were — edit those notes to change them for good.
+          here updates the tag list, but the words in the body stay as they were. Edit those notes to change them for good.
         </p>
       </div>
     </Modal>

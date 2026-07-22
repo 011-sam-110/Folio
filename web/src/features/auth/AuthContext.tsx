@@ -100,7 +100,7 @@ export function useAuth(): AuthState {
  *  case) shows nothing at all rather than a one-frame flicker. */
 function AuthSplash() {
   return (
-    <div className="auth-splash" role="status" aria-label="Loading Folio">
+    <div className="auth-splash" role="status" aria-label="Loading Unote">
       <span className="auth-splash__mark" aria-hidden="true">
         📓
       </span>

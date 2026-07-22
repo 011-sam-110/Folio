@@ -180,7 +180,7 @@ export default function BrowseTab({
       toast(`${ids.length} card${ids.length === 1 ? '' : 's'} deleted`, 'ok');
       setSelectedIds(new Set());
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not delete some cards — refreshing the list', 'error');
+      toast(err instanceof ApiError ? err.message : 'Could not delete some cards, refreshing the list', 'error');
       load();
     } finally {
       setBulkBusy(false);
@@ -374,7 +374,7 @@ export default function BrowseTab({
         <EmptyState
           icon="🗂️"
           title="No flashcards yet"
-          hint="Select a sentence in any note and pick 'Add to flashcards' from the toolbar that appears — or write one here with New card."
+          hint="Select a sentence in any note and pick 'Add to flashcards' from the toolbar that appears, or write one here with New card."
           action={<button type="button" className="sy-btn sy-btn--primary" onClick={() => setComposerOpen(true)}>Add your first card</button>}
         />
       ) : filtered.length === 0 ? (

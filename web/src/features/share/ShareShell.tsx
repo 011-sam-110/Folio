@@ -3,7 +3,7 @@
 //
 // It carries its own wordmark and theme toggle because a guest never sees the
 // sidebar that normally provides them — without this, a visitor arriving in dark
-// mode would have no way to change it and no sign they were in Folio at all.
+// mode would have no way to change it and no sign they were in Unote at all.
 
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -28,7 +28,7 @@ export function ShareShell({ children }: { children: ReactNode }) {
           <span className="sh-card__mark" aria-hidden="true">
             📓
           </span>
-          <span className="sh-card__wordmark">Folio</span>
+          <span className="sh-card__wordmark">Unote</span>
         </div>
         {children}
       </main>
@@ -61,7 +61,7 @@ export function DeadLink({ reason, midSession }: DeadLinkProps) {
             <h1 className="sh-card__title">This link was turned off</h1>
             <p className="sh-card__subtitle">
               Whoever shared it has revoked the link, or it has expired. Anything you saved before
-              now is still in their copy — ask them for a new link to carry on.
+              now is still in their copy. Ask them for a new link to carry on.
             </p>
           </>
         ) : (
@@ -75,7 +75,7 @@ export function DeadLink({ reason, midSession }: DeadLinkProps) {
         )}
 
         <Link className="btn btn-secondary sh-dead__home" to="/">
-          Go to Folio
+          Go to Unote
         </Link>
       </div>
     </ShareShell>

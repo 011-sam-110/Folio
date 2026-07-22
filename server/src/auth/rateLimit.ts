@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { clientIp } from '../lib/clientIp.js';
 
 /**
  * Throttle the unauthenticated endpoints that run scrypt.
@@ -41,12 +42,21 @@ function sweep(now: number): void {
   }
 }
 
+/**
+ * Identify the caller.
+ *
+ * This previously read `x-forwarded-for` and took the FIRST entry, which is the value the
+ * original client supplied and is therefore chosen by the attacker. Varying that header
+ * per request put every attempt in a fresh bucket, so the limits below never fired: the
+ * login and recovery throttles could be walked straight past, and with them the scrypt
+ * CPU amplification this module exists to prevent. The comment here also claimed
+ * `trust proxy` was configured in app.ts when it was not; it is now.
+ *
+ * Resolution moved to lib/clientIp.ts, which prefers the platform-set header on Vercel and
+ * otherwise uses the socket-derived `req.ip`. Never the client-supplied first hop.
+ */
 function clientKey(req: Request): string {
-  // Vercel sets x-forwarded-for; trust proxy is configured in app.ts. Fall back to
-  // the socket address for local runs.
-  const fwd = req.headers['x-forwarded-for'];
-  const first = Array.isArray(fwd) ? fwd[0] : fwd?.split(',')[0];
-  return (first ?? req.ip ?? req.socket.remoteAddress ?? 'unknown').trim();
+  return clientIp(req);
 }
 
 export interface RateLimitOptions {

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { ROOT, UPLOADS_DIR, IS_SERVERLESS, config } from './config.js';
 import { migrate } from './db.js';
 import { requireAuth } from './auth/middleware.js';
+import { CSP } from './lib/csp.js';
 
 import authRouter from './routes/auth.js';
 import notebooksRouter from './routes/notebooks.js';
@@ -27,12 +28,31 @@ import uploadsRouter from './routes/uploads.js';
  * strictly worse than it was under the old LAN-only trust model: the session cookie would
  * ride along on any cross-origin request, so any website the student visits in the same
  * browser could read and write their notes. Restrict Origin to what actually serves this
- * app — localhost dev/served origins and private-LAN hosts — while still allowing
- * same-origin/no-Origin requests (curl, mobile PWA served from the API itself).
+ * app, while still allowing same-origin/no-Origin requests (curl, mobile PWA served from
+ * the API itself).
+ *
+ * The localhost and private-LAN allowance is gated on `!IS_SERVERLESS`, and that gate is the
+ * security-relevant part. Paired with `credentials: true`, an unconditional allowance means a
+ * page running on the victim's OWN machine or LAN can make credentialed cross-origin requests
+ * against production: a random `http://localhost:3000` dev server, anything on the coffee-shop
+ * or halls-of-residence subnet the laptop is joined to, or any host resolving under `.local`.
+ * None of those are related to this deployment, and none of them should ever have been able to
+ * read a signed-in user's notes off the deployed site.
+ *
+ * It stays on for local and self-hosted runs, where it is what makes those addresses reachable
+ * at all and where the same origins are the operator's own machine rather than an attacker's.
+ *
+ * Worth being honest about the scope of the fix: phone capture over LAN does NOT depend on this
+ * branch. In single-port mode Express serves web/dist and the API from the same host:port, and
+ * under `npm run dev` Vite proxies /api server-side, so in both cases the phone's requests are
+ * same-origin and never CORS-checked. The allowance only ever covered a split-origin setup
+ * (SPA on one LAN host, API on another), which is why keeping it costs nothing locally and
+ * removing it on serverless breaks nothing.
  */
 export function isAllowedOrigin(origin: string | undefined): boolean {
-  if (!origin) return true; // no Origin header (same-origin nav, curl, native app) — allow
+  if (!origin) return true; // no Origin header (same-origin nav, curl, native app), allow
   if (config.extraCorsOrigins.includes(origin)) return true;
+  if (config.deployedOrigins.includes(origin)) return true;
   let url: URL;
   try {
     url = new URL(origin);
@@ -40,6 +60,11 @@ export function isAllowedOrigin(origin: string | undefined): boolean {
     return false;
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+
+  // Deployed: the only allowed origins are the ones named above, this deployment's own
+  // hostnames and whatever FOLIO_CORS_ORIGINS lists. No host-shape guessing.
+  if (IS_SERVERLESS) return false;
+
   const host = url.hostname;
   const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
   // Private-LAN ranges a phone/tablet on the same network would use.
@@ -53,6 +78,42 @@ export function isAllowedOrigin(origin: string | undefined): boolean {
 
 export function buildApp(): express.Express {
   const app = express();
+
+  /**
+   * Trust exactly one proxy hop, so `req.ip` is the address that proxy observed rather
+   * than whatever the client wrote in `X-Forwarded-For`.
+   *
+   * A security review found this was never configured, despite a comment in rateLimit.ts
+   * asserting it was. Without it Express leaves `req.ip` as the socket address, and the
+   * limiter's own header parsing was reading the client-supplied hop, which made every
+   * auth throttle bypassable by varying a header.
+   *
+   * `1`, not `true`: trusting every hop means trusting the whole chain, which is the same
+   * forgeable value again. One hop matches the deployment, a single platform proxy in
+   * front of the app. See lib/clientIp.ts, which prefers Vercel's own header when running
+   * there and falls back to this.
+   */
+  app.set('trust proxy', 1);
+
+  /**
+   * CSP on every response, not just the HTML document.
+   *
+   * The document is the point of it, but two other response types need the same header for
+   * their own reasons. A dedicated worker takes its policy from the headers on the worker
+   * SCRIPT's response, not from the page that spawned it, so the transcription worker only
+   * gets 'wasm-unsafe-eval' and the huggingface connect-src if /assets/*.js carries the
+   * policy too. And /uploads serves user-uploaded bytes: if one is ever opened directly in a
+   * tab it becomes a same-origin document, and this is what constrains it.
+   *
+   * Applying it to JSON API responses as well is a no-op, which is a fair price for having
+   * one rule with no path matching to get wrong. This mirrors the blanket source in
+   * vercel.json, where the CDN serves the static SPA and Express is never reached at all.
+   */
+  app.use((_req, res, next) => {
+    res.setHeader('Content-Security-Policy', CSP);
+    next();
+  });
+
   app.use(
     cors({
       origin(origin, cb) {

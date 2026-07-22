@@ -37,7 +37,7 @@ export function AuthShell({
           <span className="auth-card__mark" aria-hidden="true">
             📓
           </span>
-          <span className="auth-card__wordmark">Folio</span>
+          <span className="auth-card__wordmark">Unote</span>
         </div>
 
         <h1 className="auth-card__title">{title}</h1>

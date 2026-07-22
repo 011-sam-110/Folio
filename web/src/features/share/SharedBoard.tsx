@@ -181,7 +181,7 @@ export default function SharedBoard({ ink, canEdit }: SharedBoardProps) {
 
         {!canEdit && (
           <div className="sh-board__hint">
-            <Icon name="lock" size={13} /> View only — you can look around but not draw
+            <Icon name="lock" size={13} /> View only. You can look around but not draw
           </div>
         )}
       </div>

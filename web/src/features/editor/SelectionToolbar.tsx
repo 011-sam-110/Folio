@@ -53,7 +53,7 @@ interface AiResult {
 }
 
 function aiErrorMessage(e: unknown): string {
-  if (e instanceof ApiError && e.status === 502) return 'AI offline — is the gateway running?';
+  if (e instanceof ApiError && e.status === 502) return 'AI offline. Is the gateway running?';
   return e instanceof Error ? e.message : 'AI request failed';
 }
 

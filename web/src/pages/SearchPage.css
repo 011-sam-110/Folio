@@ -82,7 +82,7 @@
   color: var(--ink-3);
 }
 .sr-hint__desc::before {
-  content: '— ';
+  content: '· ';
 }
 
 /* --- results count + sort --- */

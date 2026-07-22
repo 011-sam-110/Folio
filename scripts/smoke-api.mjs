@@ -1,4 +1,4 @@
-// End-to-end API check against a live Folio server.
+// End-to-end API check against a live Unote server.
 // Focus: does the multi-user story actually hold, or can one account see another's data?
 const BASE = process.env.FOLIO_BASE || 'http://localhost:4780';
 

@@ -123,7 +123,7 @@ export default function CommandPalette({
       id: 'create-canvas',
       title: 'New canvas',
       section: 'Create',
-      hint: 'Infinite board — stickies, shapes and Apple Pencil ink',
+      hint: 'Infinite board: stickies, shapes and Apple Pencil ink',
       keywords: ['canvas', 'board', 'whiteboard', 'draw', 'sketch', 'mindmap'],
       icon: 'canvas',
       run: async (ctx) => {
@@ -394,7 +394,7 @@ export default function CommandPalette({
 
         {mode === 'new-notebook' ? (
           <div className="folio-cmdk__prompt-hint">
-            Creates 📓 "{notebookName.trim() || '…'}" — change its emoji/color from the sidebar after.
+            Creates 📓 "{notebookName.trim() || '…'}". Change its emoji/color from the sidebar after.
           </div>
         ) : (
           <div className="folio-cmdk__results">

@@ -44,7 +44,7 @@ test.describe('onboarding tutorial', () => {
     await page.reload();
 
     await expect(tourCard(page)).toBeVisible({ timeout: 10_000 });
-    await expect(tourCard(page)).toContainText('Welcome to Folio');
+    await expect(tourCard(page)).toContainText('Welcome to Unote');
 
     // The seed offer must be optional and readable as such.
     await expect(page.getByRole('button', { name: /use my own notes/i })).toBeVisible();

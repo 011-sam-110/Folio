@@ -52,7 +52,7 @@ const HINTS: HintDef[] = [
     match: (p) => p.startsWith('/note/'),
     target: ['[data-tour="canvas-tools"]', '.cv-tools'],
     title: 'A stylus draws, a finger pans',
-    body: 'Pick up the pen and draw straight onto the board. Resting your palm on the screen will not leave a mark. Drawing with a finger is off by default — there is a toggle in the pen toolbar if you want it.',
+    body: 'Pick up the pen and draw straight onto the board. Resting your palm on the screen will not leave a mark. Drawing with a finger is off by default, but there is a toggle in the pen toolbar if you want it.',
     placement: 'bottom',
   },
   {
@@ -60,7 +60,7 @@ const HINTS: HintDef[] = [
     match: (p) => p.startsWith('/note/'),
     target: ['[data-testid="note-editor"]'],
     title: 'Two keystrokes worth knowing',
-    body: 'Type / on an empty line for headings, lists, tables, code and callouts. Type [[ to link another note by name — the note you link to will list this one in its backlinks.',
+    body: 'Type / on an empty line for headings, lists, tables, code and callouts. Type [[ to link another note by name. The note you link to will list this one in its backlinks.',
     placement: 'top',
   },
   {

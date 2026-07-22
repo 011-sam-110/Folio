@@ -56,7 +56,7 @@ export default function AskPage() {
         <EmptyState
           icon="📓"
           title="AI features are turned off"
-          hint="You switched Folio to plain-notebook mode. Turn AI back on any time — nothing about your notes changes either way."
+          hint="You switched Unote to plain-notebook mode. Turn AI back on any time. Nothing about your notes changes either way."
           action={
             <button type="button" className="btn btn-primary" onClick={() => setAiOn(true)}>
               Turn AI back on
@@ -78,8 +78,8 @@ export default function AskPage() {
           title="AI isn’t reachable right now"
           hint={
             aiHealth.error
-              ? `Folio couldn’t reach the model gateway (${aiHealth.error}). Everything else — notes, search, flashcards, canvas — works as normal.`
-              : 'Folio couldn’t reach the model gateway. Everything else — notes, search, flashcards, canvas — works as normal.'
+              ? `Unote couldn’t reach the model gateway (${aiHealth.error}). Everything else works as normal: notes, search, flashcards, canvas.`
+              : 'Unote couldn’t reach the model gateway. Everything else works as normal: notes, search, flashcards, canvas.'
           }
           action={
             <button type="button" className="btn" onClick={() => void refreshAiHealth()}>
@@ -104,7 +104,7 @@ export default function AskPage() {
       setPairs(prev => prev.map(p => (p.id === id ? { ...p, status: 'done', answer: res.answer, sources: res.sources, model: res.model } : p)));
     } catch (err) {
       const message = err instanceof ApiError
-        ? (err.status === 502 ? 'AI offline — is the gateway running?' : err.message)
+        ? (err.status === 502 ? 'AI offline. Is the gateway running?' : err.message)
         : 'Something went wrong asking your notes.';
       setPairs(prev => prev.map(p => (p.id === id ? { ...p, status: 'error', error: message } : p)));
     } finally {
@@ -154,7 +154,7 @@ export default function AskPage() {
     <div className="ak-page">
       <div className="ak-hero">
         <h1>Ask your notes</h1>
-        <p className="ak-hero__sub">Answers are generated only from what you've written — with sources.</p>
+        <p className="ak-hero__sub">Answers are generated only from what you've written, with sources.</p>
 
         <div className="ak-chips">
           <button type="button" className={`ak-chip${notebookFilter === null ? ' is-active' : ''}`} onClick={() => setNotebookFilter(null)}>

@@ -43,7 +43,7 @@ export default function ShareButton({ noteId, noteTitle, kind }: ShareButtonProp
 
   const shared = count > 0;
   const label = shared
-    ? `Shared — ${count} active ${count === 1 ? 'link' : 'links'}`
+    ? `Shared: ${count} active ${count === 1 ? 'link' : 'links'}`
     : 'Share this ' + (kind === 'canvas' ? 'canvas' : 'note');
 
   return (

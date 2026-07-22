@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 // WHY localStorage RATHER THAN THE SERVER
 // ---------------------------------------------------------------------------
-// There is no user-preferences surface in Folio today: `users` has no prefs column
+// There is no user-preferences surface in Unote today: `users` has no prefs column
 // and `publicUser()` returns exactly { id, email, displayName }. Persisting this
 // server-side would mean a schema change, a new authenticated route, and a widening
 // of the auth payload — real risk against code that was hardened in a security pass
@@ -14,7 +14,7 @@
 // It is also the more *correct* behaviour for what this actually stores. The tour
 // anchors to real elements, and those differ by form factor: the desktop tour points
 // at the sidebar, the phone tour points at the menu button that reveals it. Someone
-// who ran the tour on a laptop and then opens Folio on an iPad genuinely has not
+// who ran the tour on a laptop and then opens Unote on an iPad genuinely has not
 // been shown the interface they are now looking at. Per-device state matches the
 // thing being remembered.
 //

@@ -53,7 +53,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'notebooks',
     title: 'Notebooks hold your modules',
     body:
-      'One notebook per module works well — Algorithms, Databases, whatever you are taking. Notes live inside them, and tags cut across them, so nothing is ever filed in only one place.',
+      'One notebook per module works well: Algorithms, Databases, whatever you are taking. Notes live inside them, and tags cut across them, so nothing is ever filed in only one place.',
     route: () => '/',
     target: ['[data-tour="notebooks"]'],
     mobileTarget: ['[data-tour="mobile-menu"]'],
@@ -64,7 +64,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'editor',
     title: 'Write here',
     body:
-      'This is a block editor, so every paragraph, heading and list is a block you can drag by its handle. It saves as you type — the chip above tells you when it last saved, and every save keeps a version you can restore.',
+      'This is a block editor, so every paragraph, heading and list is a block you can drag by its handle. It saves as you type. The chip above tells you when it last saved, and every save keeps a version you can restore.',
     route: (t) => (t.noteId ? `/note/${t.noteId}` : null),
     target: ['[data-testid="note-editor"]'],
     fallback: 'center',
@@ -74,7 +74,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'slash',
     title: 'Slash commands',
     body:
-      'Type a forward slash on an empty line to get headings, lists, tables, code blocks, callouts and columns without leaving the keyboard. Markdown shortcuts work too — hash-space makes a heading, dash-space makes a bullet.',
+      'Type a forward slash on an empty line to get headings, lists, tables, code blocks, callouts and columns without leaving the keyboard. Markdown shortcuts work too: hash-space makes a heading, dash-space makes a bullet.',
     code: ['/'],
     route: (t) => (t.noteId ? `/note/${t.noteId}` : null),
     target: ['[data-testid="note-editor"]'],
@@ -85,7 +85,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'tags',
     title: 'Tag it two ways',
     body:
-      'Add tags as chips up here, or just type a hashtag anywhere in the note body — both feed the same vocabulary, and the Tags page can rename or merge one across every note at once.',
+      'Add tags as chips up here, or just type a hashtag anywhere in the note body. Both feed the same vocabulary, and the Tags page can rename or merge one across every note at once.',
     code: ['#revision'],
     route: (t) => (t.noteId ? `/note/${t.noteId}` : null),
     target: ['[data-testid="tag-editor"]'],
@@ -96,7 +96,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'wikilinks',
     title: 'Link notes together',
     body:
-      'Type two square brackets to link another note by name. Every note then lists what links to it down here, plus unlinked mentions — notes that name this one without linking it yet.',
+      'Type two square brackets to link another note by name. Every note then lists what links to it down here, plus unlinked mentions: notes that name this one without linking it yet.',
     code: ['[['],
     // Deliberately the note that is linked TO, not the one doing the linking: the
     // backlinks panel on the linking note is empty, which would demonstrate the
@@ -110,7 +110,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'flashcards',
     title: 'Turn a passage into flashcards',
     body:
-      'Select any sentence in a note and a small toolbar appears — one button on it files that passage as a flashcard. Cards come back on a spaced repetition schedule, so the Study page only ever shows you what is actually due.',
+      'Select any sentence in a note and a small toolbar appears. One button on it files that passage as a flashcard. Cards come back on a spaced repetition schedule, so the Study page only ever shows you what is actually due.',
     route: (t) => (t.noteId ? `/note/${t.noteId}` : null),
     target: ['[data-testid="note-editor"]'],
     fallback: 'center',
@@ -131,7 +131,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'import',
     title: 'Import what you already have',
     body:
-      'Slide decks, PDFs and photos of handwriting all come in as structured notes. So do lecture recordings — Folio pulls the slides out of the video and transcribes the audio in your browser, so the recording itself never leaves your machine.',
+      'Slide decks, PDFs and photos of handwriting all come in as structured notes. So do lecture recordings. Unote pulls the slides out of the video and transcribes the audio in your browser, so the recording itself never leaves your machine.',
     route: (t) => (t.notebookId ? `/notebook/${t.notebookId}` : null),
     target: ['[data-tour="import"]', 'button[aria-label="Import notes"]'],
     fallback: 'center',
@@ -141,7 +141,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'canvas',
     title: 'Or work on a canvas',
     body:
-      'A note can be an infinite board instead of a document: sticky notes, shapes, arrows and cards that link back to real notes. Pick up a pen here and it draws — with a stylus, your palm resting on the screen is ignored.',
+      'A note can be an infinite board instead of a document: sticky notes, shapes, arrows and cards that link back to real notes. Pick up a pen here and it draws. With a stylus, your palm resting on the screen is ignored.',
     route: (t) => (t.canvasId ? `/note/${t.canvasId}` : null),
     target: ['[data-tour="canvas-tools"]', '.cv-tools'],
     fallback: 'skip',
@@ -151,7 +151,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'share',
     title: 'Share a link',
     body:
-      'Publish any note or board behind a link that cannot be guessed — view-only or editable, with a password if you want one. Whoever you send it to can open it without making an account.',
+      'Publish any note or board behind a link that cannot be guessed, view-only or editable, with a password if you want one. Whoever you send it to can open it without making an account.',
     route: (t) => (t.canvasId ? `/note/${t.canvasId}` : t.noteId ? `/note/${t.noteId}` : null),
     target: ['[data-testid="share-open"]'],
     fallback: 'skip',

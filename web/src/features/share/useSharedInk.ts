@@ -108,7 +108,7 @@ export function useSharedInk(token: string, canEdit: boolean): SharedInkLayer {
       } catch {
         // Put the batch back rather than lose strokes the user can still see.
         queueRef.current = [...batch, ...queueRef.current];
-        toast('Drawing not saved yet — retrying', 'error');
+        toast('Drawing not saved yet, retrying', 'error');
       }
     })();
 

@@ -200,7 +200,7 @@ export default function ReviewTab({ stats, notebookId, onReviewed, onSwitchToBro
         /* The old copy pointed only at the AI menu, which is hidden whenever the
            gateway is unreachable — leaving the empty state naming an affordance
            that was not on screen. Lead with the path that always works. */
-        hint="Select a sentence in any note and choose 'Add to flashcards' from the toolbar that appears. Cards then come back on a spaced schedule — sooner if you found one hard, later if it was easy."
+        hint="Select a sentence in any note and choose 'Add to flashcards' from the toolbar that appears. Cards then come back on a spaced schedule: sooner if you found one hard, later if it was easy."
         action={
           <div className="sy-empty-actions">
             <button type="button" className="sy-btn sy-btn--primary" onClick={() => onSwitchToBrowse(true)}>Add a card manually</button>

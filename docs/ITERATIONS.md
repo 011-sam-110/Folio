@@ -1,4 +1,4 @@
-# Folio iteration log
+# Unote iteration log
 
 Rule: after the first full build, run ≥10 critique→fix→test iterations. Each iteration records:
 critic findings (holes, missing features, bugs), what was fixed, test results, and what carries forward.
@@ -9,7 +9,7 @@ An iteration only counts when the full test suite (vitest + playwright) is green
 
 ## Iteration entries
 
-### Iteration 1 — Five-lens critique + 29-fix wave (2026-07-16/17, commits 8e80c54, 002a0ae, 3b06329)
+### Iteration 1: Five-lens critique + 29-fix wave (2026-07-16/17, commits 8e80c54, 002a0ae, 3b06329)
 Critics: feature-gap, server-bughunt, web-bughunt, design, student-persona → 92 findings (11 critical),
 full detail in docs/reviews/iter1-findings.json. All 11 criticals + 18 majors fixed (docs/reviews/iter1-fixes.md):
 editor data-integrity races (stale-load, failed-save dirty flag, in-flight flush, restore/import resync),
@@ -21,7 +21,7 @@ Carried forward: free-gateway vision quota is the top e2e reliability risk (cons
 gateway silently substitutes models; client-side AI-apply still inserts wikilinks as literal text;
 versions.spec.ts page-wide /restor/i selector brittle. Deferred feature systems → iteration 2.
 
-### Iteration 0 — Integration (2026-07-16, commit 84a1206)
+### Iteration 0: Integration (2026-07-16, commit 84a1206)
 Opus captain drove wave-1 output to green: 57/57 vitest, 23/23 e2e ×2 (0 flaky), real-gateway AI smokes,
 single-port SPA mode, zero console errors. Notable product bugs fixed: StrictMode-stranded autosave,
 wikilink alias pipe breaking link extraction, navigation racing the autosave debounce, unpdf Buffer rejection,

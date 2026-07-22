@@ -1,4 +1,4 @@
-// One switch to remove every AI affordance from the app — for students who want Folio as
+// One switch to remove every AI affordance from the app — for students who want Unote as
 // a plain notebook. Persisted in localStorage; all AI UI (AI menu, selection AI, Assistant,
 // Ask AI, flashcard generation) reads it through useAiEnabled(). Server endpoints still
 // exist; this is a client-side visibility choice the user owns.

@@ -1,7 +1,7 @@
 /**
  * Authenticated test fixtures.
  *
- * Folio became multi-user partway through the build. Every route except /login,
+ * Unote became multi-user partway through the build. Every route except /login,
  * /signup, /recover and /join/:token now redirects a session-less visitor to the
  * login wall, so a spec that just calls `page.goto('/')` tests the login page and
  * nothing else. This module is what puts a session behind every spec.
