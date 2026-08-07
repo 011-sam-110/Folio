@@ -2,6 +2,7 @@
 // ai/client.ts `chat()`. Keep prompts strict about never inventing content: these notes
 // are a student's actual revision material, so faithfulness beats fluency every time.
 import type { ChatMessage } from './client.js';
+import type { Family } from '../lib/checks.js';
 
 const PERSONA =
   'You are Unote, an AI writing and study assistant embedded in a university student\'s private notebook app. ' +
@@ -228,6 +229,88 @@ Rules:
         fence("STUDENT'S NOTE", noteContent.trim() || FALLBACK_CONTENT),
         fence('UPLOADED SOURCE MATERIAL', sourceBlock),
       ].join('\n\n'),
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Per-change review. These two build the prompts behind POST /api/ai/suggest and
+// POST /api/ai/gaps/edits: instead of a rewritten note, the model returns a list of
+// individually approvable edits, each anchored to a block id and each carrying its own
+// reason. Everything they return is untrusted until lib/aiEdit.ts `validateEdits` has
+// been over it - these strings are how we ASK for the shape, not how we get it.
+// ---------------------------------------------------------------------------
+
+/**
+ * Ceiling on suggestions per request.
+ *
+ * 56 checks over a long note can produce forty suggestions, which recreates in the review
+ * rail exactly the "too much to read" problem the rail exists to solve. Asking for the most
+ * important few is also a quality lever: a model told to return its best eight picks its
+ * best eight, while one told to return everything pads.
+ */
+const MAX_EDITS_PER_REQUEST = 12;
+
+/** The rules that describe the JSON contract, shared by both review prompts. */
+function editContract(extra: string[]): string {
+  return [
+    'Rules for every suggestion:',
+    '- `blockId` must be copied EXACTLY from the id attribute of the block it applies to. Never invent one.',
+    '- `reason` is required and must never be empty. One sentence, addressed to the student, saying what is wrong with THIS passage and why it matters. Never a restatement of the check name.',
+    '- `checkId` must be exactly one of the ids listed above. Nothing else.',
+    '- `before` must be copied verbatim from that block text, and must be the shortest span that covers the problem, not the whole block.',
+    '- `after` is the replacement for `before` only, not a rewrite of the block.',
+    ...extra,
+    `- Return at most ${MAX_EDITS_PER_REQUEST} suggestions, most important first. Never pad the list: an empty list is the correct answer for a passage with nothing wrong with it, and inventing a problem to fill a slot is worse than returning nothing.`,
+    '- Never use em dashes (U+2014) or en dashes (U+2013) in any text you write. Use commas, colons, full stops, or parentheses instead.',
+  ].join('\n');
+}
+
+/**
+ * One check family, against one note.
+ *
+ * A run issues one of these per enabled family, in parallel, rather than one prompt carrying
+ * all 56 checks. Six to eight related checks is inside what a model reads carefully; 56 buys
+ * shallow coverage of all 56. The family's checks are listed with their ids so the model
+ * names one per edit, which is what gives the rail a severity to sort by.
+ *
+ * The `FAMILY:` line is a marker, not decoration: every request in a run is otherwise nearly
+ * identical, so it is what identifies one in a log, and what the tests match on to prove that
+ * a run really did issue one request per family.
+ */
+export function reviewFamilyPrompt(family: Family, noteTitle: string, blocks: string): ChatMessage[] {
+  const checkList = family.checks.map(c => `- ${c.id}: ${c.label}`).join('\n');
+  return [
+    {
+      role: 'system',
+      content: `${PERSONA}
+
+You are reviewing a student's note for ONE family of problems and nothing else. Ignore every other kind of problem, however obvious: another request is covering it, and a suggestion from outside this family will be discarded.
+
+FAMILY: ${family.id}
+Checks in this family, with the id to report each under:
+${checkList}
+
+${UNTRUSTED_NOTICE}
+
+The note arrives as a sequence of blocks. Each is tagged with the id the editor knows it by:
+
+<block id="BLOCK_ID" type="paragraph">
+the block's text
+</block>
+
+${editContract([
+  '- `op` is "replace" to change a span, "insert" to add text after the block, or "delete" to remove a span. For "insert", leave `before` empty. For "delete", leave `after` empty.',
+  '- Suggest a change only where the note is genuinely wrong or genuinely unclear. This is a student\'s own revision material: preserve their voice, their terminology and their meaning, and never rewrite a passage merely because you would have phrased it differently.',
+])}
+
+Respond with ONLY this JSON object, no prose around it and no code fence:
+{"edits": [{"blockId": "...", "op": "replace", "before": "...", "after": "...", "reason": "...", "checkId": "..."}]}
+If this family finds nothing, respond with {"edits": []}.`,
+    },
+    {
+      role: 'user',
+      content: `${fence('NOTE TITLE', noteTitle.trim() || '(untitled)')}\n\n${fence('NOTE BLOCKS', blocks || '(empty note)')}`,
     },
   ];
 }

@@ -11,8 +11,11 @@ import { checkQuota } from '../ai/usage.js';
 import { clientIp } from '../lib/clientIp.js';
 import { checkUserSuppliedUrl } from '../lib/publicHost.js';
 import { getKeyHint, getUserKey, setUserKey, deleteUserKey } from '../ai/keys.js';
-import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt } from '../ai/prompts.js';
-import { FAMILIES, PRESETS } from '../lib/checks.js';
+import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt, reviewFamilyPrompt } from '../ai/prompts.js';
+import { FAMILIES, PRESETS, familyById, checkById } from '../lib/checks.js';
+import { validateEdits, type AiEdit } from '../lib/aiEdit.js';
+import { blocksOf, blocksForPrompt } from '../lib/noteBlocks.js';
+import type { AiContext } from '../ai/gate.js';
 import type { NoteRow } from '../lib/serialize.js';
 
 const router = Router();
@@ -468,6 +471,194 @@ router.post('/gaps', async (req, res) => {
   } catch (e) {
     sendAiError(res, e);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Per-change review.
+//
+// A review route returns `AiEdit[]` rather than a rewritten note: the client renders each as
+// a decoration with its own reason and the user approves or denies them one at a time. The
+// whole-note routes above (/improve, /clean) stay as they are - they answer a different
+// question, and Summarise still wants a single blob of markdown.
+// ---------------------------------------------------------------------------
+
+/**
+ * How much of the note each review request carries.
+ *
+ * Lower than AI_MAX_CHARS because this is spent per family: eight families at 24k characters
+ * each is 190k characters of input for one button press, and the tail of a long note is the
+ * part a model reviews worst anyway.
+ */
+const REVIEW_NOTE_CHARS = 12_000;
+
+/** The shape a review route answers with. */
+interface ReviewResponse {
+  edits: AiEdit[];
+  rejected: number;
+  /**
+   * Which families actually completed. Requested-minus-this is what did NOT run, so the
+   * client can say "Grammar could not be checked" instead of silently implying that a family
+   * whose request failed found nothing wrong.
+   */
+  ranFamilies: string[];
+}
+
+/** Known family ids from a request body, de-duplicated, in the order the caller asked. */
+function parseFamilies(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const value of raw) {
+    const id = typeof value === 'string' ? value.trim() : '';
+    // Unknown ids are dropped rather than 400-ing the whole run: the catalogue is served to
+    // the client, so a stale id is a client that has not reloaded since a check was
+    // deprecated, and refusing the other seven families over it helps nobody.
+    if (familyById(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/**
+ * The note, rendered for a review prompt - or the reason it cannot be.
+ *
+ * Both failure cases are 400s the client shows verbatim, and they are separated because the
+ * fixes are different. A note with text but no block ids has simply never been open in the
+ * editor since it was created (an import writes `content_json` directly, and `UniqueID`
+ * mints the ids client-side), and telling that user "there is nothing to review" would be
+ * flatly untrue about a note full of writing.
+ */
+function noteForReview(note: NoteRow): { doc: string } | { error: string } {
+  const blocks = blocksOf(note.content_json);
+  if (!blocks.length) {
+    return {
+      error: note.content_text.trim()
+        ? 'Open this note in the editor and let it save once, then try again.'
+        : 'There is nothing in this note to review yet.',
+    };
+  }
+  return { doc: capForAi(blocksForPrompt(blocks), REVIEW_NOTE_CHARS) };
+}
+
+/**
+ * Pull the edits array out of a completion.
+ *
+ * Throws rather than returning `[]` on a shape it does not recognise. The distinction is the
+ * whole point of `ranFamilies`: a family that returned unusable JSON has NOT been checked,
+ * and reporting it as a clean pass would be the model's failure quietly presented to the
+ * student as reassurance.
+ */
+function editsPayload(raw: string): unknown {
+  const parsed = extractJson<unknown>(raw);
+  if (Array.isArray(parsed)) return parsed;
+  if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { edits?: unknown }).edits)) {
+    return (parsed as { edits: unknown[] }).edits;
+  }
+  throw new Error('completion contained no edits array');
+}
+
+/**
+ * Keep only the edits belonging to the family that was actually asked.
+ *
+ * Each request names one family and is told to ignore everything else, so an edit citing a
+ * check from another family is a request that drifted. Letting it through would make
+ * `ranFamilies` a lie - Grammar would appear to have been checked because an Accuracy
+ * request happened to mention a typo - and it would double-report anything the other
+ * family's own request also found.
+ */
+function scopeToFamily(edits: AiEdit[], familyId: string): { kept: AiEdit[]; dropped: number } {
+  const kept = edits.filter(e => checkById(e.checkId)?.family.id === familyId);
+  return { kept, dropped: edits.length - kept.length };
+}
+
+/**
+ * Namespace edit ids by their family.
+ *
+ * `validateEdits` guarantees ids are unique within one completion, but a run merges eight
+ * independent completions and every one of them is happy to call its first edit `e1`. The
+ * client keys approve/deny by id, so a collision means approving one card settles another -
+ * a wrong edit applied to the note, from a click on a different card.
+ */
+function namespaceIds(edits: AiEdit[], familyId: string): AiEdit[] {
+  return edits.map(e => ({ ...e, id: `${familyId}:${e.id}` }));
+}
+
+/**
+ * Trim a run to what the shared pool can actually pay for.
+ *
+ * The quota gate authorises the REQUEST; a review run then spends one call per family behind
+ * it, so a user with two calls left could otherwise spend eight. This uses the same
+ * `checkQuota` the gate does and charges through the same `complete()` - there is no second
+ * counter - it just prices the run the way the run is actually shaped. A user on their own
+ * key is not metered at all, so nothing is trimmed for them.
+ *
+ * Trimming rather than refusing: someone with two calls left asking for four families is
+ * better served by two families' worth of review than by a 429, and `ranFamilies` tells the
+ * client exactly which two so it can say so.
+ */
+async function familiesWithinBudget(ctx: AiContext, requested: string[]): Promise<string[]> {
+  if (!ctx.shared) return requested;
+  const verdict = await checkQuota(ctx.uid, ctx.ip);
+  const remaining = Math.min(verdict.user.remaining, verdict.ip.remaining);
+  // The gate has already refused a caller with nothing left, so `remaining` is at least 1
+  // here; the floor is belt-and-braces against a counter that moved in between.
+  return requested.slice(0, Math.max(1, remaining));
+}
+
+/**
+ * POST /api/ai/suggest { noteId, families } - the review run.
+ *
+ * One model request per enabled family, issued in parallel. This is the single most
+ * important property of the route: six to eight related checks per prompt is inside what a
+ * model reads carefully, whereas all 56 in one prompt buys shallow coverage of all 56.
+ * Collapsing this into one call would be cheaper and would quietly gut the feature.
+ *
+ * A family whose request fails does not fail the run. Free-tier gateways rate-limit in
+ * bursts, and losing seven families' worth of review because the eighth was throttled is
+ * both the common case and the worst possible answer to it.
+ */
+router.post('/suggest', async (req, res) => {
+  const uid = userId(req);
+  const { noteId, families } = (req.body ?? {}) as { noteId?: unknown; families?: unknown };
+  if (typeof noteId !== 'string' || !noteId) return res.status(400).json({ error: 'noteId is required' });
+
+  const requested = parseFamilies(families);
+  if (!requested.length) return res.status(400).json({ error: 'families must name at least one check family' });
+
+  const note = await getNote(noteId, uid);
+  if (!note) return res.status(404).json({ error: 'note not found' });
+
+  const prepared = noteForReview(note);
+  if ('error' in prepared) return res.status(400).json({ error: prepared.error });
+
+  const ctx = aiCtx(req);
+  const toRun = await familiesWithinBudget(ctx, requested);
+  const title = note.title || 'Untitled';
+
+  const results = await Promise.all(
+    toRun.map(async (familyId) => {
+      const family = familyById(familyId)!;
+      try {
+        const { text } = await complete(ctx, reviewFamilyPrompt(family, title, prepared.doc));
+        const { edits, rejected } = validateEdits(editsPayload(text));
+        const scoped = scopeToFamily(edits, familyId);
+        return { familyId, edits: namespaceIds(scoped.kept, familyId), rejected: rejected + scoped.dropped };
+      } catch (err) {
+        // Deliberately swallowed per family, and deliberately logged: the run continues, and
+        // the caller learns which families are missing from `ranFamilies` rather than from a
+        // 502 that would have thrown away the families that worked.
+        console.error('[folio] review family failed', familyId, err);
+        return null;
+      }
+    }),
+  );
+
+  const body: ReviewResponse = { edits: [], rejected: 0, ranFamilies: [] };
+  for (const result of results) {
+    if (!result) continue;
+    body.edits.push(...result.edits);
+    body.rejected += result.rejected;
+    body.ranFamilies.push(result.familyId);
+  }
+  res.json(body);
 });
 
 // POST /api/ai/title { noteId }
