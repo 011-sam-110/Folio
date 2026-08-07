@@ -12,6 +12,7 @@ import { clientIp } from '../lib/clientIp.js';
 import { checkUserSuppliedUrl } from '../lib/publicHost.js';
 import { getKeyHint, getUserKey, setUserKey, deleteUserKey } from '../ai/keys.js';
 import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt } from '../ai/prompts.js';
+import { FAMILIES, PRESETS } from '../lib/checks.js';
 import type { NoteRow } from '../lib/serialize.js';
 
 const router = Router();
@@ -164,6 +165,23 @@ router.put('/key', async (req, res) => {
   const health = await aiHealth(creds, 'own-key', { force: true });
 
   res.json({ ...(await getKeyHint(uid)), health });
+});
+
+/**
+ * GET /api/ai/checks - the review check catalogue and its presets.
+ *
+ * Served rather than bundled so the web client never holds a second copy that can drift out
+ * of sync with the prompts the suggestion route builds from the same constants. A check the
+ * picker offers is therefore, by construction, a check the server actually runs, and adding
+ * one needs no web deploy.
+ *
+ * Registered above the quota gate deliberately: this reads a static in-process constant and
+ * spends nothing upstream. Behind the gate it would 429 for a user who had exhausted their
+ * allowance, hiding the picker from exactly the person who most needs to narrow their run
+ * down to one family.
+ */
+router.get('/checks', (_req, res) => {
+  res.json({ families: FAMILIES, presets: PRESETS });
 });
 
 /** DELETE /api/ai/key - go back to the shared pool. */
