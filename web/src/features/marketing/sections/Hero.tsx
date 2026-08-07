@@ -44,7 +44,16 @@ export default function Hero() {
           </a>
         </div>
 
-        <p className="mkt-hero__trust">Free to use. No card. Your notes stay yours.</p>
+        {/* The lower-commitment door, kept out of the button row so it does not compete
+            with the primary action. It opens the real editor rather than a demo, so the
+            trade it makes is stated in the same breath. */}
+        <p className="mkt-hero__trust">
+          Free to use. No card. Your notes stay yours. Or{' '}
+          <Link className="mkt-hero__try" to="/try">
+            try it without an account
+          </Link>{' '}
+          - everything stays in your browser and nothing is saved.
+        </p>
       </div>
 
       <ProductShot />

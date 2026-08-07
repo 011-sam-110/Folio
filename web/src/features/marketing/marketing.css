@@ -573,6 +573,15 @@
   color: var(--mkt-ink-3);
 }
 
+/* Underlined rather than coloured: it is the secondary door, and colouring it would put
+   it in competition with the primary button a line above. */
+.mkt-hero__try {
+  color: var(--mkt-ink-2, inherit);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+}
+
 /* --- product shot ---------------------------------------------------------
 
    Everything in the replica renders FINISHED with no animation applied. The sequence

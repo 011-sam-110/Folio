@@ -9,6 +9,7 @@ import { api } from '../../../lib/api';
 import type { ImportItem, ImportSource, NotebookLite } from '../../../lib/types';
 import { CONNECTORS, getConnector } from '../connectors/registry';
 import type { SourceConnector } from '../connectors/types';
+import { expandArchives } from '../zipEntries';
 import { ingestAndCategorise, commitItems, type IngestProgress, type CommitProgress } from './pipeline';
 import ReviewStage from './ReviewStage';
 
@@ -94,7 +95,17 @@ export default function ImportWizard({ open, initialSource, notebooks, onClose, 
 
   async function handleFiles(fileList: FileList | File[]) {
     if (!connector) return;
-    const files = Array.from(fileList);
+    // A .zip is unpacked here rather than in the connector: `ingest` is synchronous, and
+    // reading an archive is not. Entries keep their full path as the file name, so the
+    // folder structure inside a Unote export becomes the same notebook signal a picked
+    // folder gives - which is what makes export then import a real round trip.
+    let files: File[];
+    try {
+      files = (await expandArchives(Array.from(fileList))).files;
+    } catch (e) {
+      setError(msg(e));
+      return;
+    }
     const docs = connector.ingest(files);
     if (!docs.length) {
       setError('None of those files are supported by this source. Try a different source or file type.');

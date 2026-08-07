@@ -37,12 +37,15 @@ const photos: SourceConnector = {
   ingest: (fs) => toRawDocs(fs, (f) => classify(f) === 'photo'),
 };
 
+// Also the way a Unote export comes back in: ImportWizard unpacks any .zip before this
+// runs, and each entry keeps its archive path as its name, so the folders inside the
+// export are read as notebooks exactly like a picked folder would be.
 const markdown: SourceConnector = {
   id: 'markdown',
-  label: 'Markdown / folder',
-  description: 'A folder of .md/.txt - folders become notebooks',
+  label: 'Markdown, folder or Unote export',
+  description: 'A folder or .zip of .md/.txt - folders become notebooks',
   icon: 'folder-plus',
-  accept: '.md,.markdown,.txt,.text',
+  accept: '.md,.markdown,.txt,.text,.zip',
   supportsFolder: true,
   setup: 'none',
   ingest: (fs) => toRawDocs(fs, (f) => classify(f) === 'text'),

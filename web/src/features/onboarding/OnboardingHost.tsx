@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '../../components/Toast';
 import { useAuth } from '../auth/AuthContext';
+import { useGuestHandoverPending } from '../guest/guestMode';
 import TourOverlay from './TourOverlay';
 import ShortcutsSheet from './ShortcutsSheet';
 import HintHost, { suppressHintsThisSession } from './HintHost';
@@ -30,6 +31,7 @@ export default function OnboardingHost({
   // re-render with an unchanged id costs nothing.
   useMemo(() => bindUser(user?.id ?? null), [user?.id]);
   const state = useOnboarding();
+  const handoverPending = useGuestHandoverPending();
 
   const [tourOpen, setTourOpen] = useState(false);
   const [resumeAt, setResumeAt] = useState(-1);
@@ -41,13 +43,18 @@ export default function OnboardingHost({
     setTourOpen(true);
   }, []);
 
-  // Auto-open for a genuinely new account, once per page load.
+  // Auto-open for a genuinely new account, once per page load - but never over the guest
+  // handover. An account made from guest mode arrives with browser-local notes whose fate
+  // is undecided, and "would you like the tutorial?" is not the question to put in front
+  // of someone one click away from orphaning their own work. The tour opens by itself as
+  // soon as that has been answered.
   useEffect(() => {
     if (!user || autoOpened.current) return;
+    if (handoverPending) return;
     if (getOnboarding().status !== 'unseen') return;
     autoOpened.current = true;
     openTour(-1);
-  }, [user, openTour]);
+  }, [user, openTour, handoverPending]);
 
   // A part-finished tour is offered back once, as a toast that can simply be ignored.
   useEffect(() => {

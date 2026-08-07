@@ -38,6 +38,11 @@ Timestamps are ISO-8601 UTC strings. Booleans stored as 0/1 in SQLite but serial
 - `GET /api/notes/:id/export?format=markdown` → `text/markdown` attachment; convert TipTap JSON → Markdown server-side.
 - `GET /api/notes/:id/unlinked-mentions` → `{ notes: NoteLite[] }`. Notes whose text mentions this note's title but don't link it.
 
+## Export (routes/export.ts)
+Whole-account export, mounted at `/api/export` rather than under `/api/notes` so nothing has to be registered ahead of `/:id` to avoid being read as a note id.
+- `GET /api/export/summary` → `{ notes, notebooks, maxNotes, included, truncated }`. What an export would contain and what the cap would leave out. The UI asks for this BEFORE offering the download, so a capped export is announced rather than discovered.
+- `GET /api/export/all?format=markdown` → `application/zip` attachment. One folder per notebook, one `.md` per live note, plus a `README.md`. Each file opens with YAML frontmatter (`title`, `notebook`, `tags`, `updated`) in the shape `features/import/connectors/extract.ts` parses, so an export re-imports with its titles and tags intact. Canvas notes export their item text with a line saying the layout is not included. Bounded at 2000 notes / 25MB of Markdown so the function finishes inside its time limit; `X-Unote-Export-Notes` and `X-Unote-Export-Omitted` report the actual split.
+
 ## Search (routes/search.ts)
 - `GET /api/search?q=...&limit=20` → `{ results: [{ note: NoteLite, snippetHtml, score }] }`
   - FTS5 `bm25` ranked; `snippetHtml` from `snippet(notes_fts, 1, '<mark>', '</mark>', '…', 12)`.

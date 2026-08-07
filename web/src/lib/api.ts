@@ -9,6 +9,8 @@ import type {
 import type {
   ImportBatch, ImportItem, ImportSource, ImportLabelSpace, ImportSuggestionInput, ImportCommitResult,
 } from './types';
+import { isGuest } from '../features/guest/guestMode';
+import { GuestFeatureError, guestApi, guestBlockedMessage } from '../features/guest/guestApi';
 
 export class ApiError extends Error {
   status: number;
@@ -62,7 +64,7 @@ const json = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export const api = {
+const serverApi = {
   // auth - no tokens are passed or returned: the session is an httpOnly cookie the
   // browser attaches automatically on these same-origin requests.
   // Signup is the only time the recovery key is ever transmitted - the server keeps
@@ -119,6 +121,15 @@ export const api = {
   restore: (noteId: string, vid: number) => http<{ note: Note }>(`/api/notes/${noteId}/restore/${vid}`, { method: 'POST' }),
   unlinkedMentions: (noteId: string) => http<{ notes: NoteLite[] }>(`/api/notes/${noteId}/unlinked-mentions`),
   exportUrl: (noteId: string, format = 'markdown') => `/api/notes/${noteId}/export?format=${format}`,
+
+  // whole-account export. The summary is asked for BEFORE the download so the UI can say
+  // what the archive will contain, and name anything the server's cap would leave out,
+  // rather than handing over a quietly incomplete zip.
+  exportSummary: () =>
+    http<{ notes: number; notebooks: number; maxNotes: number; included: number; truncated: boolean }>('/api/export/summary'),
+  /** A plain URL, not a fetch: the browser streams the zip to disk instead of this
+   *  process holding an entire account's notes in memory as a blob. */
+  exportAllUrl: (format = 'markdown') => `/api/export/all?format=${format}`,
 
   // search
   search: (q: string, limit = 20) => http<{ results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`),
@@ -295,5 +306,34 @@ export const api = {
   discardImportBatch: (batchId: string) => http<{ ok: true }>(`/api/import/batches/${batchId}`, { method: 'DELETE' }),
 };
 
-export type Api = typeof api;
+export type Api = typeof serverApi;
+
+/**
+ * Guest mode is applied here rather than in every page.
+ *
+ * A visitor with no account still gets the whole shell - dashboard, notebooks, editor,
+ * search, tags - so the alternative was a second copy of every page reading a different
+ * store. Routing at this single seam keeps the pages unaware there is a difference, and
+ * keeps ONE list (features/guest/guestApi) of what does and does not work without a server.
+ *
+ * The default is refusal, not fallthrough: an endpoint with no guest entry rejects with a
+ * sentence rather than calling the server, which would only ever answer 401. Auth and the
+ * guest side of share links are the exceptions - signing in is how guest mode ends, and a
+ * share link belongs to whoever sent it, not to the browser opening it.
+ */
+const ALWAYS_SERVER = new Set([
+  'signup', 'login', 'logout', 'me', 'pair', 'changePassword', 'recover', 'regenerateRecoveryKey', 'authProviders',
+  'sharePeek', 'shareJoin', 'sharedNote', 'updateSharedNote', 'shareEvents', 'sharedInk', 'addSharedInk',
+]);
+
+export const api: Api = new Proxy(serverApi, {
+  get(target, prop, receiver) {
+    const key = String(prop);
+    if (!isGuest() || ALWAYS_SERVER.has(key)) return Reflect.get(target, prop, receiver);
+    const local = (guestApi as Record<string, unknown>)[key];
+    if (typeof local === 'function') return local;
+    return () => Promise.reject(new GuestFeatureError(guestBlockedMessage(key)));
+  },
+}) as Api;
+
 export type { NotebookLite };

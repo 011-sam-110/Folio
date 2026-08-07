@@ -1,0 +1,169 @@
+/* Guest mode surfaces: the unsaved-work banner, the sidebar's guest identity row and the
+   sign-in handover dialog. Amber rather than red throughout - this is a standing condition
+   the user chose, not an error, and a page of red would train people to ignore it. */
+
+.guest-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: color-mix(in srgb, #f59e0b 14%, var(--bg));
+  border-bottom: 1px solid color-mix(in srgb, #f59e0b 40%, var(--line));
+}
+
+.guest-banner > svg {
+  flex: 0 0 auto;
+  color: #b45309;
+}
+
+.guest-banner__text {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.guest-banner__cta,
+.guest-banner__alt {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  text-decoration: none;
+}
+
+.guest-banner__cta {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.guest-banner__alt {
+  color: var(--ink-2);
+  text-decoration: underline;
+}
+
+/* --- sidebar identity ----------------------------------------------------- */
+
+.guest-account__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+}
+
+.guest-account__avatar {
+  background: color-mix(in srgb, #f59e0b 30%, var(--bg-hover));
+  color: #b45309;
+}
+
+.guest-account__warn {
+  font-size: 11.5px;
+  color: #b45309;
+  font-weight: 600;
+}
+
+.guest-account__cta {
+  display: block;
+  margin: 2px 6px 4px;
+  padding: 5px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+/* --- handover dialog ------------------------------------------------------ */
+
+.guest-migrate__lead {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  margin: 0 0 14px;
+}
+
+.guest-migrate__progress {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin: 0 0 10px;
+}
+
+.guest-migrate__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guest-migrate__minor {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.guest-link {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.guest-link--danger {
+  color: #b91c1c;
+}
+
+.guest-migrate__foot {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* --- "make an account" panels on server-only pages ------------------------ */
+
+.guest-gate {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, #f59e0b 40%, var(--line));
+  border-radius: var(--radius-lg, 10px);
+  background: color-mix(in srgb, #f59e0b 10%, var(--bg));
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.guest-gate > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #b45309;
+}
+
+.guest-gate__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.guest-gate__title {
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.guest-gate__detail {
+  color: var(--ink-2);
+}
+
+.guest-gate__cta {
+  display: inline-block;
+  margin-top: 6px;
+  font-weight: 600;
+  color: var(--accent);
+}

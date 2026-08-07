@@ -21,14 +21,22 @@ import LoginPage from './features/auth/LoginPage'
 import SignupPage from './features/auth/SignupPage'
 import RecoverPage from './features/auth/RecoverPage'
 import JoinPage from './features/share/JoinPage'
+import TryRoute from './features/guest/TryRoute'
+import GuestMigrationHost from './features/guest/GuestMigrationHost'
+import { useGuest } from './features/guest/guestMode'
 import './styles/index.css'
 
 // AuthProvider sits inside the router (rather than around RouterProvider) so the auth
 // pages can use useNavigate/useLocation, and so one /me call serves every route.
+//
+// GuestMigrationHost is a sibling of the routes rather than a page: the moment a guest
+// signs in can happen on /login, /signup or a redirect back from an OAuth provider, and
+// the offer to carry their notes across has to survive all three.
 function AuthRoot() {
   return (
     <AuthProvider>
       <Outlet />
+      <GuestMigrationHost />
     </AuthProvider>
   )
 }
@@ -45,8 +53,12 @@ function AuthRoot() {
 // settles, so `user` is already decided by the time this runs.
 function RootRoute() {
   const { user, scope } = useAuth()
+  const guest = useGuest()
   const { pathname } = useLocation()
-  if (!user && pathname === '/') return <LandingPage />
+  // A guest already chose the product over the pitch, so "/" is their dashboard. Sending
+  // them back to the marketing page would look like being signed out of the notes they
+  // are part way through writing.
+  if (!user && !guest && pathname === '/') return <LandingPage />
   // A QR-paired phone is signed in as the user but authorised for capture only, so the
   // desktop shell would render and then 403 on every fetch it makes. Send it where its
   // session actually works. The server enforces the same boundary independently.
@@ -67,6 +79,10 @@ const router = createBrowserRouter([
       { path: '/login', element: <LoginPage /> },
       { path: '/signup', element: <SignupPage /> },
       { path: '/recover', element: <RecoverPage /> },
+
+      // The one-click way in without an account. Public by necessity, and it does its
+      // work (start the session, seed a first note) before redirecting into the shell.
+      { path: '/try', element: <TryRoute /> },
 
       // Share links. PUBLIC and outside RequireAuth by design - a guest opening
       // one has no Unote account at all; their access is a per-share cookie the

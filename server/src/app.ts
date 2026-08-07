@@ -23,6 +23,7 @@ import shareRouter from './routes/share.js';
 import commentsRouter from './routes/comments.js';
 import metaRouter from './routes/meta.js';
 import uploadsRouter from './routes/uploads.js';
+import exportRouter from './routes/export.js';
 
 /**
  * The app is multi-user and cookie-authenticated, which makes a permissive CORS policy
@@ -164,6 +165,10 @@ export function buildApp(): express.Express {
   app.use('/api', requireAuth, commentsRouter);
   app.use('/api/notebooks', requireAuth, notebooksRouter);
   app.use('/api/notes', requireAuth, notesRouter);
+  // Whole-account export. Its own mount rather than a route inside notesRouter: there,
+  // any path it claimed would have to be registered ahead of `/:id` to avoid being read
+  // as a note id, which is an ordering trap the next person to add a route would inherit.
+  app.use('/api/export', requireAuth, exportRouter);
   app.use('/api/search', requireAuth, searchRouter);
   app.use('/api/tags', requireAuth, tagsRouter);
   app.use('/api/dashboard', requireAuth, dashboardRouter);

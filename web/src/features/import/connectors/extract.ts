@@ -40,8 +40,10 @@ function dedupe(list: string[]): string[] {
   return [...new Set(list.map((s) => s.trim()).filter(Boolean))];
 }
 
-/** YAML frontmatter `tags:`/`title:` + inline `#hashtags`. Deliberately forgiving. */
-export function parseSourceTags(md: string): { tags: string[]; title?: string } {
+/** YAML frontmatter `tags:`/`title:` + inline `#hashtags`. Deliberately forgiving.
+ *  `body` is the document with any frontmatter block removed, so a caller that turns the
+ *  markdown into a note does not paste the metadata back in as its first paragraph. */
+export function parseSourceTags(md: string): { tags: string[]; title?: string; body: string } {
   const tags = new Set<string>();
   let title: string | undefined;
   let body = md;
@@ -59,7 +61,7 @@ export function parseSourceTags(md: string): { tags: string[]; title?: string } 
   // Inline #hashtags in the body - a letter must follow the '#', so markdown headings ('# H')
   // and '## Sub' never match.
   for (const m of body.matchAll(/(?:^|[\s(])#([a-zA-Z][\w/-]{1,31})/g)) tags.add(m[1]);
-  return { tags: [...tags], title };
+  return { tags: [...tags], title, body };
 }
 
 // --- PDF (pdf.js, lazy) ----------------------------------------------------------------------
