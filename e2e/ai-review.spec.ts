@@ -130,9 +130,25 @@ async function stubAiHealth(page: Page): Promise<void> {
   );
 }
 
-/** Fixes the run's response, and keeps the AI menu on screen whatever the gateway is doing. */
+/**
+ * Fixes the run's response, and keeps the AI menu on screen whatever the gateway is doing.
+ *
+ * `/api/ai/chat` is stubbed alongside `/api/ai/suggest` because the panel is a conversation
+ * now: pressing "Improve writing" sends a message, and the model's answer is what decides
+ * which tool runs. Leaving that call live would put a real gateway request in front of every
+ * assertion in this file - the one thing the header explains this suite must never do - and
+ * would make the run's determinism depend on a model reading a button label correctly.
+ *
+ * The stub returns the tool call that press is meant to produce, so what is under test stays
+ * the plugin's position arithmetic rather than the routing.
+ */
 async function stubSuggestions(page: Page, edits: unknown[]): Promise<void> {
   await stubAiHealth(page);
+  await page.route('**/api/ai/chat', (route) =>
+    route.fulfill({
+      json: { kind: 'tool', tool: 'improve_writing', args: {}, say: 'Reading through your note.', model: 'stub' },
+    }),
+  );
   await page.route('**/api/ai/suggest', (route) =>
     route.fulfill({ json: { edits, rejected: 0, ranFamilies: ['accuracy', 'clarity', 'grammar', 'structure'] } }),
   );
@@ -159,17 +175,27 @@ async function documentBlocks(page: Page): Promise<string[]> {
   }, TESTIDS.noteEditor);
 }
 
+/**
+ * Open the AI panel and start a run.
+ *
+ * The panel is addressed by test id rather than by the name of its toggle. That toggle has
+ * been called "AI" and is now called "Assistant", and a name-based selector went on matching
+ * nothing for as long as it took someone to run this file.
+ *
+ * Pressing "Improve writing" sends a message rather than calling an endpoint, so this waits
+ * on the rail (the run) and not on the click, and `stubSuggestions` fixes both hops.
+ */
 async function openReview(page: Page): Promise<void> {
   const main = page.getByRole('main');
-  await main.getByRole('button', { name: /^ai\b/i }).click();
+  await page.getByTestId('assistant-open').click();
   await main.getByRole('button', { name: /improve writing/i }).first().click();
   await expect(page.getByTestId('ai-review-rail')).toBeVisible({ timeout: 15_000 });
 }
 
-/** The check picker, from the same AI menu, below the divider. */
+/** The check picker, from the same panel, under the composer. */
 async function openChecks(page: Page): Promise<void> {
   const main = page.getByRole('main');
-  await main.getByRole('button', { name: /^ai\b/i }).click();
+  await page.getByTestId('assistant-open').click();
   await main.getByRole('button', { name: /choose what to check/i }).click();
   await expect(page.getByTestId('check-picker')).toBeVisible({ timeout: 15_000 });
 }
@@ -384,7 +410,7 @@ test.describe('AI review (stubbed suggestions)', () => {
 
     await openNoteAndWait(page, note);
     const main = page.getByRole('main');
-    await main.getByRole('button', { name: /^ai\b/i }).click();
+    await page.getByTestId('assistant-open').click();
 
     const gaps = main.getByRole('button', { name: /find missing content from uploads/i });
     await expect(gaps).toBeDisabled();

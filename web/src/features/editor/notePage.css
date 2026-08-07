@@ -968,6 +968,255 @@
   text-decoration: underline dotted;
 }
 
+/* ---------- Drag-to-resize grip ----------
+   Sits on the drawer's left edge. The hit area is deliberately wider than the line anyone
+   can see (10px against a 1px rule): a 1px target is a target you hunt for, and this one is
+   on the edge of a panel people resize while reading. */
+
+/* Held entirely INSIDE the panel. The drawer clips its overflow (the thread scrolls, the
+   panel does not), so a grip hanging over the edge on a negative margin would have half its
+   hit area cut off and the reader would be aiming at a target that is not where it looks. */
+.folio-drawer-grip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  /* Above the drawer's own content so a card's padding cannot eat the edge of the target. */
+  z-index: 2;
+  background: transparent;
+  /* Without this, a touch drag scrolls the page instead of resizing, and pointermove stops
+     arriving the moment the browser claims the gesture. */
+  touch-action: none;
+}
+
+.folio-drawer-grip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.folio-drawer-grip:hover::after,
+.folio-drawer-grip:focus-visible::after,
+.folio-drawer-grip.is-dragging::after {
+  opacity: 1;
+}
+
+.folio-drawer-grip:focus-visible {
+  outline: none;
+}
+
+/* Text selection in the note behind would otherwise follow the pointer for the whole drag.
+   The pointer is captured to the grip, so this is belt and braces for the moment between
+   pointerdown and capture taking effect. */
+.folio-ai-chat.is-resizing {
+  user-select: none;
+}
+
+/* ---------- The AI panel as a conversation ----------
+   Three rows: the shortcut buttons, the thread (the only part that scrolls), and the
+   composer pinned to the bottom. The drawer's own `overflow-y: auto` is turned off here,
+   because a panel that scrolls as a whole would carry the composer up off the screen the
+   moment the conversation got long. */
+
+.folio-ai-chat {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 0 0;
+  gap: 0;
+}
+
+.folio-ai-chat > .folio-history-head,
+.folio-ai-chat__quick,
+.folio-ai-chat__composer {
+  padding-left: 18px;
+  padding-right: 18px;
+  flex: 0 0 auto;
+}
+
+.folio-ai-chat__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Inside the chat the shortcuts are chips, not the full-width stacked buttons they were as
+   a menu: they are one way in among several now, and a column of four wide buttons above a
+   conversation reads as the main event. */
+.folio-ai-chat__quick .folio-ai-action {
+  width: auto;
+  flex: 0 1 auto;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+}
+
+.folio-ai-chat__thread {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.folio-ai-chat__empty {
+  margin: auto 0;
+  text-align: center;
+  color: var(--ink-3);
+}
+
+.folio-ai-chat__empty-title {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+
+.folio-ai-chat__empty-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.folio-ai-turn[data-role='user'] {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.folio-ai-bubble {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 14px 14px 3px 14px;
+  background: var(--accent-soft, var(--bg-hover));
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.folio-ai-thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.folio-ai-answer {
+  font-size: 13.5px;
+}
+
+.folio-ai-answer__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.folio-ai-linkbtn {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+/* ---------- A tool call in the thread ----------
+   Bordered rather than bubbled, because it is not something that was said: it is something
+   that ran, and it can contain a whole review. */
+
+.folio-ai-tool {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--bg-subtle, var(--bg));
+}
+
+.folio-ai-tool__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.folio-ai-tool__icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+}
+
+.folio-ai-tool__name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.folio-ai-tool__detail {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.folio-ai-tool__detail[data-failed='true'] {
+  color: var(--danger, #b4232a);
+}
+
+.folio-ai-tool__say {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.folio-ai-tool__review {
+  margin: 10px -12px -10px;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- Composer ---------- */
+
+.folio-ai-chat__composer {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  padding-bottom: 14px;
+  background: var(--bg);
+}
+
+.folio-ai-chat__composer textarea {
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.folio-ai-chat__composer textarea:disabled {
+  opacity: 0.6;
+}
+
+.folio-ai-chat__composer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {

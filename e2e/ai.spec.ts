@@ -86,7 +86,11 @@ async function openNoteMenuAction(
   actionPattern: RegExp,
 ): Promise<void> {
   const main = page.getByRole('main');
-  await main.getByRole('button', { name: menu === 'ai' ? /^ai\b/i : /^more$/i }).click();
+  // The AI surface is opened by its own toggle, addressed by test id. It used to be a
+  // dropdown labelled "AI"; it is now the "Assistant" panel toggle, and a name-based
+  // selector went on matching nothing for as long as it took someone to run this file.
+  if (menu === 'ai') await page.getByTestId('assistant-open').click();
+  else await main.getByRole('button', { name: /^more$/i }).click();
   await main.getByRole('button', { name: actionPattern }).first().click();
 }
 
@@ -169,9 +173,10 @@ test.describe('AI features (real gateway)', () => {
     await page.goto(`/note/${note.id}`);
     await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
 
-    await openNoteMenuAction(page, 'ai', /flashcard/i);
-    // The AI menu asks "How many?" before generating - pick a count.
-    await page.locator('.folio-flashcard-count').getByRole('button', { name: '8' }).click();
+    // The panel's "Generate flashcards" shortcut sends that as a message; the model reads it
+    // and calls the flashcards tool. There is no "How many?" step any more - the count is an
+    // argument of the tool call, defaulted server-side when the request does not name one.
+    await openNoteMenuAction(page, 'ai', /generate flashcards/i);
 
     const banner = page.getByText(/\d+\s*cards?\s*added|flashcards?\s*(created|added|generated)/i);
     await settleAi(page, async () => banner.isVisible(), 'AI flashcard generation');
@@ -209,7 +214,18 @@ test.describe('AI features (real gateway)', () => {
     expect(await sources.count()).toBeGreaterThanOrEqual(1);
   });
 
-  test('Assistant panel finds gaps without rewriting the note', async ({ page, request }) => {
+  /**
+   * The panel is a conversation, so this asks it a question the way a student would rather
+   * than pressing a button wired to one endpoint.
+   *
+   * The assertion is deliberately indifferent to whether the model answers in words or
+   * reaches for the gap-report tool: both are legitimate readings of the question, and
+   * pinning the test to one of them would make a live model's judgement call look like a
+   * regression. What must hold either way is the invariant this test exists for - the
+   * assistant does not write the note. Nothing it can do here reaches the document without
+   * an approval, and this proves it for the one path that produces prose.
+   */
+  test('the assistant answers about the note without rewriting it', async ({ page, request }) => {
     test.setTimeout(180_000);
     await ensureAiHealthy(request);
 
@@ -227,13 +243,18 @@ test.describe('AI features (real gateway)', () => {
     await page.getByTestId('assistant-open').click();
     const panel = page.getByTestId('assistant-panel');
     await expect(panel).toBeVisible({ timeout: 5_000 });
-    await panel.getByTestId('assistant-find-gaps').click();
 
-    const result = panel.getByTestId('assistant-result');
+    await panel.getByTestId('assistant-composer').fill('What is this note missing about deadlock?');
+    await panel.getByTestId('assistant-send').click();
+
+    // The question is echoed into the thread immediately, before the model has said anything.
+    await expect(panel.getByTestId('assistant-user-message')).toContainText('missing');
+
+    const answered = panel.getByTestId('assistant-result').or(panel.getByTestId('assistant-reply'));
     await settleAi(
       page,
-      async () => ((await result.textContent({ timeout: 1_000 }).catch(() => '')) ?? '').trim().length > 40,
-      'assistant gap analysis',
+      async () => ((await answered.first().textContent({ timeout: 1_000 }).catch(() => '')) ?? '').trim().length > 40,
+      'assistant answer',
     );
 
     // The assistant NEVER writes the note by itself.

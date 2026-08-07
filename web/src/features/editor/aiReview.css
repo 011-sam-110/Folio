@@ -333,26 +333,35 @@
   color: var(--accent);
 }
 
-/* Docked inside the AI panel, which is where the rail actually renders: a review is a STATE
-   of that panel, not a second surface beside it (see AssistantPanel.tsx). The drawer already
-   supplies the frame, the shadow and the right-hand position, so the rail drops its own and
-   fills it instead. Two classes, so this wins over the base rule and over the narrow-screen
-   one below without either needing to know about it. */
-.folio-ai-panel .folio-ai-rail {
+/* Inline in the conversation, which is where the rail actually renders now: a review belongs
+   to the turn that asked for it (see AssistantPanel.tsx), the way a diff belongs to the tool
+   call above it in an agent chat. The turn supplies the frame, so the rail drops its own.
+   Two classes, so this wins over the base rule and over the narrow-screen one below without
+   either needing to know about it. */
+.folio-ai-panel .folio-ai-rail--inline {
   position: static;
   width: auto;
   max-height: none;
-  flex: 1;
-  min-height: 0;
   border: none;
   border-radius: 0;
   box-shadow: none;
+  background: transparent;
 }
 
-/* The drawer's own padding goes with it - the rail's head, body and foot carry their own,
-   and two sets of padding leave the cards floating in the middle of the panel. */
-.folio-ai-panel--review {
-  padding: 0;
+/* The thread owns the scrolling. A rail with its own scroll area nested inside a scrolling
+   thread gives the reader two wheels to choose between and no way to tell which one they are
+   turning, and the inner one traps the pointer over exactly the cards they are reading. */
+.folio-ai-rail--inline .folio-ai-rail__body {
+  overflow-y: visible;
+  max-height: none;
+}
+
+/* Approve all and Discard sit after the cards rather than pinned under them: pinned, they
+   would be a bar stuck to the bottom of a panel whose bottom belongs to the composer, and
+   they would hover over whichever part of the conversation happened to be on screen. */
+.folio-ai-rail--inline .folio-ai-rail__foot {
+  position: static;
+  border-top: 1px solid var(--line);
 }
 
 /* Kept for any context that renders the rail free-standing (and as the base the docked rule

@@ -17,6 +17,7 @@ import { fetchCheckCatalogue, type CheckCatalogue, type Family, type Severity } 
 import { toast } from '../../components/Toast';
 import Icon from '../../components/Icon';
 import Spinner from '../../components/Spinner';
+import { inlineMarkdownToSafeHtml } from './inlineMarkdown';
 import {
   activeEdits,
   approveEdit,
@@ -82,6 +83,17 @@ export interface AiReviewRailProps {
   beforeApply: () => Promise<void>;
   /** The run is over - the caller unmounts the rail. */
   onDone: () => void;
+  /**
+   * `panel` fills a drawer of its own; `inline` sits inside the conversation turn that
+   * started the run.
+   *
+   * Only the chrome differs. Inline drops the sticky footer (a bar pinned to the bottom of
+   * the drawer would belong to whatever is on screen, not to this run, and there can be a
+   * composer under it) and puts Approve all / Discard at the end of the cards, where the
+   * reader arrives after reading them. The cards, the grouping and the severity ordering are
+   * the same in both, because they are the feature.
+   */
+  variant?: 'panel' | 'inline';
 }
 
 interface Group {
@@ -90,7 +102,7 @@ interface Group {
   edits: AiEdit[];
 }
 
-export default function AiReviewRail({ editor, beforeApply, onDone }: AiReviewRailProps) {
+export default function AiReviewRail({ editor, beforeApply, onDone, variant = 'panel' }: AiReviewRailProps) {
   const [review, setReview] = useState<AiReviewState | null>(() => reviewStateOf(editor));
   const [catalogue, setCatalogue] = useState<CheckCatalogue | null>(null);
   const [catalogueFailed, setCatalogueFailed] = useState(false);
@@ -229,7 +241,11 @@ export default function AiReviewRail({ editor, beforeApply, onDone }: AiReviewRa
   const total = pending.length;
 
   return (
-    <aside className="folio-ai-rail" aria-label="AI review" data-testid="ai-review-rail">
+    <aside
+      className={`folio-ai-rail${variant === 'inline' ? ' folio-ai-rail--inline' : ''}`}
+      aria-label="AI review"
+      data-testid="ai-review-rail"
+    >
       <div className="folio-ai-rail__head">
         <h3>
           <Icon name="sparkles" size={14} /> Review
@@ -413,11 +429,24 @@ function Card({ edit, editor, familyLabel, severity, applicable, onApprove, onDe
   );
 }
 
+/**
+ * Before and after, rendered as the formatting they describe rather than as the characters
+ * that spell it.
+ *
+ * A card that shows `**fast**` is asking the reader to approve a change they cannot see: the
+ * asterisks are the notation, not the proposal, and the whole review flow rests on the
+ * before/after being an honest picture of what approving will do. `approveEdit` resolves the
+ * same markdown through the same helper, so what this shows and what lands in the note come
+ * from one conversion, not two that can drift.
+ *
+ * Sanitized to an inline-only allowlist inside `inlineMarkdownToSafeHtml`. The string being
+ * rendered is model output, so it is untrusted by default.
+ */
 function Diff({ edit }: { edit: AiEdit }) {
   return (
     <div className="folio-ai-card__diff">
-      {edit.before.trim() && <del>{edit.before}</del>}
-      {edit.after.trim() && <ins>{edit.after}</ins>}
+      {edit.before.trim() && <del dangerouslySetInnerHTML={{ __html: inlineMarkdownToSafeHtml(edit.before) }} />}
+      {edit.after.trim() && <ins dangerouslySetInnerHTML={{ __html: inlineMarkdownToSafeHtml(edit.after) }} />}
     </div>
   );
 }

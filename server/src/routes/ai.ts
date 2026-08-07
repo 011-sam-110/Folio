@@ -11,7 +11,9 @@ import { checkQuota } from '../ai/usage.js';
 import { clientIp } from '../lib/clientIp.js';
 import { checkUserSuppliedUrl } from '../lib/publicHost.js';
 import { getKeyHint, getUserKey, setUserKey, deleteUserKey } from '../ai/keys.js';
-import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt, reviewFamilyPrompt, gapEditsPrompt } from '../ai/prompts.js';
+import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt, reviewFamilyPrompt, gapEditsPrompt, noteChatPrompt } from '../ai/prompts.js';
+import { assistantTool, clampCardCount } from '../ai/assistantTools.js';
+import type { ChatMessage } from '../ai/client.js';
 import { FAMILIES, PRESETS, familyById, checkById } from '../lib/checks.js';
 import { validateEdits, type AiEdit } from '../lib/aiEdit.js';
 import { blocksOf, blocksForPrompt } from '../lib/noteBlocks.js';
@@ -473,6 +475,140 @@ router.post('/gaps', async (req, res) => {
     sendAiError(res, e);
   }
 });
+
+// ---------------------------------------------------------------------------
+// The note assistant's conversation.
+// ---------------------------------------------------------------------------
+
+/** How much of the note the assistant reads per message. Below AI_MAX_CHARS to leave the
+ *  conversation itself room in the same context window. */
+const CHAT_NOTE_CHARS = 14_000;
+/** Turns of history replayed. Enough for "do that again" and "no, the other one" to mean
+ *  something; short enough that a long session does not grow the cost of every message. */
+const CHAT_HISTORY_TURNS = 12;
+/** One message. Generous for a typed question, far under what would crowd out the note. */
+const CHAT_MESSAGE_CHARS = 4_000;
+
+/** The conversation from the request body, trusted for its shape and nothing else. */
+function parseHistory(raw: unknown): ChatMessage[] | { error: string } {
+  if (!Array.isArray(raw)) return { error: 'messages must be an array' };
+  const out: ChatMessage[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const { role, content } = item as { role?: unknown; content?: unknown };
+    // Only the two conversational roles. A caller must never be able to inject a `system`
+    // turn: that is where this file's own instructions live, and a client-supplied one would
+    // sit alongside them with equal authority.
+    if (role !== 'user' && role !== 'assistant') continue;
+    if (typeof content !== 'string' || !content.trim()) continue;
+    out.push({ role, content: capForAi(content.trim(), CHAT_MESSAGE_CHARS) });
+  }
+  if (out.length === 0) return { error: 'messages must contain at least one user message' };
+  if (out[out.length - 1]?.role !== 'user') return { error: 'the last message must be from the user' };
+  return out.slice(-CHAT_HISTORY_TURNS);
+}
+
+/**
+ * POST /api/ai/chat { noteId, messages } - one turn of the note assistant.
+ *
+ * Answers with EITHER `{ kind: 'reply', markdown }` or `{ kind: 'tool', tool, args, say }`.
+ * The client runs the tool; this route never does. That split is deliberate: every tool the
+ * model can pick is an existing endpoint with its own ownership check, its own quota
+ * accounting and, for the three that produce suggestions, its own review flow that the
+ * student still has to approve. Running them from in here would put a second, unreviewed
+ * path to the same writes behind a model's choice.
+ *
+ * An unrecognised tool id is NOT an error the student sees as a failure. It means the model
+ * answered off-contract, and the honest thing is to fall back to whatever it said in words -
+ * see `toolFromReply`.
+ */
+router.post('/chat', async (req, res) => {
+  const uid = userId(req);
+  const { noteId, messages } = (req.body ?? {}) as { noteId?: unknown; messages?: unknown };
+  if (typeof noteId !== 'string' || !noteId) return res.status(400).json({ error: 'noteId is required' });
+
+  const history = parseHistory(messages);
+  if ('error' in history) return res.status(400).json({ error: history.error });
+
+  const note = await getNote(noteId, uid);
+  if (!note) return res.status(404).json({ error: 'note not found' });
+
+  // Which uploads are usable decides which tools are even offered. An attachment that failed
+  // to extract is not a source, so a note that has only those is treated as having none -
+  // otherwise the model offers to compare the note against a file with no text in it.
+  const uploads = await db
+    .prepare(
+      `SELECT original_name FROM attachments
+       WHERE note_id = ? AND user_id = ? AND status = 'ready' AND extracted_text IS NOT NULL AND extracted_text != ''
+       ORDER BY created_at ASC`,
+    )
+    .all<{ original_name: string }>(noteId, uid);
+
+  try {
+    const { text, model } = await complete(
+      aiCtx(req),
+      noteChatPrompt(note.title || 'Untitled', capForAi(note.content_text, CHAT_NOTE_CHARS), history, {
+        hasUploads: uploads.length > 0,
+        uploadNames: uploads.map(u => u.original_name),
+      }),
+      { json: true },
+    );
+    res.json({ ...interpretChatTurn(text, uploads.length > 0), model });
+  } catch (e) {
+    sendAiError(res, e);
+  }
+});
+
+/**
+ * The model's answer, turned into something the panel can act on.
+ *
+ * Every failure here degrades to a reply rather than to an error, because the student asked
+ * a question and an error page is a worse answer than the words the model produced. The one
+ * case that cannot degrade is unparsable output with nothing readable in it, and that is
+ * reported as such.
+ */
+function interpretChatTurn(raw: string, hasUploads: boolean):
+  | { kind: 'reply'; markdown: string }
+  | { kind: 'tool'; tool: string; args: Record<string, unknown>; say: string } {
+  let parsed: { tool?: unknown; args?: unknown; say?: unknown; reply?: unknown };
+  try {
+    parsed = extractJson(raw);
+  } catch {
+    // JSON mode is a request, not a guarantee, and some gateways ignore it. Prose that was
+    // meant as an answer still IS the answer.
+    const fallback = raw.trim();
+    if (!fallback) throw new AiError('AI returned an empty answer', []);
+    return { kind: 'reply', markdown: fallback };
+  }
+
+  const reply = typeof parsed.reply === 'string' ? parsed.reply.trim() : '';
+  const toolId = typeof parsed.tool === 'string' ? parsed.tool.trim() : '';
+  const tool = toolId ? assistantTool(toolId) : undefined;
+
+  // Named a tool this build does not have, or one that needs uploads on a note without any.
+  // Both mean the same thing to the reader: it cannot do that here.
+  if (!tool || (tool.needsUploads && !hasUploads)) {
+    if (reply) return { kind: 'reply', markdown: reply };
+    if (toolId) {
+      return {
+        kind: 'reply',
+        markdown: tool
+          ? "I'd need slides, a photo or a transcript imported into this note before I can compare it against your sources."
+          : "I can't do that one from here. Try asking me to improve the writing, clean up the formatting, summarise the note, or make flashcards.",
+      };
+    }
+    const fallback = raw.trim();
+    if (!fallback) throw new AiError('AI returned an empty answer', []);
+    return { kind: 'reply', markdown: fallback };
+  }
+
+  const rawArgs = parsed.args && typeof parsed.args === 'object' ? (parsed.args as Record<string, unknown>) : {};
+  const args: Record<string, unknown> =
+    tool.id === 'generate_flashcards' ? { count: clampCardCount(rawArgs.count) } : {};
+
+  const say = typeof parsed.say === 'string' && parsed.say.trim() ? parsed.say.trim() : 'Working on it.';
+  return { kind: 'tool', tool: tool.id, args, say };
+}
 
 // ---------------------------------------------------------------------------
 // Per-change review.

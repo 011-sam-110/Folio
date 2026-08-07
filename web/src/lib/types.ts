@@ -433,6 +433,19 @@ export interface AiSuggestResult {
   ranFamilies: string[];
 }
 
+/**
+ * One turn back from `POST /api/ai/chat`: words to show, or an action to run.
+ *
+ * The tool id is a plain string rather than a union of the ids this build knows, and that is
+ * on purpose. The catalogue lives on the server (server/src/ai/assistantTools.ts), so a
+ * deployment can be one release ahead of the tab that has been open since this morning. The
+ * panel matches on it and treats anything it does not recognise as "I can't do that here",
+ * which is a sentence; a compile-time union would only have moved that surprise to runtime.
+ */
+export type AiChatTurn =
+  | { kind: 'reply'; markdown: string; model: string }
+  | { kind: 'tool'; tool: string; args: Record<string, unknown>; say: string; model: string };
+
 // --- Import old notes wizard (bulk staging) ------------------------------------
 // Staging DTOs for the multi-file "Import old notes" flow. Nothing here is written into a real
 // notebook until commit; see server/src/lib/importBatch.ts.

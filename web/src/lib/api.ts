@@ -1,5 +1,5 @@
 import type {
-  AiHealthInfo, AiKeyInfo, AiSuggestResult, AiUsage, AuthProviderInfo,
+  AiChatTurn, AiHealthInfo, AiKeyInfo, AiSuggestResult, AiUsage, AuthProviderInfo,
   CanvasEdge, CanvasItem, CanvasItemData, CanvasItemKind,
   DashboardData, Flashcard, ImportJob, InkStroke, MetaInfo, Note, NoteKind, NoteLite, NotebookLite, Notebook,
   NoteComment, NoteVersion, NoteVersionMeta, QrCode, SearchParsed, SearchResult, SessionScope, StudyStats,
@@ -142,6 +142,11 @@ export const api = {
   aiFlashcards: (noteId: string, count?: number) => http<{ cards: Flashcard[] }>('/api/ai/flashcards', json('POST', { noteId, count })),
   aiAsk: (question: string, notebookId?: string) => http<{ answer: string; sources: Array<{ id: string; title: string }>; model: string }>('/api/ai/ask', json('POST', { question, notebookId })),
   aiTitle: (noteId: string) => http<{ title: string }>('/api/ai/title', json('POST', { noteId })),
+  /** One turn of the note assistant's conversation. Comes back as words to show, or as the
+   *  tool the model chose - which the CLIENT then runs, through the same endpoints and the
+   *  same review flow a button press has always used. See server/src/ai/assistantTools.ts. */
+  aiChat: (noteId: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>) =>
+    http<AiChatTurn>('/api/ai/chat', json('POST', { noteId, messages })),
   /** The review run. Unlike aiImprove, this returns individually approvable changes with a
    *  model-authored reason each, rather than a rewritten copy of the whole note - so the
    *  client can render them as decorations and let the reader take them one at a time.

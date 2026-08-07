@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Editor } from '@tiptap/core';
 import { api, ApiError } from '../../lib/api';
 import type { AiSuggestResult, Note, NoteLite, Attachment } from '../../lib/types';
-import { relativeTime, plural, formatBytes } from '../../lib/format';
+import { relativeTime, plural, formatBytes, errorMessage } from '../../lib/format';
 import { toast } from '../../components/Toast';
 import { setActiveNotebook, clearActiveNotebook } from '../../lib/notebookContext';
 import EmptyState from '../../components/EmptyState';
@@ -18,6 +18,7 @@ import TagEditor from './TagEditor';
 import OutlinePane from './OutlinePane';
 import HistoryPanel from './HistoryPanel';
 import AssistantPanel from './AssistantPanel';
+import type { ToolOutcome } from './assistantActions';
 import AiPreviewModal from './AiPreviewModal';
 import NoteActionBar from './NoteActionBar';
 import InsertMenuPopover from './InsertMenuPopover';
@@ -493,87 +494,6 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     else toast(e instanceof Error ? e.message : 'AI request failed', 'error');
   }
 
-  /**
-   * Put a finished run on screen.
-   *
-   * Shared by all three review actions, so the "nothing found", "some of it didn't run" and
-   * "start a fresh restore point" decisions are made once rather than three times.
-   *
-   * `requested` is how many families the run was asked for. Families whose model request
-   * failed are absent from `ranFamilies`, and saying so is the difference between "there was
-   * nothing to find" and "we did not actually look" - which a student reading "no
-   * suggestions" would otherwise have no way to tell apart.
-   */
-  function startReview(res: AiSuggestResult, requested: number) {
-    const ed = editorRef.current;
-    if (!ed || ed.isDestroyed) return;
-    if (res.edits.length === 0) {
-      toast('Nothing to suggest - this note reads well', 'ok');
-      return;
-    }
-    // A new run is a new undo point. Clearing this here (rather than when the rail closes)
-    // means the snapshot belongs to the run that is about to be reviewed, whatever ended
-    // the previous one.
-    reviewSnapshotRef.current = null;
-    setReviewEdits(ed.view, res.edits);
-    setReviewOpen(true);
-    const missed = requested - res.ranFamilies.length;
-    if (missed > 0) toast(`${missed} of ${requested} checks didn't run`, 'error');
-  }
-
-  /**
-   * Improve writing / Clean up formatting: a per-change review, not a rewritten note.
-   *
-   * This is the route `POST /api/ai/suggest` exists for. It runs one model request per
-   * check family the notebook has enabled and comes back with individually approvable
-   * edits, each carrying the model's own reason - which is what the rail renders and what
-   * the old whole-note preview modal could never show, because a text diff can say what
-   * changed but never why.
-   *
-   * Both menu items run the notebook's saved selection, which is where the two used to
-   * differ and no longer do: "improve the writing" and "clean up the formatting" were two
-   * fixed whole-note prompts, and the picker replaces both with a selection the student
-   * owns per notebook. The families come from the catalogue the server serves (see
-   * lib/checksApi.ts); nothing here holds a second copy of the check list.
-   */
-  async function runSuggestionReview(kind: 'improve' | 'clean', close: () => void) {
-    close();
-    setAiBusy(kind);
-    try {
-      const catalogue = await fetchCheckCatalogue();
-      const families = resolveFamilies(note.notebookId, catalogue);
-      if (families.length === 0) {
-        toast('No checks are enabled for this notebook', 'error');
-        return;
-      }
-      startReview(await api.aiSuggest(note.id, families), families.length);
-    } catch (e) {
-      aiError(e);
-    } finally {
-      setAiBusy(null);
-    }
-  }
-
-  /**
-   * Find missing content from uploads: the note against its own imports.
-   *
-   * `POST /api/ai/gaps/edits`, NOT `POST /api/ai/gaps` - the latter predates this feature
-   * and answers the Assistant panel with advisory markdown, which the rail cannot render.
-   * One request, one family (missing-content), and every edit it returns is an insert, so
-   * this action can add what a slide covered and never rewrite the student's own words.
-   */
-  async function handleGaps(close: () => void) {
-    close();
-    setAiBusy('gaps');
-    try {
-      startReview(await api.aiGapEdits(note.id), 1);
-    } catch (e) {
-      aiError(e);
-    } finally {
-      setAiBusy(null);
-    }
-  }
-
   async function handleSummarize(close: () => void) {
     close();
     setAiBusy('summarize');
@@ -602,18 +522,101 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
       setAiBusy(null);
     }
   }
-  async function handleFlashcards(count: number, close: () => void) {
-    close();
-    setAiBusy('flashcards');
+  /**
+   * Run the tool the assistant chose, and answer in the terms the conversation shows.
+   *
+   * This is the ONLY place a tool call becomes an effect, and it deliberately goes through
+   * the same functions the buttons always called: the review flow, the flashcard write, the
+   * title rename. A model choosing `improve_writing` gets the identical run a menu item got,
+   * with the same restore point, the same per-family fan-out and the same approval step. It
+   * cannot reach anything the student could not already do from this page, and it still
+   * cannot write a character into the note without an approval.
+   *
+   * Nothing here throws. A failed tool is part of the conversation - the panel renders it on
+   * the turn that asked for it, where the student is looking - rather than a toast that has
+   * faded by the time they scroll back to see what they asked.
+   */
+  async function runAssistantTool(tool: string, args: Record<string, unknown>): Promise<ToolOutcome> {
+    // Held for the whole run, not just the request: the action bar's own AI items (Summarise,
+    // Suggest a title) read this to disable themselves, and the page runs one AI request at a
+    // time. Without it a tool started from the conversation would leave those buttons live.
+    setAiBusy(tool);
     try {
-      const res = await api.aiFlashcards(note.id, count);
-      setFlashcardBanner(res.cards.length);
-      window.setTimeout(() => setFlashcardBanner(null), 7000);
+      switch (tool) {
+        case 'improve_writing':
+        case 'clean_formatting': {
+          const catalogue = await fetchCheckCatalogue();
+          const families = resolveFamilies(note.notebookId, catalogue);
+          if (families.length === 0) {
+            return { kind: 'error', message: 'No checks are enabled for this notebook.' };
+          }
+          return stageReview(await api.aiSuggest(note.id, families), families.length);
+        }
+        case 'find_missing_from_uploads':
+          return stageReview(await api.aiGapEdits(note.id), 1);
+        case 'generate_flashcards': {
+          const count = Math.min(20, Math.max(1, Math.trunc(Number(args.count) || 8)));
+          const res = await api.aiFlashcards(note.id, count);
+          setFlashcardBanner(res.cards.length);
+          window.setTimeout(() => setFlashcardBanner(null), 7000);
+          return {
+            kind: 'done',
+            message: `${res.cards.length} ${res.cards.length === 1 ? 'card' : 'cards'} added to your deck`,
+          };
+        }
+        case 'summarise_note': {
+          const res = await api.aiSummarize(note.id);
+          return { kind: 'prose', markdown: res.markdown };
+        }
+        case 'gap_report': {
+          const res = await api.aiGaps(note.id);
+          return { kind: 'prose', markdown: res.markdown, sources: res.sources.map((s) => s.name) };
+        }
+        case 'suggest_title': {
+          const res = await api.aiTitle(note.id);
+          setTitle(res.title);
+          titleRef.current = res.title;
+          capturePending();
+          autosave.schedule();
+          return { kind: 'done', message: `Renamed to "${res.title}"` };
+        }
+        default:
+          // A tool the server offered and this build cannot run. Says so instead of leaving
+          // the turn spinning - see the note on AiChatTurn's `tool` being a plain string.
+          return { kind: 'error', message: "That isn't something I can do from this note." };
+      }
     } catch (e) {
-      aiError(e);
+      return { kind: 'error', message: errorMessage(e, 'That did not work.') };
     } finally {
       setAiBusy(null);
     }
+  }
+
+  /**
+   * Put a finished run in front of the reader, reporting the outcome back into the
+   * conversation rather than to a toast.
+   *
+   * "Nothing to suggest" is an `empty`, not an error: the run worked and the note reads well,
+   * which is a result and not a failure. Families that did not run are still reported,
+   * because "no suggestions" and "we did not actually look" are different sentences and the
+   * student cannot tell them apart from the outside.
+   */
+  function stageReview(res: AiSuggestResult, requested: number): ToolOutcome {
+    const ed = editorRef.current;
+    if (!ed || ed.isDestroyed) return { kind: 'error', message: 'The editor closed before the suggestions arrived.' };
+
+    const missed = requested - res.ranFamilies.length;
+    const caveat = missed > 0 ? ` (${missed} of ${requested} checks didn't run)` : '';
+
+    if (res.edits.length === 0) {
+      return { kind: 'empty', message: `Nothing to suggest, this note reads well${caveat}` };
+    }
+    // A new run is a new undo point. Cleared here rather than when the review closes, so the
+    // snapshot belongs to the run about to be reviewed whatever ended the previous one.
+    reviewSnapshotRef.current = null;
+    setReviewEdits(ed.view, res.edits);
+    setReviewOpen(true);
+    return { kind: 'review', count: res.edits.length, edits: res.edits };
   }
 
   /**
@@ -834,10 +837,10 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
         />
       )}
 
-      {/* The single AI surface. It holds the ask field, the actions that used to live in
-          the action bar's dropdown, and - in place of all of it while a run is being
-          reviewed - the suggestion cards themselves. One panel in two states rather than
-          an assistant and a rail competing for the same edge of the screen. */}
+      {/* The single AI surface: a conversation scoped to this note, with the old dropdown's
+          actions as shortcuts that send a message, and each run's suggestion cards rendered
+          in the thread under the turn that asked for them. One panel rather than an
+          assistant and a rail competing for the same edge of the screen. */}
       <AssistantPanel
         noteId={note.id}
         attachments={note.attachments}
@@ -845,13 +848,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
         onClose={() => setAssistantOpen(false)}
         onInsert={insertAssistantNotes}
         aiBusy={aiBusy}
-        // `runSuggestionReview` and `handleGaps` each take a `close` callback from their
-        // old life inside a dropdown, where firing one had to dismiss the menu. Nothing
-        // needs closing now the actions live in the panel they report back into.
-        onImprove={() => void runSuggestionReview('improve', () => {})}
-        onClean={() => void runSuggestionReview('clean', () => {})}
-        onFindMissing={() => void handleGaps(() => {})}
-        onFlashcards={(count) => void handleFlashcards(count, () => {})}
+        runTool={runAssistantTool}
         onOpenChecks={() => setChecksOpen(true)}
         editor={editorRef.current}
         reviewOpen={reviewOpen}

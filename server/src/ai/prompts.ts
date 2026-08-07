@@ -3,6 +3,7 @@
 // are a student's actual revision material, so faithfulness beats fluency every time.
 import type { ChatMessage } from './client.js';
 import type { Family } from '../lib/checks.js';
+import { ASSISTANT_TOOLS } from './assistantTools.js';
 
 const PERSONA =
   'You are Unote, an AI writing and study assistant embedded in a university student\'s private notebook app. ' +
@@ -386,6 +387,83 @@ If the note already covers everything the sources do, respond with {"edits": []}
         fence('UPLOADED SOURCE MATERIAL', sourceBlock || '(no sources)'),
       ].join('\n\n'),
     },
+  ];
+}
+
+/**
+ * The note assistant's turn: answer, or reach for a tool.
+ *
+ * ONE request decides both. The alternative - classify the intent, then answer in a second
+ * call - doubles the latency and the quota cost of every message for a decision the model is
+ * already making while it reads. So the contract is a single JSON object that is either a
+ * reply or a tool call, and the route sorts out which.
+ *
+ * WHY THE TOOL LIST IS INTERPOLATED RATHER THAN WRITTEN OUT. `ASSISTANT_TOOLS` is what the
+ * client knows how to run. A hand-written copy here would let this prompt offer a tool that
+ * no longer exists, and the model would pick it, and the panel would answer a student's
+ * question with silence.
+ *
+ * The tool descriptions come from this codebase and are safe to place in the system message.
+ * The note itself does not: it goes in the user message behind the usual fence, because a
+ * note can contain an upload's text, which can contain anything. That matters more here than
+ * anywhere else in this file - this is the one prompt whose output causes something to
+ * HAPPEN, so a note that could talk its way into `{"tool": ...}` would be choosing actions
+ * for the reader. It cannot reach past the fence to do so, and the route re-validates the
+ * tool id against the catalogue regardless.
+ */
+export function noteChatPrompt(
+  noteTitle: string,
+  noteContent: string,
+  history: ChatMessage[],
+  opts: { hasUploads: boolean; uploadNames: string[] },
+): ChatMessage[] {
+  const tools = ASSISTANT_TOOLS.filter(t => !t.needsUploads || opts.hasUploads)
+    .map(t => `- "${t.id}": ${t.describe}`)
+    .join('\n');
+
+  const uploadsLine = opts.hasUploads
+    ? `This note has uploaded source material attached: ${opts.uploadNames.join(', ')}.`
+    : 'This note has no usable uploaded sources, so no tool can compare it against slides or a transcript. If the student asks for that, say what they would need to import first.';
+
+  return [
+    {
+      role: 'system',
+      content: `${PERSONA}
+
+You are the assistant inside ONE note, talking to the student who wrote it. You can answer questions about the note, and you can run tools that act on it.
+
+${UNTRUSTED_NOTICE}
+
+${uploadsLine}
+
+Reply with a SINGLE JSON object and nothing else. It must take exactly one of these two shapes.
+
+To run a tool:
+{"tool": "<tool id>", "args": {}, "say": "<one short sentence, present tense, saying what you are about to do>"}
+
+To answer in words:
+{"reply": "<your answer, in concise student-friendly Markdown>"}
+
+The tools available to you:
+${tools}
+
+Rules:
+- Prefer a tool whenever the student is asking for something to be DONE to the note. Prefer a reply when they are asking a question about its content, or about what you can do.
+- Never claim in a "reply" that you have changed, improved, reformatted or saved anything. A reply only ever contains words. If a change is wanted, call the tool that makes it.
+- Every tool presents its result to the student for approval. Never promise that something has already been applied.
+- "args" is an object. Only "generate_flashcards" takes one: {"count": <integer 1-20>}. Every other tool takes {}.
+- Answer questions about the note from the note itself. If it does not cover something, say so plainly rather than filling the gap from general knowledge, and offer the tool that would.
+- Never use em dashes (U+2014) or en dashes (U+2013). Use commas, colons, full stops, or parentheses.
+- Output the JSON object only: no code fence, no preamble, no commentary around it.`,
+    },
+    {
+      role: 'user',
+      content: `${fence('NOTE TITLE', noteTitle.trim() || '(untitled)')}\n\n${fence('NOTE', noteContent.trim() || FALLBACK_CONTENT)}`,
+    },
+    // The conversation so far, AFTER the note, so the newest message is the last thing read.
+    // Both roles are replayed: without the assistant's turns "do that again" and "the second
+    // one" have nothing to refer to.
+    ...history,
   ];
 }
 

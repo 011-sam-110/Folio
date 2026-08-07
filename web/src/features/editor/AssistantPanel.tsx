@@ -1,64 +1,73 @@
-// The AI panel - the note's ONE AI surface, in two states.
+// The AI panel - the note's ONE AI surface, and now a conversation rather than a menu.
 //
-// It began as the study-assistant drawer (read the note plus its uploaded sources, report
-// what's missing, never rewrite anything) and it still does that. What changed is that the
-// action bar's `✦ AI ▾` dropdown no longer exists: Improve writing, Clean up formatting,
-// Find missing content from uploads and Generate flashcards all live here now, and running
-// any of the first three switches THIS panel into review mode rather than opening a second
-// one beside it.
+// It has been three things. It began as a study-assistant drawer (read the note plus its
+// uploaded sources, report what's missing, never rewrite anything). Then the action bar's
+// `✦ AI ▾` dropdown was folded into it, so Improve writing, Clean up formatting, Find missing
+// content from uploads and Generate flashcards moved here as buttons. What was still missing
+// was the obvious thing: there was nowhere to TYPE. A panel of four fixed buttons cannot be
+// asked "is the bit about B-trees right?", and a student's actual question never fits four
+// buttons.
 //
-// That last part is the point. A review rail floating next to the note while an assistant
-// drawer sat over it was two competing right-hand surfaces for one feature - the exact
-// clutter this redesign exists to remove. One surface, two states: the actions you can take,
-// and the run you just started. Ending the review (Discard, Approve all, or the review head's
-// ✕) returns the panel to its actions view; closing the drawer leaves the run untouched, and
-// reopening it comes back to the same cards, because the suggestions live in the editor's
-// plugin state rather than in this component.
+// So this is a chat, the same shape as Ask AI, scoped to one note. The buttons survive as
+// what they always should have been: shortcuts that send a message. Pressing Improve writing
+// puts "Improve the writing in this note." in the thread and sends it; the model reads it and
+// calls a tool; the tool runs and its result lands back in the thread. Typing that sentence
+// yourself does exactly the same thing, because it IS the same thing.
 //
-// The gap analysis at the top and `Find missing content from uploads` below it are NOT the
-// same thing, and the copy says so: the first is prose you read (`POST /api/ai/gaps`), the
-// second is insertions you approve one at a time (`POST /api/ai/gaps/edits`).
-import { useRef, useState } from 'react';
+// WHY THE REVIEW RENDERS INSIDE THE THREAD. It used to replace the whole panel, which was
+// right when the panel was a menu - there was nothing underneath worth keeping. In a
+// conversation it would throw away the exchange that produced it, and take the composer with
+// it, so the student could not say "actually, ignore the grammar ones" while looking at them.
+// The rail now renders under the turn that started it, where a code diff sits in an agent
+// chat. Suggestions live in the editor's plugin state, not in this component, so closing the
+// drawer and reopening it comes back to the same review.
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Editor } from '@tiptap/core';
-import { api, ApiError } from '../../lib/api';
+import { ApiError, api } from '../../lib/api';
 import { toast } from '../../components/Toast';
 import Icon from '../../components/Icon';
 import Spinner from '../../components/Spinner';
 import { useDialogFocus } from '../../components/useDialogFocus';
 import { markdownToSafeHtml } from './markdown';
+import { useResizableDrawer } from './useResizableDrawer';
+import { QUICK_ACTIONS, toolLabel, type ToolOutcome } from './assistantActions';
 import AiReviewRail from './AiReviewRail';
 import type { Attachment } from '../../lib/types';
 
 /**
  * Verbatim from `POST /api/ai/gaps/edits` (server/src/routes/ai.ts), which answers a note
- * with no usable uploads with exactly this sentence.
- *
- * The route's own 400 is surfaced verbatim too (NotePage's `aiError` shows the server's
- * message), and it stays reachable from here: an attachment can exist and still have no
- * extracted text, in which case the button is enabled and the server is the one that says
- * so. One sentence, one wording, whichever side of the wire it comes from.
+ * with no usable uploads with exactly this sentence. One wording, whichever side of the wire
+ * it comes from.
  */
 const GAPS_NO_UPLOADS = 'Import slides, a photo or a transcript first.';
+
+/** The width this panel opens at the first time. After that the reader's own width wins -
+ *  see useResizableDrawer. */
+const DEFAULT_WIDTH = 420;
 
 export interface AssistantPanelProps {
   noteId: string;
   attachments?: Attachment[];
   open: boolean;
   onClose: () => void;
-  /** Append the analysis into the note (explicit user choice). */
+  /** Append prose into the note (explicit user choice, never automatic). */
   onInsert: (markdown: string) => void;
 
-  // --- The AI actions, moved here from the action bar's `✦ AI ▾` dropdown ---
-  /** Non-null while any AI call is in flight; the actions disable together, because the
-   *  page runs one AI request at a time and a second would race the first. */
+  /** Non-null while any AI call is in flight; the composer and the shortcuts disable
+   *  together, because the page runs one AI request at a time. */
   aiBusy: string | null;
-  onImprove: () => void;
-  onClean: () => void;
-  onFindMissing: () => void;
-  onFlashcards: (count: number) => void;
+  /**
+   * Run the tool the model chose, and say what happened.
+   *
+   * NotePage owns this because the tools write to the note, the deck and the review plugin,
+   * none of which this component has a handle on. `intent` is the tool the student's button
+   * press meant, if it was a button press - see assistantActions.ts.
+   */
+  runTool: (tool: string, args: Record<string, unknown>) => Promise<ToolOutcome>;
   onOpenChecks: () => void;
 
-  // --- Review state: the same panel, showing the run it just started ---
+  // --- Review state, rendered inline under the turn that produced it ---
   editor: Editor | null;
   reviewOpen: boolean;
   /** Awaited before the first approval writes - see AiReviewRail. */
@@ -66,7 +75,30 @@ export interface AssistantPanelProps {
   onReviewDone: () => void;
 }
 
-type Phase = 'idle' | 'loading' | 'done' | 'error';
+type Turn =
+  | { id: string; role: 'user'; text: string }
+  | { id: string; role: 'assistant'; kind: 'pending' }
+  | { id: string; role: 'assistant'; kind: 'reply'; markdown: string; model: string }
+  | { id: string; role: 'assistant'; kind: 'error'; text: string }
+  | {
+      id: string;
+      role: 'assistant';
+      kind: 'tool';
+      tool: string;
+      say: string;
+      phase: 'running' | 'review' | 'settled';
+      /** One line under the tool's name once it has finished. */
+      detail?: string;
+      /** Set when the outcome was prose - rendered, with an Add to note button. */
+      prose?: { markdown: string; sources?: string[] };
+      failed?: boolean;
+    };
+
+let seq = 0;
+function turnId(): string {
+  seq += 1;
+  return `t${seq}`;
+}
 
 export default function AssistantPanel({
   noteId,
@@ -75,86 +107,182 @@ export default function AssistantPanel({
   onClose,
   onInsert,
   aiBusy,
-  onImprove,
-  onClean,
-  onFindMissing,
-  onFlashcards,
+  runTool,
   onOpenChecks,
   editor,
   reviewOpen,
   beforeApply,
   onReviewDone,
 }: AssistantPanelProps) {
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [result, setResult] = useState<{ markdown: string; model: string; sources: Array<{ name: string; kind: string }> } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // The flashcard count step ("How many?"), local because nothing outside this panel needs
-  // to know that the button has been pressed once.
-  const [flashcardStep, setFlashcardStep] = useState(false);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  /** Which turn the open review belongs to, so the rail renders under it rather than at the
+   *  bottom of whatever has been said since. */
+  const [reviewTurn, setReviewTurn] = useState<string | null>(null);
 
-  const sourceCount = (attachments ?? []).filter((a) => a.status === 'ready').length;
-  const hasUploads = (attachments ?? []).some((a) => a.status !== 'failed');
+  const hasUploads = (attachments ?? []).some((a) => a.status === 'ready');
+  const busy = sending || !!aiBusy;
 
-  async function findGaps() {
-    setPhase('loading');
-    setError(null);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const { width, gripProps, dragging } = useResizableDrawer('folio.aiPanelWidth', DEFAULT_WIDTH, 'Resize AI panel');
+
+  // Non-modal drawer: the note behind stays readable and editable, so Tab is NOT trapped.
+  // Focus still has to move in, or the Escape handler never fires (focus would still be on
+  // the trigger outside the panel) and the drawer becomes a dead end.
+  useDialogFocus(open, panelRef, onClose, { trap: false });
+
+  useEffect(() => {
+    if (!open) return;
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [turns, open, reviewOpen]);
+
+  // The review can be ended from the rail (Approve all, Discard, its ✕) or from NotePage.
+  // Whatever ended it, the turn that owns it stops claiming to have suggestions waiting -
+  // a card still reading "6 suggestions to review" above a closed review is a promise the
+  // panel is no longer keeping.
+  useEffect(() => {
+    if (reviewOpen || !reviewTurn) return;
+    setTurns((prev) =>
+      prev.map((t) =>
+        t.id === reviewTurn && t.role === 'assistant' && t.kind === 'tool'
+          ? { ...t, phase: 'settled', detail: 'Review closed' }
+          : t,
+      ),
+    );
+    setReviewTurn(null);
+  }, [reviewOpen, reviewTurn]);
+
+  const patch = useCallback((id: string, next: Turn) => {
+    setTurns((prev) => prev.map((t) => (t.id === id ? next : t)));
+  }, []);
+
+  /**
+   * The conversation as the server wants it.
+   *
+   * A tool turn is replayed as what it DID, not as the sentence that announced it: "Ran
+   * Improve writing: 6 suggestions" is what makes "do that again" and "why did you suggest
+   * that?" answerable. A turn still running contributes nothing, because nothing has
+   * happened yet.
+   */
+  function history(list: Turn[]): Array<{ role: 'user' | 'assistant'; content: string }> {
+    const out: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+    for (const t of list) {
+      if (t.role === 'user') out.push({ role: 'user', content: t.text });
+      else if (t.kind === 'reply') out.push({ role: 'assistant', content: t.markdown });
+      else if (t.kind === 'tool' && t.phase !== 'running') {
+        out.push({ role: 'assistant', content: `[Ran ${toolLabel(t.tool)}: ${t.detail ?? 'done'}]` });
+      }
+    }
+    return out;
+  }
+
+  async function send(text: string, intent?: string) {
+    const message = text.trim();
+    if (!message || busy) return;
+
+    const userTurn: Turn = { id: turnId(), role: 'user', text: message };
+    const pendingId = turnId();
+    // Built from `turns` rather than from inside the state updater. React defers an updater
+    // until the re-render, so a snapshot assigned in there would still be empty by the time
+    // the request below reads it, and every message would be sent with no conversation
+    // behind it. `send` runs from an event handler, so `turns` here is the current list.
+    const snapshot: Turn[] = [...turns, userTurn];
+    setTurns([...snapshot, { id: pendingId, role: 'assistant', kind: 'pending' }]);
+    setDraft('');
+    setSending(true);
+
     try {
-      const res = await api.aiGaps(noteId);
-      setResult(res);
-      setPhase('done');
+      const turn = await api.aiChat(noteId, history(snapshot));
+
+      if (turn.kind === 'reply') {
+        // A button press that came back as words rather than as the tool it names. The model
+        // answered off-intent; run what the button said instead of leaving the student
+        // holding a paragraph where they asked for an action. A typed message has no intent
+        // and is simply answered.
+        if (intent) {
+          patch(pendingId, { id: pendingId, role: 'assistant', kind: 'tool', tool: intent, say: turn.markdown, phase: 'running' });
+          await execute(pendingId, intent, {}, turn.markdown);
+          return;
+        }
+        patch(pendingId, { id: pendingId, role: 'assistant', kind: 'reply', markdown: turn.markdown, model: turn.model });
+        return;
+      }
+
+      patch(pendingId, { id: pendingId, role: 'assistant', kind: 'tool', tool: turn.tool, say: turn.say, phase: 'running' });
+      await execute(pendingId, turn.tool, turn.args, turn.say);
     } catch (e) {
-      setError(e instanceof ApiError && e.status === 502 ? 'AI offline. Is the gateway running?' : e instanceof Error ? e.message : 'Analysis failed');
-      setPhase('error');
+      patch(pendingId, { id: pendingId, role: 'assistant', kind: 'error', text: chatError(e) });
+    } finally {
+      setSending(false);
+      composerRef.current?.focus();
     }
   }
 
-  const panelRef = useRef<HTMLElement | null>(null);
-  // Non-modal drawer: the note behind stays readable, so Tab is NOT trapped. But
-  // focus must move in, otherwise the Escape handler below never fires (focus is
-  // still on the trigger outside the panel) and the drawer is a dead end.
-  useDialogFocus(open, panelRef, onClose, { trap: false });
+  /**
+   * Run one tool and fold its outcome back into the turn that announced it.
+   *
+   * `say` is passed in rather than read back off the turn: the patch that created the turn
+   * has not been through a render yet, so the `turns` this closure can see is the list from
+   * before the tool call and the sentence would come back undefined every time.
+   */
+  async function execute(id: string, tool: string, args: Record<string, unknown>, say: string) {
+    const outcome = await runTool(tool, args);
+    const base = { id, role: 'assistant' as const, kind: 'tool' as const, tool };
+
+    if (outcome.kind === 'review') {
+      setReviewTurn(id);
+      patch(id, {
+        ...base,
+        say,
+        phase: 'review',
+        detail: `${outcome.count} ${outcome.count === 1 ? 'suggestion' : 'suggestions'} to review`,
+      });
+      return;
+    }
+    if (outcome.kind === 'prose') {
+      patch(id, { ...base, say, phase: 'settled', prose: { markdown: outcome.markdown, sources: outcome.sources } });
+      return;
+    }
+    patch(id, {
+      ...base,
+      say,
+      phase: 'settled',
+      detail: outcome.message,
+      failed: outcome.kind === 'error',
+    });
+  }
+
+  function onComposerKeyDown(e: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void send(draft);
+    }
+  }
 
   if (!open) return null;
-
-  // Review mode replaces the panel's contents entirely - the rail brings its own head, its
-  // own count and its own ✕ (which ends the review, not the panel). Rendering both would put
-  // two headers and two close buttons in one drawer.
-  if (reviewOpen) {
-    return (
-      <div className="folio-history-overlay">
-        <aside
-          ref={panelRef}
-          className="folio-history-panel folio-assistant folio-ai-panel folio-ai-panel--review"
-          role="dialog"
-          tabIndex={-1}
-          aria-label="AI review"
-          data-testid="assistant-panel"
-          onKeyDown={(e) => {
-            // Escape closes the drawer and LEAVES the run alone: the suggestions are
-            // decorations in the editor's plugin state, so reopening the panel comes back to
-            // the same review rather than to a discarded one.
-            if (e.key === 'Escape') onClose();
-          }}
-        >
-          <AiReviewRail editor={editor} beforeApply={beforeApply} onDone={onReviewDone} />
-        </aside>
-      </div>
-    );
-  }
 
   return (
     <div className="folio-history-overlay">
       <aside
         ref={panelRef}
-        className="folio-history-panel folio-assistant folio-ai-panel"
+        className={`folio-history-panel folio-assistant folio-ai-panel folio-ai-chat${dragging ? ' is-resizing' : ''}`}
+        style={{ width }}
         role="dialog"
         tabIndex={-1}
         aria-label="AI"
         data-testid="assistant-panel"
         onKeyDown={(e) => {
+          // Escape closes the drawer and LEAVES any open review alone: the suggestions are
+          // decorations in the editor's plugin state, so reopening comes back to the same
+          // review rather than to a discarded one.
           if (e.key === 'Escape') onClose();
         }}
       >
+        <div {...gripProps} />
+
         <div className="folio-history-head">
           <h3>
             <Icon name="sparkles" size={14} /> AI
@@ -164,159 +292,197 @@ export default function AssistantPanel({
           </button>
         </div>
 
-        <h4 className="folio-ai-panel__title">Check this note against your sources</h4>
-        <p className="folio-assistant__tagline">
-          Finds what's missing from your notes using your uploaded sources, and reports it as
-          something to read. It never rewrites them.
-        </p>
-
-        {phase === 'idle' && (
-          <div className="folio-assistant__start">
-            <div className="folio-assistant__sources">
-              {sourceCount > 0
-                ? `Will check against ${sourceCount} uploaded source${sourceCount === 1 ? '' : 's'} attached to this note.`
-                : 'No uploaded sources on this note yet, so the check will use standard topic coverage. Import a transcript or slides to make it sharper.'}
-            </div>
-            <button type="button" className="folio-btn-primary" onClick={findGaps} data-testid="assistant-find-gaps">
-              Find gaps in this note
-            </button>
-          </div>
-        )}
-
-        {phase === 'loading' && (
-          <div className="folio-assistant__loading" role="status">
-            <Spinner size={18} />
-            <span>Reading your note{sourceCount > 0 ? ' and sources' : ''}…</span>
-          </div>
-        )}
-
-        {phase === 'error' && (
-          <div className="folio-assistant__start">
-            <div className="folio-assistant__error" role="alert">{error}</div>
-            <button type="button" className="folio-btn" onClick={findGaps}>
-              Retry
-            </button>
-          </div>
-        )}
-
-        {phase === 'done' && result && (
-          <>
-            {result.sources.length > 0 && (
-              <div className="folio-assistant__sources">
-                Checked against: {result.sources.map((s) => s.name).join(', ')}
-              </div>
-            )}
-            <div
-              className="folio-assistant__body"
-              data-testid="assistant-result"
-              // The analysis is the whole point of the panel; without a live region it
-              // arrives silently and a screen-reader user has no cue to go read it.
-              role="status"
-              aria-live="polite"
-              // Sanitized via DOMPurify inside markdownToSafeHtml.
-              dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(result.markdown) }}
-            />
-            <div className="folio-assistant__actions">
-              <button type="button" className="folio-btn" onClick={findGaps}>
-                Re-run
-              </button>
+        {/* The shortcuts. Flat and labelled rather than folded into a menu: taking away a
+            layer of hiding is why they moved into this panel in the first place. */}
+        <div className="folio-ai-chat__quick" role="group" aria-label="Suggested actions">
+          {QUICK_ACTIONS.map((action) => {
+            const blocked = action.needsUploads && !hasUploads;
+            return (
               <button
-                type="button"
-                className="folio-btn"
-                onClick={() => {
-                  navigator.clipboard?.writeText(result.markdown).then(
-                    () => toast('Copied', 'ok'),
-                    () => toast('Could not copy', 'error'),
-                  );
-                }}
-              >
-                Copy
-              </button>
-              <button
-                type="button"
-                className="folio-btn-primary"
-                onClick={() => {
-                  onInsert(result.markdown);
-                  toast('Added to the end of the note', 'ok');
-                }}
-              >
-                Add to note
-              </button>
-            </div>
-            <div className="folio-assistant__model">via {result.model}</div>
-          </>
-        )}
-
-        {/* ---------- The actions that used to be the `✦ AI ▾` dropdown ----------
-            Laid out flat and labelled, not folded into a second menu inside a panel: the
-            reason this moved here at all was to take away a layer of hiding, and a dropdown
-            in a drawer would put it straight back. */}
-        <section className="folio-ai-panel__actions" aria-labelledby="folio-ai-panel-actions">
-          <h4 className="folio-ai-panel__title" id="folio-ai-panel-actions">
-            Suggest changes
-          </h4>
-          <p className="folio-ai-panel__hint">
-            Every suggestion is reviewed one at a time, in this panel. Nothing is written into
-            the note until you approve it.
-          </p>
-
-          <div className="folio-ai-panel__buttons">
-            <button type="button" className="folio-ai-action" disabled={!!aiBusy} onClick={onImprove}>
-              Improve writing
-            </button>
-            <button type="button" className="folio-ai-action" disabled={!!aiBusy} onClick={onClean}>
-              Clean up formatting
-            </button>
-
-            {/* Live on `POST /api/ai/gaps/edits`, and disabled only where the comparison has
-                no second side. The reason shown is the server's own sentence for that case
-                rather than a second, differently-worded copy of it. */}
-            <button
-              type="button"
-              className="folio-ai-action"
-              disabled={!!aiBusy || !hasUploads}
-              title={hasUploads ? undefined : GAPS_NO_UPLOADS}
-              onClick={onFindMissing}
-            >
-              Find missing content from uploads
-              {!hasUploads && <span className="folio-ai-action__hint">{GAPS_NO_UPLOADS}</span>}
-            </button>
-
-            {/* Flashcards writes to the deck rather than to the note, so it has no review
-                and keeps the count step it has always had. */}
-            {!flashcardStep ? (
-              <button
+                key={action.intent}
                 type="button"
                 className="folio-ai-action"
-                disabled={!!aiBusy}
-                onClick={() => setFlashcardStep(true)}
+                disabled={busy || blocked}
+                title={blocked ? GAPS_NO_UPLOADS : action.message}
+                onClick={() => void send(action.message, action.intent)}
               >
-                Generate flashcards
+                {action.label}
+                {blocked && <span className="folio-ai-action__hint">{GAPS_NO_UPLOADS}</span>}
               </button>
-            ) : (
-              <div className="folio-flashcard-count">
-                <span>How many?</span>
-                {[5, 8, 12].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => {
-                      setFlashcardStep(false);
-                      onFlashcards(n);
-                    }}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+            );
+          })}
+        </div>
 
-          <button type="button" className="folio-ai-panel__checks" onClick={onOpenChecks}>
-            Choose what to check…
-          </button>
-        </section>
+        <div className="folio-ai-chat__thread" data-testid="assistant-thread">
+          {turns.length === 0 && (
+            <div className="folio-ai-chat__empty">
+              <p className="folio-ai-chat__empty-title">Ask about this note, or pick something above.</p>
+              <p className="folio-ai-chat__empty-hint">
+                Every change is shown to you as a suggestion first. Nothing is written into the note until
+                you approve it.
+              </p>
+            </div>
+          )}
+
+          {turns.map((turn) => (
+            <div key={turn.id} className="folio-ai-turn" data-role={turn.role}>
+              {turn.role === 'user' ? (
+                <div className="folio-ai-bubble" data-testid="assistant-user-message">
+                  {turn.text}
+                </div>
+              ) : turn.kind === 'pending' ? (
+                <div className="folio-ai-thinking" role="status">
+                  <Spinner size={16} />
+                  <span>Thinking…</span>
+                </div>
+              ) : turn.kind === 'reply' ? (
+                <div className="folio-ai-answer" data-testid="assistant-reply">
+                  <div
+                    className="folio-assistant__body"
+                    // Sanitized via DOMPurify inside markdownToSafeHtml.
+                    dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(turn.markdown) }}
+                  />
+                  <div className="folio-ai-answer__foot">
+                    <span className="folio-assistant__model">via {turn.model}</span>
+                    <button type="button" className="folio-ai-linkbtn" onClick={() => onInsert(turn.markdown)}>
+                      Add to note
+                    </button>
+                  </div>
+                </div>
+              ) : turn.kind === 'error' ? (
+                <div className="folio-assistant__error" role="alert">
+                  {turn.text}
+                </div>
+              ) : (
+                <ToolTurn
+                  turn={turn}
+                  editor={editor}
+                  showReview={reviewOpen && reviewTurn === turn.id}
+                  beforeApply={beforeApply}
+                  onReviewDone={onReviewDone}
+                  onInsert={onInsert}
+                />
+              )}
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+
+        <div className="folio-ai-chat__composer">
+          <textarea
+            ref={composerRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={onComposerKeyDown}
+            placeholder="Ask about this note…"
+            aria-label="Ask about this note"
+            rows={2}
+            disabled={busy}
+            data-testid="assistant-composer"
+          />
+          <div className="folio-ai-chat__composer-row">
+            <button type="button" className="folio-ai-linkbtn" onClick={onOpenChecks}>
+              Choose what to check…
+            </button>
+            <button
+              type="button"
+              className="folio-btn-primary"
+              disabled={busy || !draft.trim()}
+              onClick={() => void send(draft)}
+              data-testid="assistant-send"
+            >
+              {busy ? 'Working…' : 'Send'}
+            </button>
+          </div>
+        </div>
       </aside>
     </div>
   );
+}
+
+interface ToolTurnProps {
+  turn: Extract<Turn, { kind: 'tool' }>;
+  editor: Editor | null;
+  showReview: boolean;
+  beforeApply: () => Promise<void>;
+  onReviewDone: () => void;
+  onInsert: (markdown: string) => void;
+}
+
+/** One tool call in the conversation: what it is doing, then what it produced. */
+function ToolTurn({ turn, editor, showReview, beforeApply, onReviewDone, onInsert }: ToolTurnProps) {
+  return (
+    <div className="folio-ai-tool" data-testid="assistant-tool" data-tool={turn.tool} data-phase={turn.phase}>
+      <div className="folio-ai-tool__head">
+        <span className="folio-ai-tool__icon" aria-hidden="true">
+          {turn.phase === 'running' ? <Spinner size={13} /> : <Icon name="sparkles" size={13} />}
+        </span>
+        <span className="folio-ai-tool__name">{toolLabel(turn.tool)}</span>
+        {turn.detail && (
+          <span className="folio-ai-tool__detail" data-failed={turn.failed ? 'true' : undefined}>
+            {turn.detail}
+          </span>
+        )}
+      </div>
+
+      {turn.say && turn.phase === 'running' && <p className="folio-ai-tool__say">{turn.say}</p>}
+
+      {turn.prose && (
+        <div className="folio-ai-answer">
+          {turn.prose.sources && turn.prose.sources.length > 0 && (
+            <div className="folio-assistant__sources">Checked against: {turn.prose.sources.join(', ')}</div>
+          )}
+          <div
+            className="folio-assistant__body"
+            data-testid="assistant-result"
+            // The analysis is the point of the turn; without a live region it arrives
+            // silently and a screen-reader user has no cue to go and read it.
+            role="status"
+            aria-live="polite"
+            dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(turn.prose.markdown) }}
+          />
+          <div className="folio-ai-answer__foot">
+            <button
+              type="button"
+              className="folio-ai-linkbtn"
+              onClick={() => {
+                navigator.clipboard?.writeText(turn.prose?.markdown ?? '').then(
+                  () => toast('Copied', 'ok'),
+                  () => toast('Could not copy', 'error'),
+                );
+              }}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              className="folio-ai-linkbtn"
+              onClick={() => {
+                onInsert(turn.prose?.markdown ?? '');
+                toast('Added to the end of the note', 'ok');
+              }}
+            >
+              Add to note
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showReview && (
+        <div className="folio-ai-tool__review">
+          <AiReviewRail editor={editor} beforeApply={beforeApply} onDone={onReviewDone} variant="inline" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A failed turn says what went wrong in the thread rather than as a toast that is gone by
+ *  the time the student looks back at what they asked. */
+function chatError(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.status === 502) return 'AI offline. Is the gateway running?';
+    return e.message;
+  }
+  return e instanceof Error ? e.message : 'Something went wrong.';
 }
