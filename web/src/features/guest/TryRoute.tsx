@@ -19,8 +19,8 @@ export default function TryRoute() {
       setBlocked(true);
       return;
     }
-    // Returning to /try with work already here must not seed a second empty note on top
-    // of it, so startGuest only seeds when the store is empty.
+    // startGuest is idempotent: it seeds only an empty store, and reports the most recent
+    // note either way, so returning to /try picks up where the visitor left off.
     const { noteId } = startGuest();
     setTarget(noteId ? `/note/${noteId}` : '/');
   }, [user]);

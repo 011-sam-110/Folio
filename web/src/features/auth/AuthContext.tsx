@@ -2,8 +2,22 @@
 // public or guarded, reads the same user.
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { api, ApiError, setUnauthorizedHandler } from '../../lib/api';
+import { endGuest, isGuest } from '../guest/guestMode';
 import type { SessionScope, User } from '../../lib/types';
 import './auth.css';
+
+/**
+ * A real session ends guest mode, and it has to end it HERE rather than in an effect
+ * somewhere below. lib/api routes on the guest flag synchronously, so anything still set
+ * when the shell re-renders sends the sidebar and dashboard back to the browser-local
+ * store for one pass - showing the new account the previous guest's notebooks.
+ *
+ * `keepWork: true` because the local copy is the subject of the handover prompt
+ * (GuestMigrationHost), not something to tidy away before anyone is asked about it.
+ */
+function sessionEndsGuestMode(): void {
+  if (isGuest()) endGuest({ keepWork: true });
+}
 
 export interface AuthState {
   user: User | null;
@@ -38,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const { user: me, scope: s } = await api.me();
+      sessionEndsGuestMode();
       setUser(me);
       setScope(s ?? 'full');
     } catch (e) {
@@ -77,12 +92,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // dropped. See RecoveryKeyPanel.
   const signup = useCallback(async (b: { email: string; password: string; displayName?: string }) => {
     const { user: created, recoveryKey } = await api.signup(b);
+    sessionEndsGuestMode();
     setUser(created);
     return { user: created, recoveryKey };
   }, []);
 
   const login = useCallback(async (b: { email: string; password: string }) => {
     const { user: signedIn } = await api.login(b);
+    sessionEndsGuestMode();
     setUser(signedIn);
     // A real sign-in on this device replaces any capture-scoped session it was holding.
     setScope('full');
@@ -91,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const pair = useCallback(async (token: string) => {
     const { user: paired, scope: s } = await api.pair(token);
+    sessionEndsGuestMode();
     setUser(paired);
     setScope(s);
   }, []);

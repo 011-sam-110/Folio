@@ -294,3 +294,10 @@ export function seedGuestWorkspace(): { notebook: GuestNotebook; note: GuestNote
   const note = createNote({ notebookId: notebook.id });
   return { notebook, note };
 }
+
+/** The note /try should open: the one most recently worked on. */
+export function latestNoteId(): string | null {
+  const notes = readData().notes;
+  if (notes.length === 0) return null;
+  return notes.reduce((best, n) => (n.updatedAt > best.updatedAt ? n : best), notes[0]).id;
+}

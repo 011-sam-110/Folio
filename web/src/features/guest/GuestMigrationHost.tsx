@@ -5,40 +5,32 @@
 // land on /login, /signup, or a redirect back from an OAuth provider, and all three end
 // with the same question.
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import Modal from '../../components/Modal';
 import Spinner from '../../components/Spinner';
 import { toast } from '../../components/Toast';
 import { errorMessage } from '../../lib/format';
 import { useAuth } from '../auth/AuthContext';
 import { downloadGuestExport } from './guestExport';
-import { clearData, hasGuestWork, readData } from './guestStore';
-import { endGuest, isGuest } from './guestMode';
+import { clearData, readData } from './guestStore';
+import { deferHandover, endGuest, handoverPending, isGuest } from './guestMode';
 import { migrateGuestWork, type MigrationProgress } from './guestMigrate';
 import './guest.css';
 
-/** Session-scoped, so "not now" defers the question to the next visit rather than
- *  answering it forever. A silent forever-dismiss is how work gets lost. */
-const DEFERRED_KEY = 'unote:guest:migrationDeferred';
-
-function deferred(): boolean {
-  try {
-    return sessionStorage.getItem(DEFERRED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function defer(): void {
-  try {
-    sessionStorage.setItem(DEFERRED_KEY, '1');
-  } catch {
-    // Nothing to remember it with; the prompt reappears on the next render, which is
-    // the safe direction.
-  }
-}
+/**
+ * The auth screens are not somewhere to put this dialog.
+ *
+ * Signup sets the session BEFORE the user has cleared the one-time recovery key, which is
+ * the one screen in the app that deliberately offers no way out - and a modal opening over
+ * it steals focus from the only render of a credential that cannot be reissued. Waiting
+ * for a route inside the app also puts the question where its answer makes sense, next to
+ * the notes it is about.
+ */
+const AUTH_PATHS = ['/login', '/signup', '/recover', '/try'];
 
 export default function GuestMigrationHost() {
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<MigrationProgress | null>(null);
@@ -46,15 +38,16 @@ export default function GuestMigrationHost() {
 
   useEffect(() => {
     if (!user) return;
-    // Signing in ends guest mode immediately, so the shell is reading the real account
-    // from this moment on. `keepWork: true` leaves the local copy alone - it is the
-    // subject of the question below, not something to tidy away before asking.
+    // AuthContext already turned guest mode off the moment the session appeared, before
+    // any of the shell re-rendered. This is a belt-and-braces repeat for any future route
+    // into a session that does not pass through those callbacks.
     if (isGuest()) endGuest({ keepWork: true });
-    if (!hasGuestWork() || deferred()) return;
+    if (AUTH_PATHS.some((p) => pathname.startsWith(p))) return;
+    if (!handoverPending()) return;
     const data = readData();
     setCounts({ notes: data.notes.length, notebooks: data.notebooks.length });
     setOpen(true);
-  }, [user]);
+  }, [user, pathname]);
 
   if (!open || !user) return null;
 
@@ -92,7 +85,7 @@ export default function GuestMigrationHost() {
   }
 
   function notNow() {
-    defer();
+    deferHandover();
     setOpen(false);
   }
 
