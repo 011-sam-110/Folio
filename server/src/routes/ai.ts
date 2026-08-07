@@ -11,7 +11,7 @@ import { checkQuota } from '../ai/usage.js';
 import { clientIp } from '../lib/clientIp.js';
 import { checkUserSuppliedUrl } from '../lib/publicHost.js';
 import { getKeyHint, getUserKey, setUserKey, deleteUserKey } from '../ai/keys.js';
-import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt, reviewFamilyPrompt } from '../ai/prompts.js';
+import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePrompt, cleanTitle, cleanPrompt, gapsPrompt, reviewFamilyPrompt, gapEditsPrompt } from '../ai/prompts.js';
 import { FAMILIES, PRESETS, familyById, checkById } from '../lib/checks.js';
 import { validateEdits, type AiEdit } from '../lib/aiEdit.js';
 import { blocksOf, blocksForPrompt } from '../lib/noteBlocks.js';
@@ -490,8 +490,12 @@ router.post('/gaps', async (req, res) => {
  * part a model reviews worst anyway.
  */
 const REVIEW_NOTE_CHARS = 12_000;
+/** Per uploaded source, in the gaps comparison. Several sources share one request. */
+const GAP_EDIT_SOURCE_CHARS = 6_000;
+/** A rail citation line has to sit on one line next to the reason. */
+const MAX_SOURCE_LABEL = 60;
 
-/** The shape a review route answers with. */
+/** The shape both review routes answer with. */
 interface ReviewResponse {
   edits: AiEdit[];
   rejected: number;
@@ -659,6 +663,107 @@ router.post('/suggest', async (req, res) => {
     body.ranFamilies.push(result.familyId);
   }
   res.json(body);
+});
+
+/**
+ * POST /api/ai/gaps/edits { noteId } - what the uploads covered and the note did not.
+ *
+ * Sits alongside POST /api/ai/gaps rather than replacing it. That route answers the
+ * Assistant panel with advisory markdown and is still wired to it; this one answers the
+ * review rail with approvable edits. Same comparison, two different products, so they are
+ * two different routes rather than one route with a mode flag.
+ *
+ * Every edit this returns is an `insert`, enforced below and not merely requested in the
+ * prompt. "This action never rewrites your own wording" is what makes an Approve-all button
+ * safe here in a way it is not for /suggest, and a property that only holds when the model
+ * cooperates is not a property. A model-returned `replace` is dropped, never converted: an
+ * insert built out of a rewrite would put the model's phrasing into the note under a promise
+ * that it never would.
+ */
+router.post('/gaps/edits', async (req, res) => {
+  const uid = userId(req);
+  const { noteId } = (req.body ?? {}) as { noteId?: unknown };
+  if (typeof noteId !== 'string' || !noteId) return res.status(400).json({ error: 'noteId is required' });
+  const note = await getNote(noteId, uid);
+  if (!note) return res.status(404).json({ error: 'note not found' });
+
+  // Same read as /gaps: the extracted text of the note's own uploads. `user_id` is checked
+  // here as well as on the note, so the ownership predicate sits on the query that actually
+  // reads the text.
+  const attRows = await db
+    .prepare(
+      `SELECT id, original_name, kind, extracted_text FROM attachments
+       WHERE note_id = ? AND user_id = ? AND status = 'ready' AND extracted_text IS NOT NULL AND extracted_text != ''
+       ORDER BY created_at ASC`,
+    )
+    .all<{ id: string; original_name: string; kind: string; extracted_text: string }>(noteId, uid);
+
+  // No sources means there is no comparison to make, and inventing one would turn this
+  // action into "a model guesses what a student forgot" - which is the thing it exists to
+  // replace. The message is written to be shown verbatim.
+  if (!attRows.length) {
+    return res.status(400).json({ error: 'Import slides, a photo or a transcript first.' });
+  }
+
+  const prepared = noteForReview(note);
+  if ('error' in prepared) return res.status(400).json({ error: prepared.error });
+
+  // Gaps are reported under the missing-content family: its checks are exactly this question
+  // ("term used but never defined", "no worked example"), and the rail needs a family to take
+  // the edit's severity from.
+  const family = familyById('missing-content')!;
+  const sources = attRows.map(a => ({
+    id: a.id,
+    name: a.original_name,
+    kind: a.kind,
+    text: capForAi(a.extracted_text, GAP_EDIT_SOURCE_CHARS),
+  }));
+  const allowedSources = new Set(sources.map(s => s.id));
+
+  try {
+    const { text, model } = await complete(
+      aiCtx(req),
+      gapEditsPrompt(family, note.title || 'Untitled', prepared.doc, sources),
+    );
+
+    let payload: unknown;
+    try {
+      payload = editsPayload(text);
+    } catch (parseErr) {
+      // A content-level failure: HTTP 200 carrying a body we cannot read. Reported as an
+      // upstream error rather than as an empty result, because "your note covers everything
+      // in the slides" and "the model did not answer" must never look the same to a student
+      // deciding whether their notes are complete.
+      throw new AiError('AI returned no usable suggestions', [
+        { model, error: parseErr instanceof Error ? parseErr.message : String(parseErr) },
+      ]);
+    }
+    const { edits, rejected } = validateEdits(payload);
+    const scoped = scopeToFamily(edits, family.id);
+    const usable = scoped.kept.filter(
+      e =>
+        // The insert-only guarantee, and the citation guarantee, enforced rather than asked
+        // for. An edit citing an attachment id this request did not supply is either a
+        // hallucination or a pointer at someone else's upload; either way the user cannot
+        // act on it, and a citation the user cannot act on is worse than none.
+        e.op === 'insert' && !!e.source && allowedSources.has(e.source.attachmentId),
+    );
+    const body: ReviewResponse = {
+      edits: namespaceIds(usable, family.id).map(e => ({
+        ...e,
+        // Trimmed rather than rejected: an over-long label is a citation that is too
+        // detailed, which is not a reason to throw away a good suggestion.
+        source: { attachmentId: e.source!.attachmentId, label: e.source!.label.slice(0, MAX_SOURCE_LABEL) },
+      })),
+      rejected: rejected + scoped.dropped + (scoped.kept.length - usable.length),
+      // One request, so this is all-or-nothing - and the failure case never reaches here,
+      // because a single-call route has nothing to salvage and 502s instead.
+      ranFamilies: [family.id],
+    };
+    res.json(body);
+  } catch (e) {
+    sendAiError(res, e);
+  }
 });
 
 // POST /api/ai/title { noteId }

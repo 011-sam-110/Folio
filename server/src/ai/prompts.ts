@@ -315,6 +315,70 @@ If this family finds nothing, respond with {"edits": []}.`,
   ];
 }
 
+
+/**
+ * The note against its own uploads: what the source covered and the note does not.
+ *
+ * Different question from `gapsPrompt` above, which writes advisory markdown for the
+ * Assistant panel. This one returns approvable edits, and two constraints make that safe
+ * enough to offer an "Approve all" button on:
+ *
+ *  - Every edit is an `insert`. This action adds what a source covered; it never rewrites
+ *    the student's own wording, so approving the lot cannot destroy anything they wrote.
+ *  - Every edit cites the attachment it came from, by the id given here. The route drops any
+ *    edit citing an id it did not supply, so a citation always points at a real upload.
+ *
+ * Both are enforced in the route as well. A prompt is a request, not a guarantee.
+ */
+export function gapEditsPrompt(
+  family: Family,
+  noteTitle: string,
+  blocks: string,
+  sources: Array<{ id: string; name: string; kind: string; text: string }>,
+): ChatMessage[] {
+  const checkList = family.checks.map(c => `- ${c.id}: ${c.label}`).join('\n');
+  const sourceBlock = sources
+    .map(s => `<source id="${s.id}" name="${s.name}" kind="${s.kind}">\n${s.text}\n</source>`)
+    .join('\n\n');
+  return [
+    {
+      role: 'system',
+      content: `${PERSONA}
+
+You are comparing a student's note against the source material they uploaded for it (lecture slides, a photographed page, a transcript). Report what the SOURCES cover and the NOTE does not. Do not report anything the sources do not support: this is a comparison, not a general critique, and "your notes look thin here" is not an answer.
+
+Report each gap under the id of the check it matches:
+${checkList}
+
+${UNTRUSTED_NOTICE}
+
+The note arrives as tagged blocks, then the sources as tagged sources:
+
+<block id="BLOCK_ID" type="paragraph">the block's text</block>
+<source id="SOURCE_ID" name="lecture3.pptx" kind="slides">the extracted text</source>
+
+${editContract([
+  '- `op` MUST be "insert" on every suggestion, and `before` MUST be empty. You are adding what is missing, never rewriting what the student wrote. A suggestion that changes their existing words will be discarded.',
+  '- `after` is the text to add after that block: one or two sentences in the student\'s own register, carrying the missing content itself rather than an instruction to go and add it.',
+  '- `blockId` is the block the new text should follow. Choose the block whose topic it belongs with.',
+  '- `source` is required: `attachmentId` must be copied exactly from the id attribute of the source it came from, and `label` must be the most specific pointer that source actually gives you - a slide number, a timestamp, or the heading of the section it sits under. Never write a vague label like "the slides" or "your upload" when the source names a position, and never invent a slide number or a timestamp that is not there. Keep it under 60 characters.',
+])}
+
+Respond with ONLY this JSON object, no prose around it and no code fence:
+{"edits": [{"blockId": "...", "op": "insert", "before": "", "after": "...", "reason": "...", "checkId": "...", "source": {"attachmentId": "...", "label": "slide 14 of 31"}}]}
+If the note already covers everything the sources do, respond with {"edits": []}.`,
+    },
+    {
+      role: 'user',
+      content: [
+        fence('NOTE TITLE', noteTitle.trim() || '(untitled)'),
+        fence('NOTE BLOCKS', blocks || '(empty note)'),
+        fence('UPLOADED SOURCE MATERIAL', sourceBlock || '(no sources)'),
+      ].join('\n\n'),
+    },
+  ];
+}
+
 export function titlePrompt(content: string): ChatMessage[] {
   return [
     {
