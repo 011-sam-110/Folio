@@ -119,6 +119,42 @@ export default function ProductShot() {
               </p>
             </div>
           </div>
+
+          {/* The right rail is what makes the replica an argument rather than a picture of
+              an editor: it shows the same note owing revision, carrying backlinks, and
+              holding an imported lecture, which is the three-way claim the page makes.
+              First to go when the frame narrows - see the 1080px rule in marketing.css. */}
+          <aside className="mkt-shot__rail">
+            <div className="mkt-shot__rail-block">
+              <div className="mkt-shot__label mkt-shot__label--rail">Study today</div>
+              <div className="mkt-shot__due-row">
+                <span>Algorithms</span>
+                <strong>3 due</strong>
+              </div>
+              <div className="mkt-shot__due-row">
+                <span>Operating Systems</span>
+                <strong>1 due</strong>
+              </div>
+              <div className="mkt-shot__rail-btn">Review 4 cards</div>
+            </div>
+
+            <div className="mkt-shot__rail-block">
+              <div className="mkt-shot__label mkt-shot__label--rail">Linked from 3 notes</div>
+              <ul className="mkt-shot__backlinks">
+                <li>Dijkstra</li>
+                <li>Graph Traversal</li>
+                <li>Shortest Paths · week 5</li>
+              </ul>
+            </div>
+
+            <div className="mkt-shot__rail-block">
+              <div className="mkt-shot__label mkt-shot__label--rail">Imported</div>
+              <div className="mkt-shot__import">
+                <span className="mkt-shot__kind">MP4</span>
+                Lecture 04 · 18 slides
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
 

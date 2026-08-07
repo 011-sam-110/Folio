@@ -3,6 +3,7 @@
 //
 // Section order is the whole of this file's job. Each section owns its own markup and
 // takes no props, so one can be reordered or dropped without touching the others.
+import { useRef } from 'react';
 import MarketingNav from './sections/MarketingNav';
 import Hero from './sections/Hero';
 import CapabilityStrip from './sections/CapabilityStrip';
@@ -10,13 +11,19 @@ import FeatureBento from './sections/FeatureBento';
 import AiBand from './sections/AiBand';
 import MakerNote from './sections/MakerNote';
 import ClosingCta from './sections/ClosingCta';
+import useReveals from './useReveals';
 import './marketing.css';
 
 export default function LandingPage() {
+  const root = useRef<HTMLDivElement>(null);
+  // Owns the page's scroll motion for every section at once. It arms itself only when
+  // motion is allowed, so .is-armed is also the switch that lets the CSS hide anything.
+  const armed = useReveals(root);
+
   return (
     // .mkt carries the page's own palette. The landing commits to the light,
     // paper-and-ink look in BOTH themes - see the token block in marketing.css.
-    <div className="mkt">
+    <div className={`mkt${armed ? ' is-armed' : ''}`} ref={root}>
       <MarketingNav />
       <main id="main">
         <Hero />

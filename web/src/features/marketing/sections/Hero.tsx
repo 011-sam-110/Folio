@@ -19,9 +19,9 @@ export default function Hero() {
       </div>
 
       <div className="mkt-hero__inner">
-        <p className="mkt-eyebrow">Built for university students</p>
+        <p className="mkt-eyebrow mkt-reveal">Built for university students</p>
 
-        <h1 className="mkt-hero__title">
+        <h1 className="mkt-hero__title mkt-reveal" data-reveal-delay="70">
           Where your whole{' '}
           <span className="mkt-mark">
             <span className="mkt-mark__word">degree</span>
@@ -30,21 +30,23 @@ export default function Hero() {
           comes together.
         </h1>
 
-        <p className="mkt-hero__lede">
-          Lecture notes, recordings, flashcards and boards in one place - with optional AI that only
+        <p className="mkt-hero__lede mkt-reveal" data-reveal-delay="140">
+          Lecture notes, recordings, flashcards and boards in one place, with optional AI that only
           helps when you ask it to.
         </p>
 
-        <div className="mkt-hero__cta">
+        <div className="mkt-hero__cta mkt-reveal" data-reveal-delay="210">
           <Link className="mkt-btn mkt-btn--primary mkt-btn--lg" to="/signup">
-            Start writing - it's free
+            Start writing, it's free
           </Link>
           <a className="mkt-btn mkt-btn--quiet mkt-btn--lg" href="#features">
             See how it works
           </a>
         </div>
 
-        <p className="mkt-hero__trust">Free to use. No card. Your notes stay yours.</p>
+        <p className="mkt-hero__trust mkt-reveal" data-reveal-delay="260">
+          Free to use. No card. Your notes stay yours.
+        </p>
       </div>
 
       <ProductShot />
