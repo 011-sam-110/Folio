@@ -390,6 +390,49 @@ export interface AiKeyInfo {
   health?: AiHealthInfo;
 }
 
+/**
+ * One reviewable change, as `POST /api/ai/suggest` and `POST /api/ai/gaps/edits` return it.
+ *
+ * A hand-copied mirror of `server/src/lib/aiEdit.ts`, which is the authoritative
+ * declaration and the only place the shape is VALIDATED. The two workspaces do not share a
+ * types package - every interface in this file is a mirror of something server-side, and
+ * this one is no different - so the rule that applies to the rest of the file applies here:
+ * change the server's copy first, then this one.
+ *
+ * Anchoring is by `blockId`, the TipTap `UniqueID` the editor already mints and persists on
+ * every block (buildExtensions.ts configures it). Every cheaper anchor breaks under ordinary
+ * typing: a character offset breaks the moment anything is typed, a block index breaks when
+ * a block is added above, and searching the whole document for `before` breaks when the
+ * phrase repeats. A `blockId` only breaks when that specific block is deleted, which is
+ * detectable - and AiReviewPlugin.ts reports it as a stale suggestion rather than guessing.
+ */
+export interface AiEdit {
+  id: string;
+  /** TipTap UniqueID of the target block. */
+  blockId: string;
+  op: 'replace' | 'insert' | 'delete';
+  /** The existing text to match against the block. '' for insert. */
+  before: string;
+  /** The proposed text. '' for delete. */
+  after: string;
+  /** Model-authored rationale. Never empty - the server drops an edit without one. */
+  reason: string;
+  /** A check id from the catalogue, e.g. 'accuracy.contradicts-note'. Its FAMILY carries
+   *  the severity the review rail sorts by, so this is the only route to a card's rank. */
+  checkId: string;
+  /** Uploads only: which attachment this suggestion came out of. */
+  source?: { attachmentId: string; label: string };
+}
+
+/** `POST /api/ai/suggest` and `POST /api/ai/gaps/edits`. `ranFamilies` omits any family
+ *  whose model request failed, so the UI can say which parts of the run are missing
+ *  instead of silently reporting fewer suggestions than were asked for. */
+export interface AiSuggestResult {
+  edits: AiEdit[];
+  rejected: number;
+  ranFamilies: string[];
+}
+
 // --- Import old notes wizard (bulk staging) ------------------------------------
 // Staging DTOs for the multi-file "Import old notes" flow. Nothing here is written into a real
 // notebook until commit; see server/src/lib/importBatch.ts.
