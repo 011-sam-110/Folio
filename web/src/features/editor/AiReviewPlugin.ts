@@ -18,11 +18,12 @@
 // off to a lecture and comes back to a reloaded tab gets their own note, not a note full of
 // suggestions they never accepted.
 import type { Editor } from '@tiptap/core';
-import type { Node as PMNode } from '@tiptap/pm/model';
+import { DOMParser as PMDOMParser, Fragment, type Node as PMNode, type Schema } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { Mapping } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { AiEdit } from '../../lib/types';
+import { hasInlineMarkup, inlineMarkdownToSafeHtml } from './inlineMarkdown';
 
 export type AiVerdict = 'approved' | 'denied';
 
@@ -510,6 +511,65 @@ export function denyEdit(view: EditorView, editId: string): void {
  * not let us replace. The rail turns that into a visible verdict; a thrown exception here
  * would take the editor's whole transaction pipeline with it.
  */
+/**
+ * A suggestion's `after` as real formatted content, or null to apply it as plain text.
+ *
+ * Null is the safe answer and this returns it for everything it is not sure about:
+ *
+ *  • text with no markdown in it, which is most suggestions - `hasInlineMarkup` demands a
+ *    matched pair of delimiters precisely so that prose containing one stray asterisk goes
+ *    down the untouched plain-text path;
+ *  • a parse that yielded no marks after all, where a Fragment would be a more expensive way
+ *    to write the same characters;
+ *  • a parse that produced block content. `replaceWith` is being handed an inline range, so
+ *    a paragraph in the fragment would throw. Catching that here rather than in the caller's
+ *    try/catch is the difference between falling back to plain text and the approval failing
+ *    outright, which the rail would report as "no longer matches the note" - a confusing lie.
+ *
+ * Only ever called with the output of `marked.parseInline`, so the schema is being asked to
+ * parse marks and text, never a whole document.
+ */
+function richReplacement(after: string, schema: Schema): Fragment | null {
+  if (!after.trim() || !hasInlineMarkup(after)) return null;
+
+  const html = inlineMarkdownToSafeHtml(after);
+  const holder = document.createElement('div');
+  holder.innerHTML = html;
+
+  let fragment: Fragment;
+  try {
+    // `preserveWhitespace` keeps the single spaces between marked runs - without it a
+    // suggestion ending in "<strong>x</strong> y" loses the space before `y`.
+    fragment = PMDOMParser.fromSchema(schema).parseSlice(holder, { preserveWhitespace: true }).content;
+  } catch {
+    return null;
+  }
+
+  let inlineOnly = true;
+  let hasMark = false;
+  fragment.forEach((node) => {
+    if (!node.isInline) inlineOnly = false;
+    if (node.marks.length > 0) hasMark = true;
+  });
+  if (!inlineOnly || !hasMark || fragment.childCount === 0) return null;
+
+  // The sanitizer and the schema between them can drop content (a mark the editor does not
+  // define, say), and a replacement that silently lost words would be far worse than one
+  // that kept the asterisks. If the visible text no longer matches what the model proposed,
+  // give up and write the plain string.
+  if (fragment.textBetween(0, fragment.size) !== stripInlineMarkup(after)) return null;
+
+  return fragment;
+}
+
+/** What `after` reads as once its markdown delimiters are resolved - the string the rich
+ *  fragment above must reproduce exactly, or it is not applied. */
+function stripInlineMarkup(after: string): string {
+  const holder = document.createElement('div');
+  holder.innerHTML = inlineMarkdownToSafeHtml(after);
+  return holder.textContent ?? '';
+}
+
 export function approveEdit(view: EditorView, editId: string): boolean {
   const state = AiReviewPluginKey.getState(view.state);
   if (!state) return false;
@@ -530,11 +590,22 @@ export function approveEdit(view: EditorView, editId: string): boolean {
   // honest reading of what was suggested rather than a silent alteration of it.
   const after = edit.after.replace(/\s*\r?\n\s*/g, ' ');
 
+  // A suggestion that carries markdown is applied AS formatting, not as the characters that
+  // spell it. `**fast**` becomes bold text; it does not become two asterisks, the word, and
+  // two more asterisks, which is what a student used to get from an action called "clean up
+  // formatting". Null when there is no markup to honour (the common case) or when the parse
+  // produced something a text range cannot hold, and the plain-text path below then runs
+  // exactly as it always did.
+  const formatted = richReplacement(after, view.state.schema);
+
   try {
     const tr = view.state.tr;
     if (anchor.kind === 'text') {
       if (edit.op === 'delete') tr.delete(anchor.from, anchor.to);
+      else if (formatted) tr.replaceWith(anchor.from, anchor.to, formatted);
       else tr.insertText(after, anchor.from, anchor.to);
+    } else if (formatted) {
+      tr.replaceWith(anchor.at, anchor.at, formatted);
     } else {
       tr.insertText(after, anchor.at);
     }
