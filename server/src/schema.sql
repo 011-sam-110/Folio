@@ -140,6 +140,24 @@ CREATE TABLE IF NOT EXISTS attachments (
 CREATE INDEX IF NOT EXISTS idx_attachments_note ON attachments(note_id);
 CREATE INDEX IF NOT EXISTS idx_attachments_user ON attachments(user_id);
 
+-- Where this upload's material sits INSIDE the file: per-slide/per-page text with the true
+-- page count, or per-timestamp segments for a transcript. JSON, written and read by
+-- lib/provenance.ts, and the only thing that lets a gap citation say "slide 14 of 31".
+--
+-- It cannot be derived from extracted_text: that column holds the model-restructured notes,
+-- and the restructure pass is told to drop slide numbers and footers, so the position is gone
+-- before the row is written. This is filled from the RAW extraction instead, at import time.
+--
+-- TEXT holding JSON rather than JSONB, matching notes.content_json and canvas_items.data -
+-- nothing queries inside it, so a second convention would buy nothing.
+--
+-- Nullable, and the null is meaningful: NULL is an upload from before this column existed and
+-- carries no claim at all, while {"kind":"none",...} records that we looked and the source
+-- genuinely has no sub-position. Both cite the file name; only the second is a fact about the
+-- file. Deliberately not backfilled - there is no honest way to invent the position of a
+-- deck whose numbers were already discarded.
+ALTER TABLE attachments ADD COLUMN IF NOT EXISTS provenance TEXT;
+
 CREATE TABLE IF NOT EXISTS flashcards (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

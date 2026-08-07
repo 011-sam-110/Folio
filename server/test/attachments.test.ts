@@ -6,12 +6,17 @@
 // are served from there, so these tests assert the two halves of that: the write puts real
 // bytes in the row, and the read hands them back to the right people and nobody else.
 
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { zipSync } from 'fflate';
 import { buildApp } from '../src/app.js';
 import { db } from '../src/db.js';
 import { insertAttachment, withTempFile, attachmentUrl } from '../src/lib/attachments.js';
+import { extractFromUpload } from '../src/lib/extract.js';
+import { pagesProvenance, timelineProvenance, parseProvenance } from '../src/lib/provenance.js';
 import { figuresMarkdown, isPptx } from '../src/routes/imports.js';
 import { markdownToTipTap } from '../src/lib/markdown.js';
 import {
@@ -43,6 +48,12 @@ beforeEach(async () => {
   await resetData();
   alice = await makeUser(app);
   bob = await makeUser(app);
+});
+
+afterEach(() => {
+  // Only the provenance suite below stubs anything, but unstubbing centrally means a failed
+  // assertion there cannot leave a fake `fetch` in place for the next file.
+  vi.unstubAllGlobals();
 });
 
 afterAll(async () => {
@@ -395,5 +406,279 @@ describe('slide figures', () => {
     expect(isPptx('application/vnd.openxmlformats-officedocument.presentationml.presentation', 'deck.pptx')).toBe(true);
     expect(isPptx('', 'deck.pptx')).toBe(true);
     expect(isPptx('application/pdf', 'slides.pdf')).toBe(false);
+  });
+});
+
+// Provenance: where an upload's material sits INSIDE the file it came from.
+//
+// The citation on a gap suggestion ("slide 14 of 31") is only worth showing if it is true, and
+// it cannot be recovered later: attachments.extracted_text is the model-restructured version
+// of the upload, and that pass is told to drop slide numbers and footers. The position has to
+// be taken from the raw extraction, at import time, or not at all - which is what these cover.
+describe('source provenance', () => {
+  const tmp: string[] = [];
+  afterAll(async () => {
+    for (const f of tmp) await fs.rm(f, { force: true }).catch(() => {});
+  });
+
+  async function tmpFile(name: string, bytes: Buffer): Promise<string> {
+    const p = path.join(os.tmpdir(), `folio-prov-${Date.now()}-${Math.random().toString(36).slice(2)}-${name}`);
+    await fs.writeFile(p, bytes);
+    tmp.push(p);
+    return p;
+  }
+
+  const enc = (s: string) => new TextEncoder().encode(s);
+
+  /** A real (if minimal) .pptx: enough package parts for officeparser to find the slides. */
+  function buildPptx(slides: string[][]): Buffer {
+    const slideXml = (lines: string[]) =>
+      enc(
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>` +
+          lines
+            .map(
+              (t, i) =>
+                `<p:sp><p:nvSpPr><p:cNvPr id="${i + 2}" name="tb${i}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:p><a:r><a:t>${t}</a:t></a:r></a:p></p:txBody></p:sp>`,
+            )
+            .join('') +
+          `</p:spTree></p:cSld></p:sld>`,
+      );
+    const files: Record<string, Uint8Array> = {
+      '[Content_Types].xml': enc(
+        `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>${slides.map((_, i) => `<Override PartName="/ppt/slides/slide${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join('')}</Types>`,
+      ),
+      '_rels/.rels': enc(
+        `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>`,
+      ),
+      'ppt/presentation.xml': enc(
+        `<?xml version="1.0"?><p:presentation xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldIdLst>${slides.map((_, i) => `<p:sldId id="${256 + i}" r:id="rId${i + 1}"/>`).join('')}</p:sldIdLst></p:presentation>`,
+      ),
+      'ppt/_rels/presentation.xml.rels': enc(
+        `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${slides.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${i + 1}.xml"/>`).join('')}</Relationships>`,
+      ),
+    };
+    slides.forEach((lines, i) => {
+      files[`ppt/slides/slide${i + 1}.xml`] = slideXml(lines);
+    });
+    return Buffer.from(zipSync(files));
+  }
+
+  /** A real PDF with one text-bearing page per entry, so unpdf paginates it for real. */
+  function buildPdf(pages: string[]): Buffer {
+    const contentIds = pages.map((_, i) => 4 + pages.length + i);
+    const fontId = 3 + pages.length;
+    const objs = [
+      `1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n`,
+      `2 0 obj\n<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i} 0 R`).join(' ')}] /Count ${pages.length} >>\nendobj\n`,
+      ...pages.map(
+        (_, i) =>
+          `${3 + i} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentIds[i]} 0 R >>\nendobj\n`,
+      ),
+      `${fontId} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n`,
+      ...pages.map((text, i) => {
+        const stream = `BT /F1 18 Tf 72 700 Td (${text}) Tj ET`;
+        return `${contentIds[i]} 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`;
+      }),
+    ];
+    let pdf = '%PDF-1.4\n';
+    const offsets: number[] = [];
+    for (const o of objs) {
+      offsets.push(pdf.length);
+      pdf += o;
+    }
+    const xrefAt = pdf.length;
+    pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+    for (const off of offsets) pdf += `${String(off).padStart(10, '0')} 00000 n \n`;
+    pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xrefAt}\n%%EOF\n`;
+    return Buffer.from(pdf, 'latin1');
+  }
+
+  describe('what the extractor reports', () => {
+    it('cuts a .pptx where the deck cuts it, one entry per slide', async () => {
+      const file = await tmpFile(
+        'deck.pptx',
+        buildPptx([['Lecture 8: Normalisation'], ['Third Normal Form', 'No transitive dependency'], ['Denormalisation']]),
+      );
+
+      const res = await extractFromUpload(file, '', 'deck.pptx');
+
+      expect(res.pages).toEqual([
+        'Lecture 8: Normalisation',
+        'Third Normal Form\nNo transitive dependency',
+        'Denormalisation',
+      ]);
+      // The flattened text is unchanged by the split, so nothing that already read it moves.
+      expect(res.text).toBe(res.pages!.join('\n'));
+    });
+
+    it('cuts a PDF page by page, keeping the page count honest', async () => {
+      const file = await tmpFile('deck.pdf', buildPdf(['Deadlock conditions', 'Circular wait', 'Prevention']));
+
+      const res = await extractFromUpload(file, 'application/pdf', 'deck.pdf');
+
+      expect(res.pages).toEqual(['Deadlock conditions', 'Circular wait', 'Prevention']);
+      expect(res.meta.pages).toBe(3);
+    });
+
+    it('reports no pages for a format that has none', async () => {
+      const file = await tmpFile('notes.txt', Buffer.from('Just some text with no page structure.'));
+      const res = await extractFromUpload(file, 'text/plain', 'notes.txt');
+      expect(res.pages).toBeUndefined();
+    });
+  });
+
+  describe('numbering', () => {
+    it('numbers from 1 and keeps a blank page in place', () => {
+      // Compacting the array would move slide 3 to position 2, which is the exact failure the
+      // whole feature exists to prevent.
+      const prov = pagesProvenance('slide', ['Intro', '', 'Third Normal Form']);
+      expect(prov).toEqual({
+        kind: 'pages',
+        unit: 'slide',
+        total: 3,
+        pages: [
+          { n: 1, text: 'Intro' },
+          { n: 2, text: '' },
+          { n: 3, text: 'Third Normal Form' },
+        ],
+      });
+    });
+
+    it('records that a file with no pages has none, rather than saying nothing', () => {
+      expect(pagesProvenance('slide', [])).toEqual({ kind: 'none', reason: 'no-pages' });
+    });
+  });
+
+  describe('reading a timeline out of a transcript', () => {
+    it('reads WebVTT cues, keeping the end the file states', () => {
+      const prov = timelineProvenance(
+        ['WEBVTT', '', '00:24:10.000 --> 00:28:35.000', 'Circular wait.', '', '00:28:35.000 --> 00:31:02.000', 'Prevention.'].join('\n'),
+      );
+      expect(prov).toEqual({
+        kind: 'timestamps',
+        segments: [
+          { start: 1450, end: 1715, text: 'Circular wait.' },
+          { start: 1715, end: 1862, text: 'Prevention.' },
+        ],
+      });
+    });
+
+    it('reads bare timestamps, taking each segment up to where the next one starts', () => {
+      const prov = timelineProvenance(['0:00 Welcome to the lecture.', '24:10', 'The fourth condition is circular wait.'].join('\n'));
+      expect(prov).toEqual({
+        kind: 'timestamps',
+        segments: [
+          { start: 0, end: 1450, text: 'Welcome to the lecture.' },
+          // Nothing in the file says when the last segment ends, so nothing here claims to.
+          { start: 1450, end: null, text: 'The fourth condition is circular wait.' },
+        ],
+      });
+    });
+
+    it('does not read a timeline out of prose that merely mentions a time', () => {
+      expect(timelineProvenance('The lecture starts at 09:15 and covers deadlock detection.')).toBeNull();
+    });
+
+    it('does not read a timeline out of clock times that run backwards', () => {
+      // A timetable, not a recording. Its times are real but they are not positions in a file,
+      // and a citation pointing into them would send the student nowhere.
+      expect(timelineProvenance(['12:30 Lunch', '09:15 Registration', '14:00 Lab'].join('\n'))).toBeNull();
+    });
+  });
+
+  describe('what an import stores', () => {
+    /** The gateway, answering every call with the same markdown. Nothing reaches upstream. */
+    function stubModel(markdown = '## Circular wait\n\nA cycle in the wait-for graph.') {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(JSON.stringify({ choices: [{ message: { content: markdown } }] }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+        ),
+      );
+    }
+
+    /** Run a real import to completion and return what it wrote to attachments.provenance. */
+    async function importAndRead(
+      kind: string,
+      file: { name: string; type: string; bytes: Buffer },
+    ): Promise<unknown> {
+      stubModel();
+      const notebookId = await insertNotebook(alice.id);
+      const res = await alice.agent
+        .post('/api/import')
+        .field('kind', kind)
+        .field('mode', 'new')
+        .field('notebookId', notebookId)
+        .attach('file', file.bytes, { filename: file.name, contentType: file.type })
+        .expect(200);
+
+      // The job runs after the response, so the assertion has to wait for it rather than for
+      // the request.
+      for (let i = 0; i < 200; i++) {
+        const job = await alice.agent.get(`/api/import/jobs/${res.body.jobId}`);
+        if (job.body.status === 'done') break;
+        if (job.body.status === 'failed') throw new Error(`import failed: ${job.body.error}`);
+        await new Promise(r => setTimeout(r, 25));
+      }
+
+      const row = await db
+        .prepare('SELECT provenance FROM attachments WHERE user_id = ? AND kind = ? ORDER BY created_at DESC LIMIT 1')
+        .get<{ provenance: string | null }>(alice.id, kind);
+      return parseProvenance(row?.provenance);
+    }
+
+    it('records a deck page by page, with the total a citation needs', async () => {
+      const prov = await importAndRead('slides', {
+        name: 'deck.pdf',
+        type: 'application/pdf',
+        bytes: buildPdf(['Deadlock conditions', 'Circular wait', 'Prevention']),
+      });
+
+      expect(prov).toEqual({
+        kind: 'pages',
+        unit: 'slide',
+        total: 3,
+        pages: [
+          { n: 1, text: 'Deadlock conditions' },
+          { n: 2, text: 'Circular wait' },
+          { n: 3, text: 'Prevention' },
+        ],
+      });
+    });
+
+    it('records a transcript timeline from the raw text, before the AI pass rewrites it', async () => {
+      const prov = await importAndRead('transcript', {
+        name: 'lecture3.txt',
+        type: 'text/plain',
+        bytes: Buffer.from(['0:00 Welcome.', '24:10 The fourth condition is circular wait.'].join('\n')),
+      });
+
+      expect(prov).toEqual({
+        kind: 'timestamps',
+        segments: [
+          { start: 0, end: 1450, text: 'Welcome.' },
+          { start: 1450, end: null, text: 'The fourth condition is circular wait.' },
+        ],
+      });
+    });
+
+    it('records the ABSENCE of a timeline, so nothing downstream has to guess', async () => {
+      const prov = await importAndRead('transcript', {
+        name: 'notes.txt',
+        type: 'text/plain',
+        bytes: Buffer.from('A deadlock needs mutual exclusion, hold and wait, no preemption and circular wait.'),
+      });
+
+      expect(prov).toEqual({ kind: 'none', reason: 'no-timestamps' });
+    });
+
+    it('records a photo as having no sub-position at all', async () => {
+      const prov = await importAndRead('photo', { name: 'page-3.png', type: 'image/png', bytes: PNG });
+      expect(prov).toEqual({ kind: 'none', reason: 'photo' });
+    });
   });
 });

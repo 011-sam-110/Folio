@@ -9,6 +9,7 @@ import { aiQuotaGate, aiCtx, complete, type AiContext } from '../ai/gate.js';
 import { ocrPhotoPrompt, slidesRestructurePrompt, transcriptNotesPrompt, improvePrompt, titlePrompt, cleanTitle } from '../ai/prompts.js';
 import { extractFromUpload } from '../lib/extract.js';
 import { extractPptxImages, type SlideImage } from '../lib/slideImages.js';
+import { pagesProvenance, timelineProvenance, serialiseProvenance, type Provenance } from '../lib/provenance.js';
 import { insertAttachment, withTempFile, attachmentUrl } from '../lib/attachments.js';
 import { markdownToTipTap, markdownToPlainText, stripLeadingTitleHeading } from '../lib/markdown.js';
 import { syncLinksForNote, createTitleResolver } from '../lib/links.js';
@@ -379,6 +380,14 @@ async function processImport(args: ProcessArgs): Promise<void> {
   try {
     let extractedMarkdown: string;
     let figures: SlideImage[] = [];
+    /**
+     * Where this upload's material sits inside the file, captured from the RAW extraction.
+     *
+     * It has to be taken here, before the AI pass below: `slidesRestructurePrompt` is told to
+     * drop slide numbers and footers, so by the time `extracted_text` is written the position
+     * every citation needs has already been thrown away. See lib/provenance.ts.
+     */
+    let provenance: Provenance;
     const ext = safeExt(originalName, mime) || path.extname(originalName).toLowerCase();
 
     if (kind === 'photo') {
@@ -388,11 +397,15 @@ async function processImport(args: ProcessArgs): Promise<void> {
       if (Array.isArray(userMsg.content)) userMsg.content.push({ type: 'image_url', image_url: { url: dataUrl } });
       const { text } = await complete(ctx, messages, { vision: true });
       extractedMarkdown = text.trim();
+      // One photographed page has no sub-position to point at, and recording that is not the
+      // same as recording nothing: it is what tells the gaps route to cite the file name
+      // rather than treat the source as unexamined.
+      provenance = { kind: 'none', reason: 'photo' };
     } else if (kind === 'slides') {
       // One temp file serves both passes: the extractors take a path, not a buffer.
       const pptx = isPptx(mime, originalName);
-      const rawText = await withTempFile(bytes, ext, async (filePath) => {
-        const { text } = await extractFromUpload(filePath, mime, originalName);
+      const extracted = await withTempFile(bytes, ext, async (filePath) => {
+        const result = await extractFromUpload(filePath, mime, originalName);
         if (pptx) {
           // A failed figure pass must never take down an import whose text extracted
           // fine - the pictures are a bonus, the notes are the point.
@@ -402,22 +415,33 @@ async function processImport(args: ProcessArgs): Promise<void> {
             console.error('[folio] slide figure extraction failed', err);
           }
         }
-        return text;
+        return result;
       });
-      const pages = rawText
-        .split(/\n\n--- Page \d+ ---\n\n/)
-        .map(s => s.trim())
-        .filter(Boolean);
+      // The extractor now reports the file's own page/slide breaks, so the deck is no longer
+      // re-split out of its own text: a .pptx carries no `--- Page N ---` markers at all, and
+      // the old split therefore handed the whole deck over as a single slide.
+      // The unit follows what the student uploaded, not what the file format is called: a
+      // deck exported to PDF is still slides to the person reading "slide 14 of 31".
+      const pages = extracted.pages ?? [];
+      provenance = pagesProvenance('slide', pages);
       await updateJob(jobId, { step: 'Improving with AI…' });
-      const { text } = await complete(ctx, slidesRestructurePrompt(pages.length ? pages : [rawText]));
+      const { text } = await complete(ctx, slidesRestructurePrompt(pages.length ? pages : [extracted.text]));
       extractedMarkdown = text.trim();
     } else {
-      const rawText = await withTempFile(bytes, ext, async (filePath) => {
-        const { text } = await extractFromUpload(filePath, mime, originalName);
-        return text;
+      const extracted = await withTempFile(bytes, ext, async (filePath) => {
+        return await extractFromUpload(filePath, mime, originalName);
       });
+      // Timestamps first, since they are the more precise pointer, and pages only as the
+      // fallback for a transcript that arrived as a PDF. A transcript with neither records
+      // exactly that, so nothing downstream has to guess whether it was even looked at.
+      // Scanned over the pages joined back together rather than over `text`, so this
+      // extractor's own `--- Page N ---` markers cannot end up inside a timed segment.
+      const pages = extracted.pages ?? [];
+      provenance =
+        timelineProvenance(pages.length ? pages.join('\n\n') : extracted.text) ??
+        (pages.length ? pagesProvenance('page', pages) : { kind: 'none', reason: 'no-timestamps' });
       await updateJob(jobId, { step: 'Improving with AI…' });
-      const { text } = await complete(ctx, transcriptNotesPrompt(rawText));
+      const { text } = await complete(ctx, transcriptNotesPrompt(extracted.text));
       extractedMarkdown = text.trim();
     }
 
@@ -448,8 +472,9 @@ async function processImport(args: ProcessArgs): Promise<void> {
       }
     }
 
-    await db.prepare('UPDATE attachments SET extracted_text = ?, status = ?, note_id = ? WHERE id = ? AND user_id = ?').run(
+    await db.prepare('UPDATE attachments SET extracted_text = ?, provenance = ?, status = ?, note_id = ? WHERE id = ? AND user_id = ?').run(
       extractedMarkdown,
+      serialiseProvenance(provenance),
       'ready',
       resultNoteId,
       attachmentId,
