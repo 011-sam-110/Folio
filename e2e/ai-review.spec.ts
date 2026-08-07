@@ -123,11 +123,16 @@ async function seedNote(
   return note;
 }
 
-/** Fixes the run's response, and keeps the AI menu on screen whatever the gateway is doing. */
-async function stubSuggestions(page: Page, edits: unknown[]): Promise<void> {
+/** Keeps the AI menu on screen whatever the gateway is doing. */
+async function stubAiHealth(page: Page): Promise<void> {
   await page.route('**/api/meta/ai-health', (route) =>
     route.fulfill({ json: { ok: true, model: 'stub', source: 'shared-pool' } }),
   );
+}
+
+/** Fixes the run's response, and keeps the AI menu on screen whatever the gateway is doing. */
+async function stubSuggestions(page: Page, edits: unknown[]): Promise<void> {
+  await stubAiHealth(page);
   await page.route('**/api/ai/suggest', (route) =>
     route.fulfill({ json: { edits, rejected: 0, ranFamilies: ['accuracy', 'clarity', 'grammar', 'structure'] } }),
   );
@@ -159,6 +164,24 @@ async function openReview(page: Page): Promise<void> {
   await main.getByRole('button', { name: /^ai\b/i }).click();
   await main.getByRole('button', { name: /improve writing/i }).first().click();
   await expect(page.getByTestId('ai-review-rail')).toBeVisible({ timeout: 15_000 });
+}
+
+/** The check picker, from the same AI menu, below the divider. */
+async function openChecks(page: Page): Promise<void> {
+  const main = page.getByRole('main');
+  await main.getByRole('button', { name: /^ai\b/i }).click();
+  await main.getByRole('button', { name: /choose what to check/i }).click();
+  await expect(page.getByTestId('check-picker')).toBeVisible({ timeout: 15_000 });
+}
+
+/** The picker's family toggles that are currently on. */
+function enabledFamilies(page: Page) {
+  return page.getByTestId('check-picker').locator('input[type="checkbox"]:checked');
+}
+
+async function openNoteAndWait(page: Page, note: { id: string; title: string }): Promise<void> {
+  await page.goto(`/note/${note.id}`);
+  await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
 }
 
 function card(page: Page, editId: string) {
@@ -347,5 +370,197 @@ test.describe('AI review (stubbed suggestions)', () => {
     await page.getByTestId('ai-review-more').click();
     await expect(page.getByTestId('ai-review-card')).toHaveCount(8);
     await expect(page.getByTestId('ai-review-more')).toHaveCount(0);
+  });
+
+  /**
+   * The uploads comparison is live now, but only where there is a second side to compare
+   * against. The reason shown is the server's own sentence for that case (see
+   * `POST /api/ai/gaps/edits`), so a student who imports something and still gets refused
+   * reads the same wording from the route that they read from the menu.
+   */
+  test('offers the uploads comparison only when the note has uploads', async ({ page, request }) => {
+    const note = await seedNote(request, uniqueName('AI Review No Uploads'), BLOCKS);
+    await stubAiHealth(page);
+
+    await openNoteAndWait(page, note);
+    const main = page.getByRole('main');
+    await main.getByRole('button', { name: /^ai\b/i }).click();
+
+    const gaps = main.getByRole('button', { name: /find missing content from uploads/i });
+    await expect(gaps).toBeDisabled();
+    await expect(gaps).toContainText('Import slides, a photo or a transcript first.');
+  });
+
+  /**
+   * The undo path.
+   *
+   * A review has no Undo of its own - approvals land one at a time and autosave persists
+   * them - so History is the only way back to the note the student wrote, and it is only
+   * there if a snapshot was taken BEFORE the first approval and only once for the whole run.
+   *
+   * Ordering is proved rather than inferred: the snapshot request is held open by the route
+   * handler below, and while it is unanswered the document must still read exactly as it was
+   * seeded. A snapshot fired off beside the edit, or after it, would fail that assertion.
+   */
+  test('takes one restore point per run, before the first approval writes anything', async ({ page, request }) => {
+    const note = await seedNote(request, uniqueName('AI Review Undo'), BLOCKS);
+    await stubSuggestions(page, [E_EARLY, E_MINOR, E_LATE]);
+
+    let openTheGate: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      openTheGate = resolve;
+    });
+    let snapshots = 0;
+    await page.route('**/api/notes/*/versions', async (route) => {
+      // GETs (History) pass straight through; only the snapshot POST is held.
+      if (route.request().method() !== 'POST') return route.fallback();
+      snapshots++;
+      await gate;
+      await route.continue();
+    });
+
+    await openNoteAndWait(page, note);
+    await openReview(page);
+    expect(snapshots, 'opening a review must not write history on its own').toBe(0);
+
+    await card(page, E_EARLY.id).getByTestId('ai-review-approve').click();
+
+    // The approval is now waiting on the restore point.
+    await expect
+      .poll(() => snapshots, { message: 'the first approval requested no snapshot' })
+      .toBe(1);
+
+    // THE ASSERTION THIS SPEC EXISTS FOR. The snapshot request is unanswered, and until it
+    // is, not one character of the note has moved.
+    expect(await documentBlocks(page)).toEqual(BLOCKS.map((b) => b.text));
+
+    openTheGate();
+    await expect
+      .poll(async () => (await documentBlocks(page))[0])
+      .toBe('Binary search trees order their subtrees.');
+
+    // A second approval in the same run reuses the same restore point. Eight approvals must
+    // leave History with one entry to go back to, not eight indistinguishable ones.
+    await card(page, E_LATE.id).getByTestId('ai-review-approve').click();
+    await expect
+      .poll(async () => (await documentBlocks(page))[2])
+      .toBe("Dijkstra's algorithm does not work with negative edge weights.");
+    expect(snapshots, 'the second approval took a second snapshot').toBe(1);
+
+    // And the server agrees - one restore point, holding the note as it was BEFORE the
+    // review. That last part is the independent proof that the ordering above was real:
+    // a snapshot taken after the first approval would have recorded the reviewed text.
+    const listed = await request.get(`/api/notes/${note.id}/versions`);
+    const { versions } = (await listed.json()) as { versions: Array<{ id: number; label: string | null }> };
+    const restorePoints = versions.filter((v) => v.label === 'Before AI review');
+    expect(restorePoints).toHaveLength(1);
+
+    const stored = await request.get(`/api/notes/${note.id}/versions/${restorePoints[0].id}`);
+    const { version } = (await stored.json()) as { version: { contentJson: unknown } };
+    const restored = JSON.stringify(version.contentJson);
+    expect(restored).toContain('keep the left subtree smaller and the right subtree larger');
+    expect(restored).not.toContain('order their subtrees');
+  });
+
+  /**
+   * The whole feature, end to end and through a reload: what was approved is in the note,
+   * what was denied never was, and what was never decided is untouched.
+   */
+  test('persists the approved change and only the approved change', async ({ page, request }) => {
+    const note = await seedNote(request, uniqueName('AI Review Full Path'), BLOCKS);
+    await stubSuggestions(page, [E_EARLY, E_MINOR, E_LATE]);
+
+    await openNoteAndWait(page, note);
+    await openReview(page);
+
+    await card(page, E_LATE.id).getByTestId('ai-review-approve').click();
+    await expect
+      .poll(async () => (await documentBlocks(page))[2])
+      .toBe("Dijkstra's algorithm does not work with negative edge weights.");
+
+    await expand(page, 'grammar');
+    await card(page, E_MINOR.id).getByTestId('ai-review-deny').click();
+    await expect(
+      page.getByTestId('ai-review-settled').locator(`[data-edit-id="${E_MINOR.id}"]`),
+    ).toContainText('Denied');
+
+    // Wait for the approval to reach the server before reloading - the reload asserts what
+    // was PERSISTED, so it must not race the autosave that persists it.
+    await storedText(request, note.id, 'does not work with negative edge weights');
+
+    await page.reload();
+    await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
+    await expect(editorBody(page)).toBeVisible();
+
+    await expect
+      .poll(async () => await documentBlocks(page))
+      .toEqual([
+        // Never decided: still the student's sentence.
+        BLOCKS[0].text,
+        // Denied: the model's wording never touched the note.
+        BLOCKS[1].text,
+        // Approved.
+        "Dijkstra's algorithm does not work with negative edge weights.",
+        BLOCKS[3].text,
+      ]);
+
+    // Nothing of the review itself survived the reload: the suggestions were decorations,
+    // and decorations are not in the document.
+    await expect(page.getByTestId('ai-review-rail')).toHaveCount(0);
+    await expect(page.locator('.folio-ai-ins')).toHaveCount(0);
+    await expect(page.locator('.folio-ai-del')).toHaveCount(0);
+  });
+});
+
+/**
+ * The check picker.
+ *
+ * Its specs live here rather than with Task 8's component because until the note page
+ * mounted it, there was nowhere for Playwright to reach it. The catalogue is NOT stubbed:
+ * the picker exists to render what the server actually runs, so a test against a fixture
+ * catalogue would pass while the two drifted apart.
+ */
+test.describe('Check picker', () => {
+  test('renders the served catalogue and remembers the choice per notebook', async ({ page, request }) => {
+    const first = await seedNote(request, uniqueName('AI Checks Notebook A'), BLOCKS);
+    await stubAiHealth(page);
+
+    await openNoteAndWait(page, first);
+    await openChecks(page);
+
+    // Eight families, straight from GET /api/ai/checks.
+    await expect(page.getByTestId('check-picker').locator('input[type="checkbox"]')).toHaveCount(8);
+
+    // A notebook nobody has chosen for runs the catalogue's DEFAULT preset - which the
+    // server marks with a flag, so this stays true if the presets are reordered (the flag
+    // itself is pinned by server/test/checks.test.ts).
+    await expect(page.getByTestId('check-preset-lecture-notes')).toHaveAttribute('aria-pressed', 'true');
+    await expect(enabledFamilies(page)).toHaveCount(4);
+
+    // The cheapest preset: one family, and the cost line says so before any quota is spent.
+    await page.getByTestId('check-preset-proofread').click();
+    await expect(enabledFamilies(page)).toHaveCount(1);
+    await expect(page.getByTestId('check-family-grammar')).toBeChecked();
+    await expect(page.getByTestId('check-cost')).toContainText('runs 1 of 8 families');
+
+    // Saved as you change it - no Save button to forget.
+    await page.getByRole('dialog').getByRole('button', { name: /^done$/i }).click();
+    await expect(page.getByTestId('check-picker')).toHaveCount(0);
+
+    await page.reload();
+    await expect(page.getByPlaceholder('Untitled')).toHaveValue(first.title, { timeout: 10_000 });
+    await openChecks(page);
+    await expect(enabledFamilies(page)).toHaveCount(1);
+    await expect(page.getByTestId('check-family-grammar')).toBeChecked();
+    await page.getByRole('dialog').getByRole('button', { name: /^done$/i }).click();
+
+    // A second notebook keeps its own answer: a chemistry notebook and an essay notebook
+    // want different checks, and one being set must not decide for the other.
+    const second = await seedNote(request, uniqueName('AI Checks Notebook B'), BLOCKS);
+    await openNoteAndWait(page, second);
+    await openChecks(page);
+    await expect(enabledFamilies(page)).toHaveCount(4);
+    await expect(page.getByTestId('check-family-grammar')).not.toBeChecked();
+    await expect(page.getByTestId('check-preset-lecture-notes')).toHaveAttribute('aria-pressed', 'true');
   });
 });
