@@ -2,8 +2,10 @@
 // is a good notebook first, and that the AI is a tool you pick up rather than a thing that
 // happens to your notes.
 //
-// The section head runs full width above both columns. Inside a 525px column the 46px
-// heading wrapped to two lines when it fits comfortably on one across the full measure.
+// The heading sits inside the left column with the argument it introduces, rather than
+// running full width above both. That was tried the other way and a 46px heading wrapped
+// badly in a 525px column, so the title takes its own smaller clamp here (see
+// .mkt-ai__title) instead of the page's shared h2 step.
 const CAPABILITIES = [
   {
     title: 'Ask across your notes',
@@ -22,31 +24,31 @@ const CAPABILITIES = [
 export default function AiBand() {
   return (
     <section className="mkt-ai" id="ai">
-      <header className="mkt-ai__head">
-        <p className="mkt-eyebrow mkt-eyebrow--on-dark">Optional AI</p>
-        <h2 className="mkt-ai__title">AI that waits to be asked.</h2>
-        <p className="mkt-ai__lede">
-          Unote works entirely without it. Turn it on and it reads only the notes you point it at -
-          nothing runs in the background, and nothing is rewritten unless you accept the change.
-        </p>
-      </header>
+      <p className="mkt-eyebrow mkt-eyebrow--on-dark mkt-ai__eyebrow mkt-reveal">Optional AI</p>
 
       <div className="mkt-ai__inner">
-        <ul className="mkt-ai__list">
-          {CAPABILITIES.map((c) => (
-            <li key={c.title} className="mkt-ai__item">
-              <h3 className="mkt-ai__item-title">{c.title}</h3>
-              <p className="mkt-ai__item-body">{c.body}</p>
-            </li>
-          ))}
-          <li className="mkt-ai__note-wrap">
-            <p className="mkt-ai__note">
-              Off by default. One switch in settings turns it on, and the same switch turns it off.
-            </p>
-          </li>
-        </ul>
+        <div className="mkt-ai__copy">
+          <h2 className="mkt-ai__title mkt-reveal">AI that waits to be asked.</h2>
+          <p className="mkt-ai__lede mkt-reveal" data-reveal-delay="80">
+            Unote works entirely without it. Turn it on and it reads only the notes you point it at.
+            Nothing runs in the background, and nothing is rewritten unless you accept the change.
+          </p>
 
-        <div className="mkt-ai__demo" aria-hidden="true">
+          <ul className="mkt-ai__list">
+            {CAPABILITIES.map((c, i) => (
+              <li key={c.title} className="mkt-ai__item mkt-reveal" data-reveal-delay={i * 70}>
+                <h3 className="mkt-ai__item-title">{c.title}</h3>
+                <p className="mkt-ai__item-body">{c.body}</p>
+              </li>
+            ))}
+          </ul>
+
+          <p className="mkt-ai__note mkt-reveal" data-reveal-delay="200">
+            Off by default. One switch in settings turns it on, and the same switch turns it off.
+          </p>
+        </div>
+
+        <div className="mkt-ai__demo mkt-demo mkt-reveal" data-reveal-delay="120" aria-hidden="true">
           <div className="mkt-ai__prompt">
             <span className="mkt-ai__spark">
               <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -57,17 +59,29 @@ export default function AiBand() {
           </div>
 
           <div className="mkt-ai__scope">
-            <span className="mkt-ai__scope-note">Breadth-First Search</span>
-            <span className="mkt-ai__scope-note">Shortest Paths</span>
-            <span className="mkt-ai__scope-note">Reductions</span>
-            <span className="mkt-ai__scope-note">+44 more</span>
+            {['Breadth-First Search', 'Shortest Paths', 'Reductions', '+44 more'].map((n, i) => (
+              <span
+                key={n}
+                className={`mkt-ai__scope-note mkt-demo__step${n.startsWith('+') ? ' is-rest' : ''}`}
+                style={{ '--step': i } as React.CSSProperties}
+              >
+                {n}
+              </span>
+            ))}
           </div>
 
-          <p className="mkt-ai__question">Where did we prove BFS is optimal for unweighted graphs?</p>
+          <p className="mkt-ai__question">
+            <span
+              className="mkt-demo__type"
+              style={{ '--type-steps': 56, '--type-dur': '1200ms', '--type-delay': '600ms' } as React.CSSProperties}
+            >
+              Where did we prove BFS is optimal for unweighted graphs?
+            </span>
+          </p>
 
-          <div className="mkt-ai__answer">
+          <div className="mkt-ai__answer mkt-demo__step" style={{ '--step': 14 } as React.CSSProperties}>
             <p className="mkt-ai__answer-text">
-              In <span className="mkt-ai__cite">Breadth-First Search</span>, week 4 - the level-order
+              In <span className="mkt-ai__cite">Breadth-First Search</span>, week 4, the level-order
               argument. It is used again in <span className="mkt-ai__cite">Shortest Paths</span> to
               motivate Dijkstra.
             </p>
@@ -77,7 +91,7 @@ export default function AiBand() {
             </div>
           </div>
 
-          <div className="mkt-ai__actions">
+          <div className="mkt-ai__actions mkt-demo__step" style={{ '--step': 17 } as React.CSSProperties}>
             <span className="mkt-ai__action">Insert into note</span>
             <span className="mkt-ai__action is-quiet">Discard</span>
           </div>

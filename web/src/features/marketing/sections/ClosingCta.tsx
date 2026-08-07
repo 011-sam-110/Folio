@@ -22,19 +22,21 @@ export default function ClosingCta() {
     <>
       <section className="mkt-close">
         <div className="mkt-close__inner">
-          <h2 className="mkt-close__title">Start with this week&apos;s lectures.</h2>
-          <p className="mkt-close__lede">
+          <h2 className="mkt-close__title mkt-reveal">Start with this week&apos;s lectures.</h2>
+          <p className="mkt-close__lede mkt-reveal" data-reveal-delay="70">
             Make an account, open a notebook, and see whether it holds up against the way you already
             work. It takes about a minute.
           </p>
-          <Link className="mkt-btn mkt-btn--primary mkt-btn--lg" to="/signup">
-            Start writing - it&apos;s free
-          </Link>
-          <p className="mkt-close__alt">
-            Already have an account? <Link to="/login">Log in</Link>
-          </p>
+          <div className="mkt-reveal" data-reveal-delay="140">
+            <Link className="mkt-btn mkt-btn--primary mkt-btn--lg" to="/signup">
+              Start writing, it&apos;s free
+            </Link>
+            <p className="mkt-close__alt">
+              Already have an account? <Link to="/login">Log in</Link>
+            </p>
+          </div>
 
-          <ul className="mkt-close__assurances">
+          <ul className="mkt-close__assurances mkt-reveal" data-reveal-delay="200">
             {ASSURANCES.map((a) => (
               <li key={a.title} className="mkt-close__assurance">
                 <h3 className="mkt-close__assurance-title">{a.title}</h3>

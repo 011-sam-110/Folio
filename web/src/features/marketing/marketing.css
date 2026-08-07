@@ -1798,25 +1798,26 @@
   background: var(--mkt-night);
   color: var(--mkt-night-ink);
 }
-.mkt-ai__head {
+.mkt-ai__eyebrow {
   max-width: var(--mkt-max);
-  margin: 0 auto 44px;
+  margin: 0 auto 18px;
 }
+/* Its own step rather than --t-h2. The shared h2 reaches 46px, which in a half-width
+   column wrapped "AI that waits to be asked." onto two lines with one word on the second. */
 .mkt-ai__title {
   margin: 0;
-  max-width: 16ch;
   font-family: var(--mkt-display);
-  font-size: var(--t-h2);
+  font-size: clamp(28px, 3.4vw, 42px);
   font-weight: 600;
   letter-spacing: -0.018em;
-  line-height: 1.1;
+  line-height: 1.08;
   text-wrap: balance;
 }
 .mkt-ai__lede {
-  margin: 20px 0 0;
-  max-width: 60ch;
+  margin: 18px 0 34px;
+  max-width: 52ch;
   font-size: var(--t-md);
-  line-height: 1.6;
+  line-height: 1.65;
   color: var(--mkt-night-ink-2);
   text-wrap: pretty;
 }
@@ -1830,19 +1831,15 @@
   max-width: var(--mkt-max);
   margin: 0 auto;
 }
+/* Spaced rather than ruled. The three capabilities are one list of equals, and the rules
+   between them read as three separate rows of a table. */
 .mkt-ai__list {
   display: flex;
   flex-direction: column;
+  gap: 22px;
   margin: 0;
   padding: 0;
   list-style: none;
-}
-.mkt-ai__item {
-  padding: 18px 0;
-  border-top: 1px solid var(--mkt-night-line);
-}
-.mkt-ai__item:last-child {
-  border-bottom: 1px solid var(--mkt-night-line);
 }
 .mkt-ai__item-title {
   margin: 0;
@@ -1856,13 +1853,10 @@
   line-height: 1.55;
   color: var(--mkt-night-ink-2);
 }
-.mkt-ai__note-wrap {
-  padding-top: 22px;
-}
 .mkt-ai__note {
-  margin: 0;
-  padding-left: 13px;
-  border-left: 2px solid var(--mkt-hl-deep);
+  margin: 32px 0 0;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--mkt-hl);
   font-size: var(--t-base);
   line-height: 1.5;
   color: var(--mkt-night-ink-2);
@@ -1929,10 +1923,15 @@
   line-height: 1.6;
   color: var(--mkt-night-ink-2);
 }
+/* Gold rather than plain white, so a citation is visibly a reference back into the notes
+   and not just an emphasised phrase. 11.6:1 on the panel. */
 .mkt-ai__cite {
-  color: var(--mkt-night-ink);
+  color: var(--mkt-night-accent);
   font-weight: 600;
-  border-bottom: 1px solid var(--mkt-hl-deep);
+}
+/* The "+44 more" chip is a count, not a note, so it sits back from the three real ones. */
+.mkt-ai__scope-note.is-rest {
+  color: var(--mkt-ink-faint);
 }
 .mkt-ai__sources {
   display: flex;
