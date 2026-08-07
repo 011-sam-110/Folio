@@ -329,16 +329,24 @@ If this family finds nothing, respond with {"edits": []}.`,
  *    edit citing an id it did not supply, so a citation always points at a real upload.
  *
  * Both are enforced in the route as well. A prompt is a request, not a guarantee.
+ *
+ * Each source arrives cut into position-tagged fragments (`[slide 14 of 31]`, `[24:10-28:35]`)
+ * where the import captured them, so a precise citation is something the model COPIES rather
+ * than composes. That is the difference between a label the student can follow and a plausible
+ * one: the `positions` attribute says what pointers a source can support, and a source that
+ * says `none` has none to copy - the honest citation there is its file name, and the route
+ * substitutes exactly that rather than trusting a position claimed about a source that has no
+ * positions. See lib/provenance.ts.
  */
 export function gapEditsPrompt(
   family: Family,
   noteTitle: string,
   blocks: string,
-  sources: Array<{ id: string; name: string; kind: string; text: string }>,
+  sources: Array<{ id: string; name: string; kind: string; positions: string; text: string }>,
 ): ChatMessage[] {
   const checkList = family.checks.map(c => `- ${c.id}: ${c.label}`).join('\n');
   const sourceBlock = sources
-    .map(s => `<source id="${s.id}" name="${s.name}" kind="${s.kind}">\n${s.text}\n</source>`)
+    .map(s => `<source id="${s.id}" name="${s.name}" kind="${s.kind}" positions="${s.positions}">\n${s.text}\n</source>`)
     .join('\n\n');
   return [
     {
@@ -355,7 +363,9 @@ ${UNTRUSTED_NOTICE}
 The note arrives as tagged blocks, then the sources as tagged sources:
 
 <block id="BLOCK_ID" type="paragraph">the block's text</block>
-<source id="SOURCE_ID" name="lecture3.pptx" kind="slides">the extracted text</source>
+<source id="SOURCE_ID" name="lecture3.pptx" kind="slides" positions="slide 1 to slide 31">the extracted text</source>
+
+A source's text is cut into fragments, each headed by the position it sits at in the original file, like [slide 14 of 31] or [24:10-28:35]. Copy the heading of the fragment you took the missing content from; that is where the student has to look. The \`positions\` attribute says what that source can support: when it reads "none" the source has no slide numbers, page numbers or timestamps in it at all, and the only correct label for it is its \`name\`.
 
 ${editContract([
   '- `op` MUST be "insert" on every suggestion, and `before` MUST be empty. You are adding what is missing, never rewriting what the student wrote. A suggestion that changes their existing words will be discarded.',

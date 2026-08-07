@@ -28,6 +28,7 @@ const ENV = vi.hoisted(() => {
 import { buildApp } from '../src/app.js';
 import { db, pool } from '../src/db.js';
 import { insertAttachment } from '../src/lib/attachments.js';
+import { pagesProvenance, timelineProvenance, serialiseProvenance, type Provenance } from '../src/lib/provenance.js';
 import { resetDatabase, resetData, makeUser, closeDatabase, insertNotebook, insertNote, type TestUser } from './helpers.js';
 
 const app = buildApp();
@@ -82,15 +83,36 @@ function gaps(user: TestUser, body: Record<string, unknown>) {
   return user.agent.post('/api/ai/gaps/edits').send(body);
 }
 
+/** A 31-slide deck as an import records one: the RAW per-slide text, before the AI pass that
+ *  strips the numbers off. Slide 14 is the one carrying the material the note is missing. */
+function deck(total = 31): Provenance {
+  return pagesProvenance(
+    'slide',
+    Array.from({ length: total }, (_, i) =>
+      i === 13 ? '## Circular wait\nA cycle in the wait-for graph.' : `Slide ${i + 1}: supporting detail.`),
+  );
+}
+
 /**
  * An upload filed against `noteId`, with the extracted text a real import would have written.
  *
  * This is the same shape the import pipeline produces (routes/imports.ts sets extracted_text
- * and status='ready' once a job finishes) - the route reads that column and nothing else, so
+ * and status='ready' once a job finishes) - the route reads those columns and nothing else, so
  * there is no second extraction path here.
+ *
+ * `provenance` defaults to NULL on purpose: that is every upload that already exists in the
+ * production database, imported before the column did, and it is the state the route has to
+ * keep working for.
  */
 async function upload(
-  opts: { noteId?: string | null; text?: string | null; status?: string; kind?: string; name?: string } = {},
+  opts: {
+    noteId?: string | null;
+    text?: string | null;
+    status?: string;
+    kind?: string;
+    name?: string;
+    provenance?: Provenance;
+  } = {},
 ): Promise<string> {
   const id = await insertAttachment({
     uid: alice.id,
@@ -103,8 +125,18 @@ async function upload(
     status: opts.status ?? 'ready',
   });
   const text = opts.text === undefined ? '## Circular wait\nA cycle in the wait-for graph.' : opts.text;
-  await db.prepare('UPDATE attachments SET extracted_text = ? WHERE id = ?').run(text, id);
+  await db
+    .prepare('UPDATE attachments SET extracted_text = ?, provenance = ? WHERE id = ?')
+    .run(text, opts.provenance ? serialiseProvenance(opts.provenance) : null, id);
   return id;
+}
+
+/** The user message of the nth model request, which is where the sources are fenced. */
+function promptOf(gateway: { mock: { calls: unknown[][] } }, n = 0): string {
+  const body = JSON.parse(String((gateway.mock.calls[n]?.[1] as RequestInit).body)) as {
+    messages: Array<{ content: string }>;
+  };
+  return String(body.messages[1].content);
 }
 
 /** A well-formed gap edit citing `attachmentId`, overridable field by field. */
@@ -180,7 +212,7 @@ describe('there has to be something to compare against', () => {
 
 describe('what it returns', () => {
   it('returns insert-only edits, each citing a real upload', async () => {
-    const att = await upload();
+    const att = await upload({ provenance: deck() });
     stubModel({ edits: [gapEdit(att), gapEdit(att, { id: 'g2', blockId: HEADING_ID })] });
 
     const res = await gaps(alice, { noteId });
@@ -200,18 +232,17 @@ describe('what it returns', () => {
   });
 
   it('sends the note as id-tagged blocks and the uploads as id-tagged sources', async () => {
-    const att = await upload({ name: 'lecture3.pptx' });
+    const att = await upload({ name: 'lecture3.pptx', provenance: deck() });
     const gateway = stubModel({ edits: [] });
 
     await gaps(alice, { noteId });
 
-    const body = JSON.parse(String((gateway.mock.calls[0]?.[1] as RequestInit).body)) as {
-      messages: Array<{ content: string }>;
-    };
-    const user = String(body.messages[1].content);
+    const user = promptOf(gateway);
     expect(user).toContain(`<block id="${PARA_ID}" type="paragraph">`);
-    expect(user).toContain(`<source id="${att}" name="lecture3.pptx" kind="slides">`);
-    expect(user).toContain('A cycle in the wait-for graph.');
+    expect(user).toContain(`<source id="${att}" name="lecture3.pptx" kind="slides" positions="slide 1 to slide 31">`);
+    // The point of the whole change: the deck arrives cut into position-tagged fragments, so
+    // "slide 14 of 31" is a string the model copies rather than one it composes.
+    expect(user).toContain('[slide 14 of 31]\n## Circular wait\nA cycle in the wait-for graph.');
   });
 
   it('costs one model call', async () => {
@@ -292,8 +323,8 @@ describe('every edit has to cite a source the reader can act on', () => {
   });
 
   it('trims an over-long label rather than throwing the suggestion away', async () => {
-    const att = await upload();
-    const label = 'slide 14 of 31, '.repeat(20);
+    const att = await upload({ provenance: deck() });
+    const label = 'slide 14 of 31, under the heading on circular wait and the worked example below it';
     stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label } })] });
 
     const res = await gaps(alice, { noteId });
@@ -311,6 +342,172 @@ describe('every edit has to cite a source the reader can act on', () => {
 
     expect(res.body.edits).toEqual([]);
     expect(res.body.rejected).toBe(1);
+  });
+});
+
+// A label is the whole value of the citation: "slide 14 of 31" sends the student to a place,
+// and a student who goes there and finds slide 14 is about something else has been told a
+// falsehood by their own notes. So the label is checked against what the upload actually
+// contains, and the model's word for it is not enough on its own.
+describe('a citation is checked against the source it claims to come from', () => {
+  // A .pptx of six slides, cut the way a real import cuts it.
+  const handout = () => pagesProvenance('slide', ['Title', 'Deadlock', 'Mutual exclusion', 'Hold and wait', 'No preemption', 'Summary']);
+
+  // A recording that runs to 31:02, with the times its own file carries.
+  const lecture = () =>
+    timelineProvenance(
+      [
+        'WEBVTT',
+        '',
+        '00:24:10.000 --> 00:28:35.000',
+        'The fourth condition is circular wait: a cycle in the wait-for graph.',
+        '',
+        '00:28:35.000 --> 00:31:02.000',
+        'Prevention works by breaking any one of the four.',
+      ].join('\n'),
+    )!;
+
+  it('drops a slide number the deck does not have', async () => {
+    const att = await upload({ provenance: handout() });
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: 'slide 14 of 31' } })] });
+
+    const res = await gaps(alice, { noteId });
+
+    // Not repaired, because there is no honest repair: nothing here knows which slide was
+    // meant, and a citation nobody can follow is worse than no suggestion.
+    expect(res.body.edits).toEqual([]);
+    expect(res.body.rejected).toBe(1);
+  });
+
+  it('keeps that same label when the deck really is that long', async () => {
+    const att = await upload({ provenance: deck(31) });
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: 'slide 14 of 31' } })] });
+
+    const res = await gaps(alice, { noteId });
+
+    expect(res.body.edits).toHaveLength(1);
+    expect(res.body.edits[0].source.label).toBe('slide 14 of 31');
+  });
+
+  // "of 31" is a claim in its own right, and a wrong one makes the student doubt the slide
+  // number next to it even when that part was right.
+  it('drops a slide number stated out of the wrong total', async () => {
+    const att = await upload({ provenance: deck(31) });
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: 'slide 14 of 40' } })] });
+
+    expect((await gaps(alice, { noteId })).body.edits).toEqual([]);
+  });
+
+  it('drops a page range that runs past the end of the file', async () => {
+    const att = await upload({ provenance: pagesProvenance('page', ['one', 'two', 'three']) });
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: 'pages 2-9' } })] });
+
+    expect((await gaps(alice, { noteId })).body.edits).toEqual([]);
+  });
+
+  it('drops a timestamp cited against a deck, which has no timeline', async () => {
+    const att = await upload({ provenance: deck(31) });
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: '24:10-28:35' } })] });
+
+    expect((await gaps(alice, { noteId })).body.edits).toEqual([]);
+  });
+
+  it('keeps a timestamp the recording actually reaches', async () => {
+    const att = await upload({ kind: 'transcript', name: 'lecture3.txt', provenance: lecture() });
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: '24:10-28:35' } })] });
+
+    const res = await gaps(alice, { noteId });
+
+    expect(res.body.edits).toHaveLength(1);
+    expect(res.body.edits[0].source.label).toBe('24:10-28:35');
+  });
+
+  it('drops a timestamp past the end of the recording', async () => {
+    const att = await upload({ kind: 'transcript', name: 'lecture3.txt', provenance: lecture() });
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: '1:24:10' } })] });
+
+    expect((await gaps(alice, { noteId })).body.edits).toEqual([]);
+  });
+
+  it('drops a slide number cited against a transcript', async () => {
+    const att = await upload({ kind: 'transcript', name: 'lecture3.txt', provenance: lecture() });
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: 'slide 2' } })] });
+
+    expect((await gaps(alice, { noteId })).body.edits).toEqual([]);
+  });
+
+  // A heading is a pointer too, and an unverifiable one is not the same as a false one: it
+  // claims no numbered position, so there is nothing here to contradict.
+  it('leaves a label alone when it names no position at all', async () => {
+    const att = await upload({ provenance: deck(31) });
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: 'under "Circular wait"' } })] });
+
+    const res = await gaps(alice, { noteId });
+
+    expect(res.body.edits[0].source.label).toBe('under "Circular wait"');
+  });
+
+  it('sends the transcript as timestamped fragments', async () => {
+    await upload({ kind: 'transcript', name: 'lecture3.txt', provenance: lecture() });
+    const gateway = stubModel({ edits: [] });
+
+    await gaps(alice, { noteId });
+
+    const user = promptOf(gateway);
+    expect(user).toContain('positions="24:10 to 31:02"');
+    expect(user).toContain('[24:10-28:35]\nThe fourth condition is circular wait');
+  });
+});
+
+// Every upload that existed before this feature is in this state, and so is every photo. The
+// answer is the same for both and it is not a blank: the file name is a pointer the student
+// can act on, and it is the only one that is certainly true.
+describe('uploads with no position to cite', () => {
+  it('cites the file name for an upload imported before provenance existed', async () => {
+    const att = await upload({ name: 'lecture3.pptx' }); // provenance NULL, as every existing row is
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: 'slide 14 of 31' } })] });
+
+    const res = await gaps(alice, { noteId });
+
+    // The suggestion survives - it is still a real gap - but the position it claimed cannot
+    // be checked against anything, so it is replaced rather than passed on.
+    expect(res.body.edits).toHaveLength(1);
+    expect(res.body.edits[0].source.label).toBe('lecture3.pptx');
+    expect(res.body.rejected).toBe(0);
+  });
+
+  it('cites the file name for a photo, which has no sub-position to give', async () => {
+    const att = await upload({ kind: 'photo', name: 'page-3.jpg', provenance: { kind: 'none', reason: 'photo' } });
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: 'slide 4' } })] });
+
+    const res = await gaps(alice, { noteId });
+
+    expect(res.body.edits[0].source.label).toBe('page-3.jpg');
+  });
+
+  it('tells the model there is nothing to cite, and still sends the stored text', async () => {
+    await upload({ name: 'lecture3.pptx' });
+    const gateway = stubModel({ edits: [] });
+
+    await gaps(alice, { noteId });
+
+    const user = promptOf(gateway);
+    expect(user).toContain('positions="none"');
+    expect(user).toContain('A cycle in the wait-for graph.');
+    expect(user).not.toContain('[slide ');
+  });
+
+  it('cites the file name even when the stored provenance is unreadable', async () => {
+    const att = await upload({ name: 'lecture3.pptx' });
+    // A row written by an older or half-broken version of this code. It means the same thing
+    // as NULL - nothing is known - and must not throw inside a request the user is waiting on.
+    await db.prepare('UPDATE attachments SET provenance = ? WHERE id = ?').run('{"kind":"pages"', att);
+    stubModel({ edits: [gapEdit(att, { source: { attachmentId: att, label: 'slide 14 of 31' } })] });
+
+    const res = await gaps(alice, { noteId });
+
+    expect(res.status).toBe(200);
+    expect(res.body.edits[0].source.label).toBe('lecture3.pptx');
   });
 });
 

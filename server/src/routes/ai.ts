@@ -15,6 +15,7 @@ import { improvePrompt, summarizePrompt, flashcardsPrompt, askPrompt, titlePromp
 import { FAMILIES, PRESETS, familyById, checkById } from '../lib/checks.js';
 import { validateEdits, type AiEdit } from '../lib/aiEdit.js';
 import { blocksOf, blocksForPrompt } from '../lib/noteBlocks.js';
+import { parseProvenance, positionsSummary, sourceTextForPrompt, resolveSourceLabel } from '../lib/provenance.js';
 import type { AiContext } from '../ai/gate.js';
 import type { NoteRow } from '../lib/serialize.js';
 
@@ -687,16 +688,18 @@ router.post('/gaps/edits', async (req, res) => {
   const note = await getNote(noteId, uid);
   if (!note) return res.status(404).json({ error: 'note not found' });
 
-  // Same read as /gaps: the extracted text of the note's own uploads. `user_id` is checked
-  // here as well as on the note, so the ownership predicate sits on the query that actually
-  // reads the text.
+  // Same read as /gaps, plus `provenance` - where each upload's material sits inside the file
+  // it came from, captured at import time (lib/provenance.ts). `user_id` is checked here as
+  // well as on the note, so the ownership predicate sits on the query that actually reads the
+  // text. A row imported before that column existed reads NULL, which is a state this route
+  // handles rather than repairs: it cites the file name and carries on.
   const attRows = await db
     .prepare(
-      `SELECT id, original_name, kind, extracted_text FROM attachments
+      `SELECT id, original_name, kind, extracted_text, provenance FROM attachments
        WHERE note_id = ? AND user_id = ? AND status = 'ready' AND extracted_text IS NOT NULL AND extracted_text != ''
        ORDER BY created_at ASC`,
     )
-    .all<{ id: string; original_name: string; kind: string; extracted_text: string }>(noteId, uid);
+    .all<{ id: string; original_name: string; kind: string; extracted_text: string; provenance: string | null }>(noteId, uid);
 
   // No sources means there is no comparison to make, and inventing one would turn this
   // action into "a model guesses what a student forgot" - which is the thing it exists to
@@ -712,13 +715,20 @@ router.post('/gaps/edits', async (req, res) => {
   // ("term used but never defined", "no worked example"), and the rail needs a family to take
   // the edit's severity from.
   const family = familyById('missing-content')!;
-  const sources = attRows.map(a => ({
-    id: a.id,
-    name: a.original_name,
-    kind: a.kind,
-    text: capForAi(a.extracted_text, GAP_EDIT_SOURCE_CHARS),
-  }));
-  const allowedSources = new Set(sources.map(s => s.id));
+  const sources = attRows.map(a => {
+    const provenance = parseProvenance(a.provenance);
+    return {
+      id: a.id,
+      name: a.original_name,
+      kind: a.kind,
+      provenance,
+      positions: positionsSummary(provenance),
+      // The position-tagged fragments where they exist, and the stored restructured text
+      // where they do not - a model cannot copy a slide number it was never shown.
+      text: capForAi(sourceTextForPrompt(provenance, a.extracted_text), GAP_EDIT_SOURCE_CHARS),
+    };
+  });
+  const sourceById = new Map(sources.map(s => [s.id, s]));
 
   try {
     const { text, model } = await complete(
@@ -740,21 +750,31 @@ router.post('/gaps/edits', async (req, res) => {
     }
     const { edits, rejected } = validateEdits(payload);
     const scoped = scopeToFamily(edits, family.id);
-    const usable = scoped.kept.filter(
-      e =>
-        // The insert-only guarantee, and the citation guarantee, enforced rather than asked
-        // for. An edit citing an attachment id this request did not supply is either a
-        // hallucination or a pointer at someone else's upload; either way the user cannot
-        // act on it, and a citation the user cannot act on is worse than none.
-        e.op === 'insert' && !!e.source && allowedSources.has(e.source.attachmentId),
-    );
+
+    const usable: AiEdit[] = [];
+    for (const e of scoped.kept) {
+      // The insert-only guarantee, and the citation guarantee, enforced rather than asked
+      // for. An edit citing an attachment id this request did not supply is either a
+      // hallucination or a pointer at someone else's upload; either way the user cannot
+      // act on it, and a citation the user cannot act on is worse than none.
+      const source = e.source ? sourceById.get(e.source.attachmentId) : undefined;
+      if (e.op !== 'insert' || !source) continue;
+
+      // An over-long label is still trimmed rather than rejected - a citation that is too
+      // detailed is not a reason to throw away a good suggestion - but it is trimmed BEFORE
+      // it is checked, not after. `slide 14 of 31` cut to the display length could become
+      // `slide 14 of 3`, and a label that no longer says what it was cleared to say is
+      // exactly the invented citation this check exists to stop.
+      const verdict = resolveSourceLabel(source.provenance, e.source!.label.slice(0, MAX_SOURCE_LABEL), source.name);
+      if (!verdict.ok) continue;
+
+      // The second trim is for the substituted label: a source with no positions is cited by
+      // file name, and a file name can be longer than the rail has room for.
+      usable.push({ ...e, source: { attachmentId: source.id, label: verdict.label.slice(0, MAX_SOURCE_LABEL) } });
+    }
+
     const body: ReviewResponse = {
-      edits: namespaceIds(usable, family.id).map(e => ({
-        ...e,
-        // Trimmed rather than rejected: an over-long label is a citation that is too
-        // detailed, which is not a reason to throw away a good suggestion.
-        source: { attachmentId: e.source!.attachmentId, label: e.source!.label.slice(0, MAX_SOURCE_LABEL) },
-      })),
+      edits: namespaceIds(usable, family.id),
       rejected: rejected + scoped.dropped + (scoped.kept.length - usable.length),
       // One request, so this is all-or-nothing - and the failure case never reaches here,
       // because a single-call route has nothing to salvage and 502s instead.
