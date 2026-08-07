@@ -55,10 +55,22 @@ describe('check catalogue', () => {
     expect(PRESETS.find((p) => p.id === 'proofread')?.families).toEqual(['grammar']);
   });
 
+  // The client applies this to any notebook with no saved selection. Asserting on the FLAG
+  // rather than on PRESETS[0] is the point: reordering this array is a cosmetic edit and
+  // must not change what a new notebook runs.
+  it('marks exactly one preset as the default', () => {
+    const flagged = PRESETS.filter((p) => p.default);
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0].id).toBe('lecture-notes');
+  });
+
   it('serves the catalogue to the client', async () => {
     const res = await alice.agent.get('/api/ai/checks');
     expect(res.status).toBe(200);
     expect(res.body.families).toHaveLength(8);
     expect(res.body.presets.map((p: { id: string }) => p.id)).toContain('proofread');
+    // The default has to survive serialisation - it is the client's only non-positional
+    // route to "what does this notebook run before anyone has chosen".
+    expect(res.body.presets.find((p: { default?: boolean }) => p.default)?.id).toBe('lecture-notes');
   });
 });

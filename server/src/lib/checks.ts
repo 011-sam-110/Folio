@@ -34,6 +34,16 @@ export interface Preset {
   label: string;
   /** Family ids, not check ids - a preset turns whole requests on and off. */
   families: string[];
+  /**
+   * Set on exactly one preset: what a notebook runs before anyone has chosen.
+   *
+   * A flag rather than a position. The client used to take `PRESETS[0]` for a notebook with
+   * no saved selection, which made reordering this array - a cosmetic edit, in a server file,
+   * with no client change and no deploy - silently change what every new user's first run
+   * covers and costs. Naming the default here states the intent that ordering only implied,
+   * and moving a line now changes nothing.
+   */
+  default?: true;
 }
 
 /**
@@ -177,7 +187,11 @@ export const FAMILIES: Family[] = [
  * model request per family - `Proofread only` costs one request, `Everything` costs eight.
  */
 export const PRESETS: Preset[] = [
-  { id: 'lecture-notes', label: 'Lecture notes', families: ['accuracy', 'missing-content', 'structure', 'notebook-hygiene'] },
+  // The default (see `Preset.default`): four families, two of them critical. A student
+  // opening a lecture note wants to know it is WRONG before they want to know it has a comma
+  // splice, and four of eight families is half the quota `Everything` would spend on a run
+  // nobody asked for.
+  { id: 'lecture-notes', label: 'Lecture notes', families: ['accuracy', 'missing-content', 'structure', 'notebook-hygiene'], default: true },
   { id: 'essay-draft', label: 'Essay draft', families: ['explanation', 'clarity', 'structure', 'grammar'] },
   { id: 'exam-revision', label: 'Exam revision', families: ['accuracy', 'missing-content', 'explanation'] },
   { id: 'proofread', label: 'Proofread only', families: ['grammar'] },

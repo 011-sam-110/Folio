@@ -38,6 +38,8 @@ export interface Preset {
   label: string;
   /** Family ids, not check ids - a preset turns whole model requests on and off. */
   families: string[];
+  /** Set on exactly one preset server-side: what a notebook runs before anyone chooses. */
+  default?: boolean;
 }
 
 export interface CheckCatalogue {
@@ -103,11 +105,32 @@ export function saveFamilies(notebookId: string, familyIds: string[]): void {
 }
 
 /**
+ * The preset a notebook runs before anyone has chosen one.
+ *
+ * Named, never positional. This used to be `presets[0]`, which quietly handed the decision
+ * to the ORDER of `PRESETS` in `server/src/lib/checks.ts` - so reordering that array for
+ * cosmetic reasons, in a server file, with no client change, would have changed what every
+ * new notebook checks and what its first run costs.
+ *
+ * The `default` flag is the catalogue's own statement of intent and is preferred. The id
+ * fallback covers a server that predates the flag; it is a second stated intent rather than
+ * a return to position. If neither is there, the honest answer is "nothing", and the caller
+ * reports that instead of silently running whichever preset happens to be listed first.
+ */
+export function defaultPreset(catalogue: CheckCatalogue): Preset | null {
+  return (
+    catalogue.presets.find((p) => p.default) ??
+    catalogue.presets.find((p) => p.id === 'lecture-notes') ??
+    null
+  );
+}
+
+/**
  * What this notebook should run, given the catalogue the server just served.
  *
  * Saved ids are filtered against the live catalogue, so a family that has been removed
  * server-side quietly drops out instead of being sent to a route that no longer knows it.
- * With nothing saved the default is the catalogue's FIRST preset rather than every family:
+ * With nothing saved the default is the catalogue's default preset rather than every family:
  * a run costs one model request per family, so defaulting to all eight would make the most
  * expensive possible run the one a user gets by not deciding.
  */
@@ -115,5 +138,5 @@ export function resolveFamilies(notebookId: string, catalogue: CheckCatalogue): 
   const known = new Set(catalogue.families.map((f) => f.id));
   const saved = savedFamilies(notebookId);
   if (saved) return saved.filter((id) => known.has(id));
-  return catalogue.presets[0]?.families.filter((id) => known.has(id)) ?? [];
+  return defaultPreset(catalogue)?.families.filter((id) => known.has(id)) ?? [];
 }
