@@ -1,6 +1,7 @@
 import { expect, test } from './auth.fixture';
 import {
   TESTIDS,
+  clickNoteMoreItem,
   createNoteViaButton,
   createNotebookViaSidebar,
   editorBody,
@@ -104,7 +105,8 @@ test.describe('Core notes flow', () => {
     await typeInEditor(page, 'Content for the note that gets pinned.');
     await waitForSaved(page);
 
-    await page.getByRole('button', { name: /^pin$/i }).click();
+    // Pin lives in the action bar's "More" menu now, not as a top-level icon button.
+    await clickNoteMoreItem(page, /^pin$/i);
 
     await page.goto('/');
     const pinnedStrip = page.getByTestId(TESTIDS.pinnedStrip);

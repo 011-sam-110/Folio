@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Editor } from '@tiptap/core';
 import { api, ApiError } from '../../lib/api';
 import type { Note, NoteLite, Attachment } from '../../lib/types';
-import { relativeTime, formatDate, plural, formatBytes } from '../../lib/format';
+import { relativeTime, plural, formatBytes } from '../../lib/format';
 import { toast } from '../../components/Toast';
 import { setActiveNotebook, clearActiveNotebook } from '../../lib/notebookContext';
 import EmptyState from '../../components/EmptyState';
@@ -19,7 +19,7 @@ import OutlinePane from './OutlinePane';
 import HistoryPanel from './HistoryPanel';
 import AssistantPanel from './AssistantPanel';
 import AiPreviewModal from './AiPreviewModal';
-import DropdownButton from './DropdownButton';
+import NoteActionBar from './NoteActionBar';
 import InsertMenuPopover from './InsertMenuPopover';
 import ImportModal from '../import/ImportModal';
 import { useAiAvailable } from '../../lib/aiStatus';
@@ -28,10 +28,8 @@ import { setActiveFlush } from './autosaveBus';
 import { markdownToSafeHtml } from './markdown';
 import type { OutlineItem } from './outline';
 import CommentsPanel from '../comments/CommentsPanel';
-import CommentIcon from '../comments/CommentIcon';
 import CanvasBoard from '../canvas/CanvasBoard';
 import NoteInkOverlay from '../canvas/NoteInkOverlay';
-import ShareButton from '../share/ShareButton';
 import FindReplaceBar, { type FindReplaceMode } from './FindReplaceBar';
 import { createFindReplacePlugin, FindReplacePluginKey } from './FindReplace';
 import { createHashtagPlugin, HashtagPluginKey } from './HashtagExtension';
@@ -173,6 +171,11 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const [tags, setTags] = useState<string[]>(() => splitTags(initialNote.tags, initialNote.contentText).explicit);
   const [bodyTags, setBodyTags] = useState<string[]>(() => extractHashtags(initialNote.contentText));
   const [outline, setOutline] = useState<OutlineItem[]>([]);
+  // The outline rail used to render unconditionally, visible only at ≥1200px via a
+  // media query - so it was a panel with no control. It is a toggle in the action bar
+  // now, defaulting to on so wide screens behave exactly as they did before. The media
+  // query still decides whether there is ROOM for it; this decides whether it exists.
+  const [outlineOpen, setOutlineOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -603,170 +606,48 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
             <span className="folio-breadcrumb-title">{title || 'Untitled'}</span>
           </div>
 
-          <div className="folio-action-bar">
-            <button
-              ref={insertBtnRef}
-              type="button"
-              className={'folio-btn' + (insertMenuOpen ? ' active' : '')}
-              aria-haspopup="menu"
-              aria-expanded={insertMenuOpen}
-              onClick={() => setInsertMenuOpen((v) => !v)}
-            >
-              <Icon name="plus" size={14} /> Insert
-              <span aria-hidden="true"> ▾</span>
-            </button>
-
-            <button
-              type="button"
-              className={`folio-btn-icon${note.pinned ? ' active' : ''}`}
-              title={note.pinned ? 'Unpin' : 'Pin'}
-              aria-label={note.pinned ? 'Unpin' : 'Pin'}
-              onClick={togglePin}
-            >
-              <Icon name={note.pinned ? 'pin-filled' : 'pin'} size={15} />
-            </button>
-
-            {aiOn && (
-              <DropdownButton
-                label={
-                  <>
-                    <Icon name="sparkles" size={14} /> {aiBusy ? 'AI…' : 'AI'}
-                  </>
-                }
-                disabled={!!aiBusy}
-              >
-                {(close) => (
-                  <>
-                    <button type="button" onClick={() => handleClean(close)}>
-                      Clean up formatting
-                    </button>
-                    <button type="button" onClick={() => handleImprove(close)}>
-                      Improve writing
-                    </button>
-                    <button type="button" onClick={() => handleSummarize(close)}>
-                      Summarize
-                    </button>
-                    {!flashcardStep ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFlashcardStep(true);
-                        }}
-                      >
-                        Generate flashcards
-                      </button>
-                    ) : (
-                      <div className="folio-flashcard-count">
-                        <span>How many?</span>
-                        {[5, 8, 12].map((n) => (
-                          <button key={n} type="button" onClick={() => handleFlashcards(n, close)}>
-                            {n}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <button type="button" onClick={() => handleTitleSuggest(close)}>
-                      Suggest title
-                    </button>
-                  </>
-                )}
-              </DropdownButton>
-            )}
-
-            {aiOn && (
-              <button type="button" className="folio-btn" onClick={() => setAssistantOpen(true)} data-testid="assistant-open">
-                Assistant
-              </button>
-            )}
-
-            <DropdownButton label="Import into note">
-              {(close) => (
-                <>
-                  <button type="button" onClick={() => openImport('photo', close)}>
-                    <Icon name="camera" size={14} /> Photo of notes
-                  </button>
-                  <button type="button" onClick={() => openImport('slides', close)}>
-                    <Icon name="layers" size={14} /> Slides
-                  </button>
-                  <button type="button" onClick={() => openImport('transcript', close)}>
-                    <Icon name="file-text" size={14} /> Transcript
-                  </button>
-                </>
-              )}
-            </DropdownButton>
-
-            <div className="folio-comments-toggle-wrap">
-              <button
-                type="button"
-                className={`folio-btn-icon${commentsOpen ? ' active' : ''}`}
-                aria-label="Comments"
-                title="Comments"
-                onClick={() => setCommentsOpen((v) => !v)}
-              >
-                <CommentIcon size={15} />
-                {unresolvedComments > 0 && <span className="folio-comments-badge">{unresolvedComments}</span>}
-              </button>
-            </div>
-
-            <button
-              type="button"
-              className={`folio-btn-icon${inkOpen ? ' active' : ''}`}
-              title={inkOpen ? 'Close the ink layer' : 'Annotate with a pen or Apple Pencil'}
-              aria-label={inkOpen ? 'Close the ink layer' : 'Annotate with a pen or Apple Pencil'}
-              aria-pressed={inkOpen}
-              onClick={() => setInkOpen((v) => !v)}
-            >
-              <Icon name="pen" size={15} />
-            </button>
-
-            <ShareButton noteId={note.id} noteTitle={title} kind={note.kind} />
-
-            <button type="button" className="folio-btn" onClick={() => setHistoryOpen(true)}>
-              History
-            </button>
-            <button type="button" className="folio-btn" onClick={() => window.open(api.exportUrl(note.id), '_blank')}>
-              Export .md
-            </button>
-
-            <div className="folio-info-wrap">
-              <button type="button" className="folio-btn-icon" onClick={() => setInfoOpen((v) => !v)} aria-label="Note info">
-                <Icon name="info" size={15} />
-              </button>
-              {infoOpen && (
-                <div className="folio-info-popover" onMouseLeave={() => setInfoOpen(false)}>
-                  <div>
-                    {plural(wordCount, 'word')} · {plural(charCount, 'character')}
-                  </div>
-                  <div>Created {formatDate(note.createdAt)}</div>
-                  <div>Updated {formatDate(note.updatedAt)}</div>
-                  <div>{plural(backlinks.length, 'backlink')}</div>
-                </div>
-              )}
-            </div>
-
-            {/* Autosave is the only signal that a note's edits reached the server, and
-                it was previously conveyed by colour and text alone. A failed save is
-                assertive (the user needs to know NOW, before navigating away and
-                losing work); saving/saved are polite so they don't interrupt typing. */}
-            <span
-              className={`folio-save-chip folio-save-${autosave.status}`}
-              data-testid="autosave-status"
-              role={autosave.status === 'error' ? 'alert' : 'status'}
-              aria-live={autosave.status === 'error' ? 'assertive' : 'polite'}
-            >
-              {autosave.status === 'error' ? (
-                <>
-                  Save failed
-                  <button type="button" onClick={() => autosave.flush()}>
-                    Retry
-                  </button>
-                </>
-              ) : (
-                savedLabel
-              )}
-            </span>
-          </div>
+          <NoteActionBar
+            note={note}
+            title={title}
+            wordCount={wordCount}
+            charCount={charCount}
+            backlinkCount={backlinks.length}
+            insertButtonRef={insertBtnRef}
+            insertMenuOpen={insertMenuOpen}
+            onToggleInsertMenu={() => setInsertMenuOpen((v) => !v)}
+            aiOn={aiOn}
+            aiBusy={aiBusy}
+            onImprove={handleImprove}
+            onClean={handleClean}
+            onSummarize={handleSummarize}
+            onSuggestTitle={handleTitleSuggest}
+            onFlashcards={handleFlashcards}
+            flashcardStep={flashcardStep}
+            onFlashcardStep={setFlashcardStep}
+            outlineOpen={outlineOpen}
+            onToggleOutline={() => setOutlineOpen((v) => !v)}
+            commentsOpen={commentsOpen}
+            onToggleComments={() => setCommentsOpen((v) => !v)}
+            unresolvedComments={unresolvedComments}
+            inkOpen={inkOpen}
+            onToggleInk={() => setInkOpen((v) => !v)}
+            // The Ctrl/Cmd+F and +H shortcuts below still own this state; the button is
+            // an additional route to it, and closing from the button unmounts
+            // FindReplaceBar, whose cleanup clears the match decorations.
+            findOpen={findMode !== null}
+            onToggleFind={() => setFindMode((m) => (m ? null : 'find'))}
+            assistantOpen={assistantOpen}
+            onToggleAssistant={() => setAssistantOpen((v) => !v)}
+            onOpenHistory={() => setHistoryOpen(true)}
+            onImport={openImport}
+            onExport={() => window.open(api.exportUrl(note.id), '_blank')}
+            onTogglePin={togglePin}
+            infoOpen={infoOpen}
+            onToggleInfo={() => setInfoOpen((v) => !v)}
+            saveStatus={autosave.status}
+            savedLabel={savedLabel}
+            onRetrySave={() => void autosave.flush()}
+          />
 
           {/* Placeholder is not a label - it disappears on first keystroke and is not
               reliably exposed. This is the highest-traffic input in the product. */}
@@ -825,7 +706,7 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
         <InsertMenuPopover editor={editorRef.current} anchor={insertBtnRef.current} onClose={() => setInsertMenuOpen(false)} />
       )}
 
-      <OutlinePane items={outline} editor={editorRef.current} />
+      {outlineOpen && <OutlinePane items={outline} editor={editorRef.current} />}
 
       <HistoryPanel noteId={note.id} open={historyOpen} onClose={() => setHistoryOpen(false)} onRestored={resyncFromServer} />
 

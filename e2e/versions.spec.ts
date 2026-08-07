@@ -1,6 +1,7 @@
 import { expect, test } from './auth.fixture';
 import {
   TESTIDS,
+  clickNoteMoreItem,
   createNoteViaButton,
   createNotebookViaSidebar,
   editorBody,
@@ -33,7 +34,7 @@ test.describe('Version history', () => {
     await typeInEditor(page, originalText);
     await waitForSaved(page);
 
-    await page.getByRole('button', { name: /history/i }).click();
+    await clickNoteMoreItem(page, /^history$/i);
     const drawer = page.getByTestId(TESTIDS.historyDrawer);
     await expect(drawer).toBeVisible({ timeout: 10_000 });
 
@@ -68,7 +69,7 @@ test.describe('Version history', () => {
     // Re-open history if the drawer closed as a side effect of editing, then restore
     // the labeled checkpoint.
     if (!(await drawer.isVisible())) {
-      await page.getByRole('button', { name: /history/i }).click();
+      await clickNoteMoreItem(page, /^history$/i);
       await expect(drawer).toBeVisible({ timeout: 10_000 });
     }
     await drawer.getByTestId(TESTIDS.historyVersionItem).filter({ hasText: label }).first().click();

@@ -64,15 +64,29 @@ async function ensureAiHealthy(request: APIRequestContext): Promise<void> {
   );
 }
 
-async function openAiMenuAction(page: import('@playwright/test').Page, actionPattern: RegExp): Promise<void> {
-  // Scope to <main>: a notebook whose NAME contains the action word (e.g. "E2E AI
-  // Flashcards Notebook") would otherwise make the sidebar's "Change emoji for
-  // <notebook>" button - or the breadcrumb link - match `actionPattern` first, so
-  // we'd open the emoji picker instead of the AI dropdown item. The sidebar lives in
-  // <nav>, excluded from main. The AI dropdown (DropdownButton.tsx) renders its items
-  // inline as <button>s inside main, so a button-role match is unambiguous there.
+/**
+ * Opens one of the note action bar's two menus and clicks an item inside it.
+ *
+ * The redesigned bar (web/src/features/editor/NoteActionBar.tsx) splits the old
+ * single "AI ▾" menu in two: the "✦ AI ▾" menu keeps the actions that rewrite the
+ * body (Improve writing, Clean up formatting, Generate flashcards), while Summarise
+ * and Suggest a title moved into "⋯ More ▾" because they insert a callout / retitle
+ * rather than rewriting. Callers now have to say which menu the action lives in.
+ *
+ * Scope to <main>: a notebook whose NAME contains the action word (e.g. "E2E AI
+ * Flashcards Notebook") would otherwise make the sidebar's "Change emoji for
+ * <notebook>" button - or the breadcrumb link - match `actionPattern` first, so
+ * we'd open the emoji picker instead of the menu item. The sidebar lives in
+ * <nav>, excluded from main. Both dropdowns (DropdownButton.tsx) render their items
+ * inline as <button>s inside main, so a button-role match is unambiguous there.
+ */
+async function openNoteMenuAction(
+  page: import('@playwright/test').Page,
+  menu: 'ai' | 'more',
+  actionPattern: RegExp,
+): Promise<void> {
   const main = page.getByRole('main');
-  await main.getByRole('button', { name: /^ai\b/i }).click();
+  await main.getByRole('button', { name: menu === 'ai' ? /^ai\b/i : /^more$/i }).click();
   await main.getByRole('button', { name: actionPattern }).first().click();
 }
 
@@ -127,7 +141,8 @@ test.describe('AI features (real gateway)', () => {
     await page.goto(`/note/${note.id}`);
     await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
 
-    await openAiMenuAction(page, /summarize/i);
+    // Summarise now lives in the bar's "More" menu, and its label is British.
+    await openNoteMenuAction(page, 'more', /summari[sz]e/i);
 
     // The AI preview modal only mounts once the (real) summarize call returns, which
     // can legitimately take up to ~90s. One budget covers both "modal appeared" and
@@ -154,7 +169,7 @@ test.describe('AI features (real gateway)', () => {
     await page.goto(`/note/${note.id}`);
     await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
 
-    await openAiMenuAction(page, /flashcard/i);
+    await openNoteMenuAction(page, 'ai', /flashcard/i);
     // The AI menu asks "How many?" before generating - pick a count.
     await page.locator('.folio-flashcard-count').getByRole('button', { name: '8' }).click();
 

@@ -8,6 +8,7 @@ import {
   apiCreateFlashcard,
   apiCreateNote,
   apiCreateNotebook,
+  clickNoteMoreItem,
   createNoteViaButton,
   createNotebookViaSidebar,
   editorBody,
@@ -109,7 +110,7 @@ test.describe('Editor data integrity', () => {
     await waitForSaved(page);
 
     // Snapshot, then change the content.
-    await page.getByRole('button', { name: 'History', exact: true }).click();
+    await clickNoteMoreItem(page, /^history$/i);
     const drawer = page.getByTestId(TESTIDS.historyDrawer);
     await expect(drawer).toBeVisible({ timeout: 10_000 });
     await drawer.getByRole('button', { name: /snapshot now/i }).click();
@@ -124,7 +125,7 @@ test.describe('Editor data integrity', () => {
     await waitForSaved(page);
 
     // Restore the snapshot.
-    await page.getByRole('button', { name: 'History', exact: true }).click();
+    await clickNoteMoreItem(page, /^history$/i);
     await expect(drawer).toBeVisible({ timeout: 10_000 });
     page.once('dialog', (d) => void d.accept());
     await drawer.getByTestId(TESTIDS.historyVersionItem).first().click();

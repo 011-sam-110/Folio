@@ -59,18 +59,122 @@
 }
 
 /* ---------- Action bar ---------- */
+/* Three zones: Write (Insert, AI) | Panels (segmented toggles) | Note actions
+   (Share, More, save chip), separated by a collapsible spacer. See NoteActionBar.tsx
+   for why the twelve flat controls were grouped this way. */
 
 .folio-action-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  row-gap: 8px;
   margin-bottom: 18px;
   position: sticky;
   top: 0;
   background: var(--bg);
   padding: 8px 0;
   z-index: 5;
+}
+
+/* A zone keeps its own controls together when the bar wraps, so a narrow window
+   breaks BETWEEN groups rather than orphaning "More" onto its own line. */
+.folio-action-zone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+/* flex-basis 0 so it can shrink away entirely: it pushes the note actions right when
+   there is room, and gives up its space (rather than forcing a wrap) when there isn't. */
+.folio-action-spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Icon + label buttons in the bar; the icons are decorative and sit on the text
+   baseline badly without this. */
+.folio-action-bar .folio-btn,
+.folio-action-bar .folio-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Insert is the bar's one primary action - the only filled control, because it is the
+   one a student uses continuously while writing. The extra `.folio-action-bar` in the
+   selector is load-bearing: `.folio-btn-primary:hover` is declared later in this file
+   and would otherwise brighten the button while its menu is open. */
+.folio-action-bar .folio-action-insert.is-open {
+  filter: brightness(0.94);
+}
+
+/* ---------- Panels segmented control ---------- */
+/* One bordered group with hairline dividers, rather than four or five loose buttons:
+   these all toggle a surface beside the note, and reading as one switch bank is what
+   says so. `.on` is paired with aria-pressed in NoteActionBar.tsx - the colour is
+   never the only carrier of state. */
+
+.folio-segmented {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+}
+
+.folio-seg {
+  position: relative; /* anchors the unresolved-comments badge */
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  /* The divider is a left border on every button but the first, so it renders as a
+     single hairline between neighbours instead of a doubled 2px line. */
+  border-left: 1px solid var(--line);
+  background: none;
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease-out, color 0.12s ease-out;
+}
+
+.folio-seg:first-child {
+  border-left: 0;
+  border-radius: 6px 0 0 6px;
+}
+
+.folio-seg:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.folio-seg:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+.folio-seg.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* The badge was an absolutely-positioned corner dot on an icon-only button. Now that
+   the button says "Comments" it reads better as an inline count pill after the word -
+   and a corner overlay would collide with the segment divider. */
+.folio-segmented .folio-comments-badge {
+  position: static;
+}
+
+@media (pointer: coarse) {
+  /* Matches the 44px touch-target floor base.css applies to .folio-btn / .sh-btn. */
+  .folio-seg {
+    min-height: 44px;
+  }
 }
 
 .folio-btn,
@@ -183,8 +287,80 @@
   color: var(--ink);
 }
 
-.folio-dropdown-menu button:hover {
+.folio-dropdown-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folio-dropdown-menu button:hover:not(:disabled) {
   background: var(--bg-hover);
+}
+
+/* ---------- Menu groups (the More menu, hairline-separated) ---------- */
+/* Seven-plus items in one flat list is a wall; the dividers say "these three are the
+   same kind of thing". Labels are aria-hidden and repeated as each group's accessible
+   name (see MenuGroup in NoteActionBar.tsx). */
+
+.folio-menu-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.folio-menu-group + .folio-menu-group {
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.folio-menu-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 4px 10px 2px;
+}
+
+/* Read-only stats, expanded in place under "Note info" rather than in a second
+   floating layer stacked on the menu. */
+.folio-menu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 10px 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+/* A menu item with no backend behind it yet. Dimmed AND carrying its reason on the
+   face of the item, so it cannot be mistaken for a control that is merely slow.
+   The wrapper exists because a disabled <button> swallows the pointer events a
+   title tooltip needs. */
+.folio-menu-pending {
+  display: block;
+}
+
+/* Label above reason, both on one line each. Side by side the two fought over a
+   210px menu and shredded the label into four words on four lines; `nowrap` lets the
+   menu size to the longer of the two instead. */
+.folio-menu-pending > button {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.folio-dropdown-menu button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.folio-menu-item__hint {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-3);
 }
 
 .folio-flashcard-count {
@@ -202,34 +378,11 @@
   padding: 3px 9px !important;
 }
 
-/* Info popover */
-
-.folio-info-wrap {
-  position: relative;
-}
-
-.folio-info-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 30;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-pop);
-  padding: 10px 14px;
-  font-size: 12.5px;
-  color: var(--ink-2);
-  white-space: nowrap;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
 /* Save status chip */
+/* No `margin-left: auto` any more - .folio-action-spacer does the pushing, and an
+   auto margin here would fight it (and strand the chip when the bar wraps). */
 
 .folio-save-chip {
-  margin-left: auto;
   font-size: 12px;
   color: var(--ink-3);
   display: flex;

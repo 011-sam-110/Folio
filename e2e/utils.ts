@@ -170,6 +170,24 @@ export async function waitForSaved(page: Page): Promise<void> {
   await expect(autosaveStatus(page)).toHaveText(/saved/i, { timeout: 15_000 });
 }
 
+/**
+ * Clicks an item in the note action bar's "⋯ More" menu.
+ *
+ * The note-page bar (web/src/features/editor/NoteActionBar.tsx) groups its rare
+ * actions - History, Export .md, Pin/Unpin, Note info, the AI transforms and the
+ * three import kinds - behind one "More" dropdown, so they are no longer top-level
+ * buttons on the page. Two clicks, not one.
+ *
+ * Scoped to <main> for the same reason runDesktopImport is: a notebook whose NAME
+ * contains the action word would otherwise let the sidebar's "Change emoji for
+ * <notebook>" button match first.
+ */
+export async function clickNoteMoreItem(page: Page, item: RegExp): Promise<void> {
+  const main = page.getByRole('main');
+  await main.getByRole('button', { name: /^more$/i }).click();
+  await main.getByRole('button', { name: item }).first().click();
+}
+
 /** Types text into the editor body, focusing it first. */
 export async function typeInEditor(page: Page, text: string): Promise<void> {
   const body = editorBody(page);
