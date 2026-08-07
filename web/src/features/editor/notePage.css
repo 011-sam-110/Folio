@@ -886,6 +886,88 @@
   text-align: right;
 }
 
+/* ---------- The AI panel's action group ----------
+   The four actions that used to live behind `✦ AI ▾` in the action bar. Flat buttons in a
+   labelled section, deliberately not a menu: the move exists to remove a layer of hiding. */
+
+.folio-ai-panel__title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+.folio-ai-panel__actions {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* `margin-top: auto` above pins the group to the bottom of the drawer, so the analysis
+   above it keeps the space it needs. It still scrolls with the panel when the analysis is
+   long - the drawer, not this section, owns the overflow. */
+.folio-ai-panel__hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.folio-ai-panel__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.folio-ai-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folio-ai-action:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.folio-ai-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* The reason a control is unavailable, on the face of the control - the same rule the old
+   menu item followed, for the same reason: a dimmed button with no explanation reads as
+   broken rather than as not-yet-applicable. */
+.folio-ai-action__hint {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-3);
+}
+
+.folio-ai-panel__checks {
+  margin-top: 10px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {

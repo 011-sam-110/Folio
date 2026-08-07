@@ -4,11 +4,19 @@
 // The bar is organised into three zones, left to right, because the twelve controls
 // were not twelve equal things:
 //
-//   Write   - what you reach for constantly while writing (Insert, AI).
+//   Write   - what you reach for constantly while writing (Insert).
 //   Panels  - a segmented control of side surfaces you TOGGLE (Outline, Comments,
-//             Ink, Find, Assistant). These are stateful, so they read as one group of
+//             Ink, Find, AI). These are stateful, so they read as one group of
 //             switches rather than five unrelated buttons, and each carries
 //             aria-pressed so the on/off state is exposed, not just coloured.
+//
+// The `✦ AI ▾` dropdown that used to sit beside Insert is GONE. Everything in it
+// (Improve writing, Clean up formatting, Find missing content from uploads, Generate
+// flashcards, Choose what to check…) moved into the AI panel, which is the same surface
+// the review itself renders in - see AssistantPanel.tsx. A menu whose every item opened
+// a right-hand panel was a layer of hiding in front of that panel. Summarise and Suggest
+// a title stay in `⋯ More`: they insert a callout / retitle rather than proposing changes
+// to the body, so they are note actions rather than AI-panel work.
 //   Actions - things you do to the note as an object (Share, and the rarities behind
 //             `⋯ More`), plus the autosave chip. Export .md and History are used once
 //             a week; they no longer sit at the same visual weight as Insert.
@@ -27,17 +35,6 @@ import ShareButton from '../share/ShareButton';
 import type { Note } from '../../lib/types';
 import type { SaveStatus } from './useAutosave';
 
-/**
- * Verbatim from `POST /api/ai/gaps/edits` (server/src/routes/ai.ts), which answers a note
- * with no usable uploads with exactly this sentence.
- *
- * The route's own 400 is surfaced verbatim too (NotePage's `aiError` shows the server's
- * message), and it stays reachable from here: an attachment can exist and still have no
- * extracted text, in which case the button is enabled and the server is the one that says
- * so. One sentence, one wording, whichever side of the wire it comes from.
- */
-const GAPS_NO_UPLOADS = 'Import slides, a photo or a transcript first.';
-
 export interface NoteActionBarProps {
   note: Note;
   /** The LIVE title (NotePage's input state), not note.title - the share dialog and
@@ -52,23 +49,14 @@ export interface NoteActionBarProps {
   insertMenuOpen: boolean;
   onToggleInsertMenu: () => void;
 
-  /** Availability, not preference - see lib/aiStatus. Gates the AI menu AND the AI
-   *  items inside More: with no reachable gateway they would be live-looking controls
+  /** Availability, not preference - see lib/aiStatus. Gates the AI panel toggle AND the
+   *  AI items inside More: with no reachable gateway they would be live-looking controls
    *  that always fail. */
   aiOn: boolean;
-  /** Non-null while an AI call is in flight; the label and the AI items reflect it. */
+  /** Non-null while an AI call is in flight; the More menu's AI items reflect it. */
   aiBusy: string | null;
-  onImprove: (close: () => void) => void;
-  onClean: (close: () => void) => void;
-  /** Find missing content from uploads. Only reachable when the note has uploads. */
-  onGaps: (close: () => void) => void;
-  /** Opens the check picker - what a run of the three above actually checks. */
-  onOpenChecks: (close: () => void) => void;
   onSummarize: (close: () => void) => void;
   onSuggestTitle: (close: () => void) => void;
-  onFlashcards: (count: number, close: () => void) => void;
-  flashcardStep: boolean;
-  onFlashcardStep: (open: boolean) => void;
 
   // --- Panels zone (all toggles) ---
   outlineOpen: boolean;
@@ -109,15 +97,8 @@ export default function NoteActionBar(props: NoteActionBarProps) {
     onToggleInsertMenu,
     aiOn,
     aiBusy,
-    onImprove,
-    onClean,
-    onGaps,
-    onOpenChecks,
     onSummarize,
     onSuggestTitle,
-    onFlashcards,
-    flashcardStep,
-    onFlashcardStep,
     outlineOpen,
     onToggleOutline,
     commentsOpen,
@@ -142,7 +123,6 @@ export default function NoteActionBar(props: NoteActionBarProps) {
 
   // "Find missing content from uploads" compares the note against the source files it was
   // built from, so with nothing uploaded there is nothing to compare against.
-  const hasUploads = (note.attachments ?? []).some((a) => a.status !== 'failed');
 
   return (
     <div className="folio-action-bar">
@@ -162,73 +142,10 @@ export default function NoteActionBar(props: NoteActionBarProps) {
           <span aria-hidden="true"> ▾</span>
         </button>
 
-        {aiOn && (
-          <DropdownButton
-            label={
-              <>
-                <Icon name="sparkles" size={14} /> {aiBusy ? 'AI…' : 'AI'}
-              </>
-            }
-            disabled={!!aiBusy}
-          >
-            {(close) => (
-              <>
-                <button type="button" onClick={() => onImprove(close)}>
-                  Improve writing
-                </button>
-                <button type="button" onClick={() => onClean(close)}>
-                  Clean up formatting
-                </button>
-                {/* Live now: `POST /api/ai/gaps/edits` (NOT `/api/ai/gaps`, which answers
-                    the Assistant panel with advisory prose the rail cannot render). Still
-                    disabled with nothing imported, because the comparison has no second
-                    side - and the reason shown is the server's own sentence for that case
-                    rather than a second, differently-worded copy of it. */}
-                {hasUploads ? (
-                  <button type="button" onClick={() => onGaps(close)}>
-                    Find missing content from uploads
-                  </button>
-                ) : (
-                  <span className="folio-menu-pending" title={GAPS_NO_UPLOADS}>
-                    <button type="button" disabled>
-                      Find missing content from uploads
-                      <span className="folio-menu-item__hint">{GAPS_NO_UPLOADS}</span>
-                    </button>
-                  </span>
-                )}
-                {!flashcardStep ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      // Keep the menu open: this is step one of two ("how many?").
-                      e.stopPropagation();
-                      onFlashcardStep(true);
-                    }}
-                  >
-                    Generate flashcards
-                  </button>
-                ) : (
-                  <div className="folio-flashcard-count">
-                    <span>How many?</span>
-                    {[5, 8, 12].map((n) => (
-                      <button key={n} type="button" onClick={() => onFlashcards(n, close)}>
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Under a hairline: everything above acts on this note, this one changes
-                    what a run of the first two looks for - and what it costs, since the
-                    suggestion route issues one model request per enabled family. */}
-                <div className="folio-menu-divider" role="separator" />
-                <button type="button" onClick={() => onOpenChecks(close)}>
-                  Choose what to check…
-                </button>
-              </>
-            )}
-          </DropdownButton>
-        )}
+        {/* There is deliberately no AI button here. Every AI action - improve, clean,
+            find gaps from uploads, flashcards, and the check picker - now lives inside
+            the AI panel, reached from the Panels segment below. A menu you pull down and
+            lose is the wrong shape for something you converse with. */}
       </div>
 
       {/* ---------- Panels: one segmented control of side-surface toggles ----------

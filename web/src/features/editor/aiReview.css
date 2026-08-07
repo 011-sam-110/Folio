@@ -333,10 +333,33 @@
   color: var(--accent);
 }
 
-/* Below the width that fits a rail beside the note, it becomes a docked panel on the right
-   rather than disappearing: a review the reader cannot see is a review they cannot finish,
-   and half-reviewed decorations are exactly the state this feature must never strand
-   someone in. */
+/* Docked inside the AI panel, which is where the rail actually renders: a review is a STATE
+   of that panel, not a second surface beside it (see AssistantPanel.tsx). The drawer already
+   supplies the frame, the shadow and the right-hand position, so the rail drops its own and
+   fills it instead. Two classes, so this wins over the base rule and over the narrow-screen
+   one below without either needing to know about it. */
+.folio-ai-panel .folio-ai-rail {
+  position: static;
+  width: auto;
+  max-height: none;
+  flex: 1;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* The drawer's own padding goes with it - the rail's head, body and foot carry their own,
+   and two sets of padding leave the cards floating in the middle of the panel. */
+.folio-ai-panel--review {
+  padding: 0;
+}
+
+/* Kept for any context that renders the rail free-standing (and as the base the docked rule
+   above overrides): below the width that fits a rail beside a note it becomes a docked panel
+   on the right rather than disappearing. A review the reader cannot see is a review they
+   cannot finish, and half-reviewed decorations are exactly the state this feature must never
+   strand someone in. */
 @media (max-width: 1100px) {
   .folio-ai-rail {
     position: fixed;

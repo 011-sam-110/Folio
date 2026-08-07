@@ -33,7 +33,6 @@ import NoteInkOverlay from '../canvas/NoteInkOverlay';
 import FindReplaceBar, { type FindReplaceMode } from './FindReplaceBar';
 import { createFindReplacePlugin, FindReplacePluginKey } from './FindReplace';
 import { createHashtagPlugin, HashtagPluginKey } from './HashtagExtension';
-import AiReviewRail from './AiReviewRail';
 import CheckPicker from './CheckPicker';
 import { AiReviewPluginKey, createAiReviewPlugin, setReviewEdits } from './AiReviewPlugin';
 import { fetchCheckCatalogue, resolveFamilies } from '../../lib/checksApi';
@@ -192,7 +191,6 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   // Availability, not just preference - see lib/aiStatus. With no reachable gateway
   // the AI menu and assistant panel would render as live controls that always fail.
   const aiOn = useAiAvailable();
-  const [flashcardStep, setFlashcardStep] = useState(false);
   const [flashcardBanner, setFlashcardBanner] = useState<number | null>(null);
   // Summarise is the ONLY AI action left that previews a whole-note result. It inserts a
   // callout rather than rewriting the note, so there is nothing to diff and nothing to
@@ -605,7 +603,6 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     }
   }
   async function handleFlashcards(count: number, close: () => void) {
-    setFlashcardStep(false);
     close();
     setAiBusy('flashcards');
     try {
@@ -722,18 +719,8 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
             onToggleInsertMenu={() => setInsertMenuOpen((v) => !v)}
             aiOn={aiOn}
             aiBusy={aiBusy}
-            onImprove={(close) => void runSuggestionReview('improve', close)}
-            onClean={(close) => void runSuggestionReview('clean', close)}
-            onGaps={handleGaps}
-            onOpenChecks={(close) => {
-              close();
-              setChecksOpen(true);
-            }}
             onSummarize={handleSummarize}
             onSuggestTitle={handleTitleSuggest}
-            onFlashcards={handleFlashcards}
-            flashcardStep={flashcardStep}
-            onFlashcardStep={setFlashcardStep}
             outlineOpen={outlineOpen}
             onToggleOutline={() => setOutlineOpen((v) => !v)}
             commentsOpen={commentsOpen}
@@ -818,16 +805,10 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
 
       {outlineOpen && <OutlinePane items={outline} editor={editorRef.current} />}
 
-      {/* Mounted directly beside the note for now. The chrome plan's NoteDock does not exist
-          yet, and a rail that only appears while a review is running is not a panel the dock
-          would toggle anyway - a later task moves it in. */}
-      {reviewOpen && editorRef.current && (
-        <AiReviewRail
-          editor={editorRef.current}
-          beforeApply={snapshotBeforeReview}
-          onDone={() => setReviewOpen(false)}
-        />
-      )}
+      {/* The rail is no longer mounted here. It renders inside AssistantPanel, which
+          switches to it while `reviewOpen` - see the comment on that component above.
+          Two right-hand panels would have rebuilt, a few inches over, exactly the
+          crowding this redesign removed from the toolbar. */}
 
       {/* Per notebook, not per note: a chemistry notebook and an essay notebook want
           different checks, and every note in one of them wants the same ones. */}
@@ -853,12 +834,29 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
         />
       )}
 
+      {/* The single AI surface. It holds the ask field, the actions that used to live in
+          the action bar's dropdown, and - in place of all of it while a run is being
+          reviewed - the suggestion cards themselves. One panel in two states rather than
+          an assistant and a rail competing for the same edge of the screen. */}
       <AssistantPanel
         noteId={note.id}
         attachments={note.attachments}
         open={assistantOpen}
         onClose={() => setAssistantOpen(false)}
         onInsert={insertAssistantNotes}
+        aiBusy={aiBusy}
+        // `runSuggestionReview` and `handleGaps` each take a `close` callback from their
+        // old life inside a dropdown, where firing one had to dismiss the menu. Nothing
+        // needs closing now the actions live in the panel they report back into.
+        onImprove={() => void runSuggestionReview('improve', () => {})}
+        onClean={() => void runSuggestionReview('clean', () => {})}
+        onFindMissing={() => void handleGaps(() => {})}
+        onFlashcards={(count) => void handleFlashcards(count, () => {})}
+        onOpenChecks={() => setChecksOpen(true)}
+        editor={editorRef.current}
+        reviewOpen={reviewOpen}
+        beforeApply={snapshotBeforeReview}
+        onReviewDone={() => setReviewOpen(false)}
       />
 
       {/* The last whole-note preview, and the only one that was ever right: a summary is
