@@ -15,6 +15,7 @@ import ImportModal from './features/import/ImportModal';
 import { _subscribeImportModal, type OpenImportModalArgs } from './components/importModalBus';
 import OnboardingHost from './features/onboarding/OnboardingHost';
 import ImportWizardHost from './features/import/wizard/ImportWizardHost';
+import GuestBanner from './features/guest/GuestBanner';
 
 const COLLAPSE_KEY = 'folio:sidebarCollapsed';
 
@@ -253,6 +254,9 @@ function AppShell() {
         )}
 
         <main className="app-main" id="folio-main" tabIndex={-1}>
+          {/* Above the outlet, so it is on every route a guest can reach - the editor
+              included, which is the one that matters. Renders nothing when signed in. */}
+          <GuestBanner />
           <Outlet />
         </main>
       </div>

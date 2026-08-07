@@ -22,6 +22,9 @@ import Modal from './Modal';
 import Spinner from './Spinner';
 import Skeleton from './Skeleton';
 import AccountMenu from '../features/auth/AccountMenu';
+import GuestAccountRow from '../features/guest/GuestAccountRow';
+import DataControls from '../features/export/DataControls';
+import { useGuest } from '../features/guest/guestMode';
 
 const NOTEBOOK_PALETTE = [
   { name: 'Gray', hex: '#78716c' },
@@ -69,6 +72,7 @@ export default function Sidebar({
   const { notebooks, loading, error, reload, createNotebook, updateNotebook, deleteNotebook } = useNotebooks();
   const [theme, , toggleTheme] = useTheme();
   const [aiOn, setAiOn] = useAiEnabled();
+  const guest = useGuest();
   const navigate = useNavigate();
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -228,7 +232,7 @@ export default function Sidebar({
           <span>Study</span>
           {!!studyDue && <span className="sidebar__nav-badge">{studyDue}</span>}
         </NavLink>
-        {aiOn && (
+        {aiOn && !guest && (
           <NavLink to="/ask" className={({ isActive }) => `sidebar__nav-link${isActive ? ' active' : ''}`} onClick={onCloseMobile}>
             <Icon name="sparkles" size={15} />
             <span>Ask AI</span>
@@ -249,11 +253,15 @@ export default function Sidebar({
         <span>Notebooks</span>
         {/* Sized by class, not an inline 20px box: 20px is below the WCAG 2.5.8
             minimum, and the modifier still leaves the section-label row compact. */}
-        <Tooltip content="New canvas" placement="right">
-          <button type="button" className="icon-btn icon-btn--xs" aria-label="New canvas" onClick={onNewCanvas}>
-            <Icon name="canvas" size={13} />
-          </button>
-        </Tooltip>
+        {/* Boards keep their items server-side, so there is no guest version of one. Better
+            absent than present and failing on the first click. */}
+        {!guest && (
+          <Tooltip content="New canvas" placement="right">
+            <button type="button" className="icon-btn icon-btn--xs" aria-label="New canvas" onClick={onNewCanvas}>
+              <Icon name="canvas" size={13} />
+            </button>
+          </Tooltip>
+        )}
         <Tooltip content="New note (⌘N)" placement="right">
           <button type="button" className="icon-btn icon-btn--xs" aria-label="New note" onClick={onNewNote}>
             <Icon name="plus" size={13} />
@@ -376,7 +384,12 @@ export default function Sidebar({
         )}
       </div>
 
-      <AccountMenu />
+      {guest ? <GuestAccountRow /> : <AccountMenu />}
+
+      {/* Export and Import sit directly under the identity row, where "my stuff" already
+          lives, rather than inside the account dropdown - an export you have to find is
+          an export nobody uses, and a guest needs it most of all. */}
+      <DataControls />
 
       <div className="sidebar__footer">
         <Tooltip content={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
@@ -384,16 +397,23 @@ export default function Sidebar({
             <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} />
           </button>
         </Tooltip>
-        <Tooltip content="Phone capture. Scan to add notes from your phone">
-          <button type="button" className="sidebar__icon-btn" aria-label="Phone capture" onClick={onOpenQr}>
-            <Icon name="phone" size={15} />
-          </button>
-        </Tooltip>
+        {/* A scanned phone pairs with an ACCOUNT, not with this browser tab, so there is
+            nothing for a guest to pair to. */}
+        {!guest && (
+          <Tooltip content="Phone capture. Scan to add notes from your phone">
+            <button type="button" className="sidebar__icon-btn" aria-label="Phone capture" onClick={onOpenQr}>
+              <Icon name="phone" size={15} />
+            </button>
+          </Tooltip>
+        )}
         <Tooltip content={<>Command palette <kbd>⌘P</kbd></>}>
           <button type="button" className="sidebar__icon-btn" aria-label="Command palette" onClick={onOpenCommandPalette}>
             <Icon name="more" size={16} />
           </button>
         </Tooltip>
+        {/* The whole AI block is an account feature, and its "AI unavailable" branch opens
+            a settings dialog a guest has no account to save into. */}
+        {!guest && (
         <Tooltip
           content={
             aiOn
@@ -414,7 +434,8 @@ export default function Sidebar({
             <Icon name={aiOn ? 'sparkles' : 'sparkles-off'} size={15} />
           </button>
         </Tooltip>
-        {aiOn && (
+        )}
+        {aiOn && !guest && (
           <>
             {/* Always mounted, so a CHANGE of state is announced rather than only rendered.
                 The dot conveyed AI reachability by colour alone (WCAG 1.4.1) and the only

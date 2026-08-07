@@ -1,0 +1,101 @@
+/* Export / Import pair in the sidebar footer, plus the two dialogs they open. */
+
+.data-controls {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  padding: 0 8px 6px;
+}
+
+.data-controls__btn {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 8px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.data-controls__btn:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+/* The account row already owns the margin-top:auto that pushes this block down, so this
+   pair must not claim it as well or the two fight over the leftover space. */
+.sidebar-account + .data-controls {
+  margin-top: 0;
+}
+
+.export-modal__lead {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.export-modal__loading {
+  display: grid;
+  place-items: center;
+  padding: 24px 0;
+}
+
+.export-modal__error {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #b91c1c;
+}
+
+.export-modal__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.export-modal__counts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+
+.export-modal__warn {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #b45309;
+}
+
+.export-modal__note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.export-modal__go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.export-modal__pickers {
+  display: flex;
+  flex-direction: column;
+}
