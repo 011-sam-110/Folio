@@ -1,0 +1,279 @@
+/* "Choose what to check" picker. Everything is driven by the theme tokens in
+   styles/tokens.css, so light and dark come for free - there is deliberately no hard-coded
+   colour in this file (same rule as tagEditor.css). */
+
+.folio-check-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.folio-check-section-title {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* --- presets --- */
+
+.folio-check-presets__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.folio-check-preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast),
+    border-color var(--dur-fast);
+}
+
+.folio-check-preset:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+/* The pressed state is the ONLY thing distinguishing the preset the current selection
+   matches, so it carries a border change as well as colour - a colour-only cue would be
+   invisible to a chunk of the readership. */
+.folio-check-preset[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.folio-check-preset__n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--ink-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.folio-check-preset[aria-pressed='true'] .folio-check-preset__n {
+  background: var(--bg);
+  color: var(--accent);
+}
+
+.folio-check-help {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+/* --- the cost line --- */
+
+.folio-check-cost {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.folio-check-cost strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* An empty selection is not an error - it is a run that would do nothing - so it reads as a
+   caution rather than a failure. The text colour stays --ink-2 for contrast against the
+   tinted background; the warning is carried by the border. */
+.folio-check-cost--empty {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+/* --- family cards --- */
+
+.folio-check-families {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.folio-check-family {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast);
+}
+
+.folio-check-family.is-on {
+  border-color: var(--accent);
+}
+
+/* The toggle is a native checkbox, so the global :focus-visible ring lands on a 16px box
+   inside the card. Lifting the ring to the card as well makes the keyboard position
+   readable at a glance across an eight-card grid. */
+.folio-check-family:focus-within {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.folio-check-family__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.folio-check-family__toggle {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.folio-check-family__toggle:focus-visible {
+  border-radius: 4px;
+  box-shadow: var(--focus-ring);
+}
+
+.folio-check-family__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Neutral chip with a coloured dot rather than coloured text: the severity words are small
+   and uppercase, and tinting them would put 10px text on a tinted background at ratios this
+   codebase does not accept elsewhere. The word carries the meaning; the dot is decoration. */
+.folio-check-family__severity {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--ink-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.folio-check-family__severity::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--sev, var(--ink-3));
+}
+
+.folio-check-family__severity[data-severity='critical'] {
+  --sev: var(--danger);
+}
+
+.folio-check-family__severity[data-severity='normal'] {
+  --sev: var(--accent);
+}
+
+.folio-check-family__severity[data-severity='minor'] {
+  --sev: var(--ink-3);
+}
+
+.folio-check-family__count {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.folio-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 0 0 0 24px;
+  list-style: none;
+}
+
+.folio-check-list li {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+/* A family that is off still lists its checks - see the comment in CheckPicker.tsx - but
+   recedes so the enabled cards read first. */
+.folio-check-family:not(.is-on) .folio-check-list {
+  opacity: 0.6;
+}
+
+/* --- footer + states --- */
+
+.folio-check-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.folio-check-actions__note {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.folio-check-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  text-align: center;
+}
+
+.folio-check-state__msg {
+  margin: 0;
+  max-width: 42ch;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+@media (max-width: 700px) {
+  .folio-check-families {
+    grid-template-columns: 1fr;
+  }
+}
