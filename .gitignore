@@ -16,6 +16,10 @@ docs/review-pack/
 # the one env file that is meant to be committed. Enumerate instead.
 .env.local
 .env.*.local
+# Timestamped .env backups. One of these was committed by an `add -A` and pushed
+# with the gateway key in it, so the pattern is named here rather than left to
+# whoever is next to notice.
+.env.bak-*
 .playwright-mcp/
 
 # Agent scratch/debug scripts — never part of the app
