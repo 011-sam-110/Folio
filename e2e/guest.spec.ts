@@ -33,11 +33,21 @@ function watchWrites(page: Page): string[] {
   return writes;
 }
 
-test('the landing page offers a way in without an account', async ({ page }) => {
+/**
+ * The landing page's PRIMARY button opens the editor, not a signup form.
+ *
+ * This used to be a text link in the small print under the buttons, with "Start writing"
+ * going to /signup. Asking for an account before anyone has typed a word is asking them to
+ * buy the thing unseen, so the main button is the guest door now and the account is offered
+ * once there is something worth keeping. Asserted on the primary button specifically: a
+ * regression here would most likely be someone pointing it back at /signup, which a test
+ * that accepted any link into guest mode would not notice.
+ */
+test('the landing page primary button goes straight into the editor', async ({ page }) => {
   await page.goto('/');
-  const tryLink = page.getByRole('link', { name: /try it without an account/i });
-  await expect(tryLink).toBeVisible();
-  await tryLink.click();
+  const start = page.getByRole('link', { name: /start writing/i }).first();
+  await expect(start).toBeVisible();
+  await start.click();
   await expect(page).toHaveURL(/\/note\//);
   await expect(page.getByTestId('guest-banner')).toContainText('Nothing here is saved');
 });

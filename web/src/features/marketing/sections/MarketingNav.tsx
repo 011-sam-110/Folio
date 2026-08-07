@@ -93,7 +93,7 @@ export default function MarketingNav() {
             <Link className="mkt-nav__login" to="/login">
               Log in
             </Link>
-            <Link className="mkt-btn mkt-btn--primary mkt-btn--sm" to="/signup">
+            <Link className="mkt-btn mkt-btn--primary mkt-btn--sm" to="/try">
               Start free
             </Link>
           </div>
@@ -129,7 +129,7 @@ export default function MarketingNav() {
           </Link>
           <Link
             className="mkt-btn mkt-btn--primary mkt-nav__sheet-cta"
-            to="/signup"
+            to="/try"
             onClick={() => setMenuOpen(false)}
           >
             Start writing, it&apos;s free
@@ -140,7 +140,7 @@ export default function MarketingNav() {
       <div className={`mkt-dock${dockVisible ? ' is-visible' : ''}`} aria-hidden={!dockVisible}>
         <Link
           className="mkt-btn mkt-btn--primary mkt-btn--lg mkt-dock__btn"
-          to="/signup"
+          to="/try"
           tabIndex={dockVisible ? undefined : -1}
         >
           Start writing, it&apos;s free

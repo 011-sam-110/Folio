@@ -23,12 +23,14 @@ export default function ClosingCta() {
       <section className="mkt-close">
         <div className="mkt-close__inner">
           <h2 className="mkt-close__title mkt-reveal">Start with this week&apos;s lectures.</h2>
+          {/* The copy had to move with the button. It used to open with "Make an account",
+              which is now the one thing this button does not ask for. */}
           <p className="mkt-close__lede mkt-reveal" data-reveal-delay="70">
-            Make an account, open a notebook, and see whether it holds up against the way you already
-            work. It takes about a minute.
+            Open a notebook and see whether it holds up against the way you already work. No account
+            until you want one, and your writing comes with you when you make it.
           </p>
           <div className="mkt-reveal" data-reveal-delay="140">
-            <Link className="mkt-btn mkt-btn--primary mkt-btn--lg" to="/signup">
+            <Link className="mkt-btn mkt-btn--primary mkt-btn--lg" to="/try">
               Start writing, it&apos;s free
             </Link>
             <p className="mkt-close__alt">

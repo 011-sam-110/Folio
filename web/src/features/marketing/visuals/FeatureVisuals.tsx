@@ -21,6 +21,12 @@ import PencilSketch from './PencilSketch';
 const TYPE_LINE = { '--type-steps': 26, '--type-dur': '780ms' } as React.CSSProperties;
 const TYPE_SHORT = { '--type-steps': 20, '--type-dur': '620ms' } as React.CSSProperties;
 const TYPE_QUERY = { '--type-steps': 52, '--type-dur': '1100ms' } as React.CSSProperties;
+/** Starts after the slides have landed, so the scene reads file, then slides, then speech. */
+const TYPE_TRANSCRIPT = {
+  '--type-steps': 38,
+  '--type-dur': '1000ms',
+  '--type-delay': '1350ms',
+} as React.CSSProperties;
 
 const step = (n: number) => ({ '--step': n }) as React.CSSProperties;
 
@@ -49,12 +55,14 @@ export function WriteVisual() {
           Turn this into a callout <span className="mkt-viz__caret">/</span>
         </span>
       </div>
+      {/* The highlighted row is also pressed, so the scene ends with the block being CHOSEN
+          rather than with a menu sitting open. That press is the moment the card is about. */}
       <div className="mkt-viz__menu">
         {BLOCKS.map((row, i) => (
           <div
             key={row.label}
-            className={`mkt-viz__row mkt-demo__step${i === 0 ? ' is-active' : ''}`}
-            style={step(i + 7)}
+            className={`mkt-viz__row mkt-demo__step${i === 0 ? ' is-active mkt-demo__press' : ''}`}
+            style={{ '--step': i + 7, '--press-delay': '2050ms' } as React.CSSProperties}
           >
             <span className="mkt-viz__row-icon">
               <VizIcon d={row.icon} />
@@ -80,10 +88,20 @@ export function LinkVisual() {
       </div>
       {/* fill is set on the dot only. Filling the <svg> overrode the path's own
           fill="none" and the open curve rendered as a smudge with the dashes swallowed. */}
+      {/* The wire draws itself, because the thing the card claims is that writing the link
+          MAKES the connection. A line that is simply present when the mock arrives shows the
+          result and not the mechanic. The dashed curve keeps its 3-4 dash pattern as its
+          own stroke style, so only the arrowhead takes the draw - dasharray cannot be two
+          things at once, and a dashed line that also unrolls reads as a glitch. */}
       <svg className="mkt-viz__wire" viewBox="0 0 200 44" aria-hidden="true">
         <path d="M28 8 C 28 30, 120 18, 164 34" strokeDasharray="3 4" />
-        <path d="M164 34 L 157 30.5 M164 34 L 157.5 39" />
-        <circle cx="28" cy="8" r="2.6" className="mkt-viz__wire-dot" />
+        <path
+          className="mkt-demo__draw"
+          pathLength="1"
+          d="M164 34 L 157 30.5 M164 34 L 157.5 39"
+          style={{ '--draw-delay': '900ms' } as React.CSSProperties}
+        />
+        <circle cx="28" cy="8" r="2.6" className="mkt-viz__wire-dot mkt-demo__step" style={step(4)} />
       </svg>
       <div className="mkt-viz__backlinks">
         <span className="mkt-viz__backlinks-head mkt-demo__step" style={step(6)}>
@@ -104,10 +122,12 @@ const GRADES = ['Again', 'Hard', 'Good', 'Easy'];
 export function StudyVisual() {
   return (
     <div className="mkt-viz mkt-viz--study mkt-demo" aria-hidden="true">
+      {/* The deck deals itself, back to front, before the grades arrive. It used to be
+          present from the first frame, so the scene opened on its own middle. */}
       <div className="mkt-viz__deck">
-        <div className="mkt-viz__card mkt-viz__card--back" />
-        <div className="mkt-viz__card mkt-viz__card--mid" />
-        <div className="mkt-viz__card mkt-viz__card--front">
+        <div className="mkt-viz__card mkt-viz__card--back mkt-demo__step" style={step(0)} />
+        <div className="mkt-viz__card mkt-viz__card--mid mkt-demo__step" style={step(1)} />
+        <div className="mkt-viz__card mkt-viz__card--front mkt-demo__step" style={step(2)}>
           <span className="mkt-viz__card-tag">Algorithms</span>
           <p className="mkt-viz__card-q">What is the time complexity of BFS?</p>
         </div>
@@ -161,8 +181,13 @@ export function CaptureVisual() {
           <MiniSlide key={i} at={i + 5} />
         ))}
       </div>
+      {/* The transcript types itself out under the slides: this card's claim is that a
+          recording becomes both, and the caption is the half that arrives as speech. */}
       <div className="mkt-viz__transcript mkt-demo__step" style={step(9)}>
-        <span className="mkt-viz__stamp">12:04</span> so the invariant holds at every level…
+        <span className="mkt-viz__stamp">12:04</span>{' '}
+        <span className="mkt-demo__type" style={TYPE_TRANSCRIPT}>
+          so the invariant holds at every level…
+        </span>
       </div>
     </div>
   );
@@ -202,6 +227,11 @@ export function FindVisual() {
             {hit}
           </span>
         ))}
+        {/* Arrives last, once the hits it counts are on screen. A result count that is
+            present before the results reads as a page that already knew the answer. */}
+        <span className="mkt-viz__hit mkt-viz__hit--count mkt-demo__step" style={step(14)}>
+          4 notes
+        </span>
       </div>
     </div>
   );

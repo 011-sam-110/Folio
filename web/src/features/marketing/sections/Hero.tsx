@@ -35,8 +35,13 @@ export default function Hero() {
           helps when you ask it to.
         </p>
 
+        {/* The primary button goes STRAIGHT INTO THE EDITOR, not to a signup form. Asking
+            for an account before anyone has typed a word is asking them to buy the thing
+            unseen; the account is worth making once there is something in it worth keeping,
+            and guest mode prompts for one then. Signup has not gone anywhere - the nav
+            carries it, and every prompt inside the app leads to it. */}
         <div className="mkt-hero__cta mkt-reveal" data-reveal-delay="210">
-          <Link className="mkt-btn mkt-btn--primary mkt-btn--lg" to="/signup">
+          <Link className="mkt-btn mkt-btn--primary mkt-btn--lg" to="/try">
             Start writing, it's free
           </Link>
           <a className="mkt-btn mkt-btn--quiet mkt-btn--lg" href="#features">
@@ -44,17 +49,15 @@ export default function Hero() {
           </a>
         </div>
 
-        {/* The lower-commitment door, kept out of the button row so it does not compete
-            with the primary action. It opens the real editor rather than a demo, so the
-            trade it makes is stated in the same breath. Carries v2's reveal like every
-            other line in the hero - the door is part of the offer, not an afterthought
-            bolted on after the animation finishes. */}
+        {/* States the trade the button above just made, in the same breath as making it.
+            No longer a second link to /try - the button IS that door now, and two routes to
+            one place a line apart read as two different offers. */}
         <p className="mkt-hero__trust mkt-reveal" data-reveal-delay="260">
-          Free to use. No card. Your notes stay yours. Or{' '}
-          <Link className="mkt-hero__try" to="/try">
-            try it without an account
-          </Link>{' '}
-          - everything stays in your browser and nothing is saved.
+          No account needed to start, and no card. Your writing stays in your browser until you
+          make one, and then it comes with you.{' '}
+          <Link className="mkt-hero__try" to="/login">
+            Already have an account?
+          </Link>
         </p>
       </div>
 
