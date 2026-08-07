@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent, type Keyboa
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Editor } from '@tiptap/core';
 import { api, ApiError } from '../../lib/api';
-import type { Note, NoteLite, Attachment } from '../../lib/types';
+import type { AiSuggestResult, Note, NoteLite, Attachment } from '../../lib/types';
 import { relativeTime, plural, formatBytes } from '../../lib/format';
 import { toast } from '../../components/Toast';
 import { setActiveNotebook, clearActiveNotebook } from '../../lib/notebookContext';
@@ -34,6 +34,7 @@ import FindReplaceBar, { type FindReplaceMode } from './FindReplaceBar';
 import { createFindReplacePlugin, FindReplacePluginKey } from './FindReplace';
 import { createHashtagPlugin, HashtagPluginKey } from './HashtagExtension';
 import AiReviewRail from './AiReviewRail';
+import CheckPicker from './CheckPicker';
 import { AiReviewPluginKey, createAiReviewPlugin, setReviewEdits } from './AiReviewPlugin';
 import { fetchCheckCatalogue, resolveFamilies } from '../../lib/checksApi';
 import { extractHashtags, normalizeTags, unionTags, invalidateTagVocabulary } from '../../lib/tags';
@@ -193,11 +194,15 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const aiOn = useAiAvailable();
   const [flashcardStep, setFlashcardStep] = useState(false);
   const [flashcardBanner, setFlashcardBanner] = useState<number | null>(null);
-  const [aiWholeResult, setAiWholeResult] = useState<{ kind: 'improve' | 'summarize' | 'clean'; model: string; markdown: string } | null>(null);
+  // Summarise is the ONLY AI action left that previews a whole-note result. It inserts a
+  // callout rather than rewriting the note, so there is nothing to diff and nothing to
+  // review per change; Improve and Clean both go through the review rail instead.
+  const [summaryResult, setSummaryResult] = useState<{ model: string; markdown: string } | null>(null);
   // Whether the review rail is on screen. The suggestions themselves live in the editor's
   // own plugin state (AiReviewPlugin.ts), not here: they are positional, and positions
   // belong to the document, not to a React render.
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [checksOpen, setChecksOpen] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
   // Stylus annotation layer over this document. Off by default: it swallows
@@ -205,6 +210,10 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const [inkOpen, setInkOpen] = useState(false);
 
   const editorRef = useRef<Editor | null>(null);
+  // The restore point for the review currently on screen: one per RUN, not one per approval.
+  // Null means "this run has not written anything yet"; a run reaching its first approval
+  // fills it in and every later approval reuses it. See `snapshotBeforeReview`.
+  const reviewSnapshotRef = useRef<Promise<void> | null>(null);
   const insertBtnRef = useRef<HTMLButtonElement>(null);
   const [insertMenuOpen, setInsertMenuOpen] = useState(false);
   // Ink is stored relative to THIS element's top-left, so annotations stay pinned
@@ -487,7 +496,35 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   }
 
   /**
-   * Improve writing: a per-change review, not a rewritten note.
+   * Put a finished run on screen.
+   *
+   * Shared by all three review actions, so the "nothing found", "some of it didn't run" and
+   * "start a fresh restore point" decisions are made once rather than three times.
+   *
+   * `requested` is how many families the run was asked for. Families whose model request
+   * failed are absent from `ranFamilies`, and saying so is the difference between "there was
+   * nothing to find" and "we did not actually look" - which a student reading "no
+   * suggestions" would otherwise have no way to tell apart.
+   */
+  function startReview(res: AiSuggestResult, requested: number) {
+    const ed = editorRef.current;
+    if (!ed || ed.isDestroyed) return;
+    if (res.edits.length === 0) {
+      toast('Nothing to suggest - this note reads well', 'ok');
+      return;
+    }
+    // A new run is a new undo point. Clearing this here (rather than when the rail closes)
+    // means the snapshot belongs to the run that is about to be reviewed, whatever ended
+    // the previous one.
+    reviewSnapshotRef.current = null;
+    setReviewEdits(ed.view, res.edits);
+    setReviewOpen(true);
+    const missed = requested - res.ranFamilies.length;
+    if (missed > 0) toast(`${missed} of ${requested} checks didn't run`, 'error');
+  }
+
+  /**
+   * Improve writing / Clean up formatting: a per-change review, not a rewritten note.
    *
    * This is the route `POST /api/ai/suggest` exists for. It runs one model request per
    * check family the notebook has enabled and comes back with individually approvable
@@ -495,13 +532,15 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
    * the old whole-note preview modal could never show, because a text diff can say what
    * changed but never why.
    *
-   * The families come from the catalogue the server serves, filtered by whatever this
-   * notebook has saved (see lib/checksApi.ts). Nothing here holds a second copy of the
-   * check list.
+   * Both menu items run the notebook's saved selection, which is where the two used to
+   * differ and no longer do: "improve the writing" and "clean up the formatting" were two
+   * fixed whole-note prompts, and the picker replaces both with a selection the student
+   * owns per notebook. The families come from the catalogue the server serves (see
+   * lib/checksApi.ts); nothing here holds a second copy of the check list.
    */
-  async function handleImprove(close: () => void) {
+  async function runSuggestionReview(kind: 'improve' | 'clean', close: () => void) {
     close();
-    setAiBusy('improve');
+    setAiBusy(kind);
     try {
       const catalogue = await fetchCheckCatalogue();
       const families = resolveFamilies(note.notebookId, catalogue);
@@ -509,44 +548,40 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
         toast('No checks are enabled for this notebook', 'error');
         return;
       }
-      const res = await api.aiSuggest(note.id, families);
-      const ed = editorRef.current;
-      if (!ed || ed.isDestroyed) return;
-      if (res.edits.length === 0) {
-        toast('Nothing to suggest - this note reads well', 'ok');
-        return;
-      }
-      setReviewEdits(ed.view, res.edits);
-      setReviewOpen(true);
-      // Families whose model request failed are absent from `ranFamilies`; saying so is the
-      // difference between "there was nothing to find" and "we did not actually look".
-      const missed = families.length - res.ranFamilies.length;
-      if (missed > 0) toast(`${missed} of ${families.length} checks didn't run`, 'error');
+      startReview(await api.aiSuggest(note.id, families), families.length);
     } catch (e) {
       aiError(e);
     } finally {
       setAiBusy(null);
     }
   }
+
+  /**
+   * Find missing content from uploads: the note against its own imports.
+   *
+   * `POST /api/ai/gaps/edits`, NOT `POST /api/ai/gaps` - the latter predates this feature
+   * and answers the Assistant panel with advisory markdown, which the rail cannot render.
+   * One request, one family (missing-content), and every edit it returns is an insert, so
+   * this action can add what a slide covered and never rewrite the student's own words.
+   */
+  async function handleGaps(close: () => void) {
+    close();
+    setAiBusy('gaps');
+    try {
+      startReview(await api.aiGapEdits(note.id), 1);
+    } catch (e) {
+      aiError(e);
+    } finally {
+      setAiBusy(null);
+    }
+  }
+
   async function handleSummarize(close: () => void) {
     close();
     setAiBusy('summarize');
     try {
       const res = await api.aiSummarize(note.id);
-      setAiWholeResult({ kind: 'summarize', model: res.model, markdown: res.markdown });
-    } catch (e) {
-      aiError(e);
-    } finally {
-      setAiBusy(null);
-    }
-  }
-  /** Clean: formatting-only pass - structure improves, the student's wording stays. */
-  async function handleClean(close: () => void) {
-    close();
-    setAiBusy('clean');
-    try {
-      const res = await api.aiClean(note.id);
-      setAiWholeResult({ kind: 'clean', model: res.model, markdown: res.markdown });
+      setSummaryResult({ model: res.model, markdown: res.markdown });
     } catch (e) {
       aiError(e);
     } finally {
@@ -584,19 +619,45 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     }
   }
 
-  function applyImprove() {
-    if (!aiWholeResult || !editorRef.current) return;
-    const editor = editorRef.current;
-    const isClean = aiWholeResult.kind === 'clean';
-    api
-      .snapshot(note.id)
-      .catch(() => {})
-      .finally(() => {
-        const html = markdownToSafeHtml(aiWholeResult.markdown);
-        editor.commands.setContent(html, { emitUpdate: true });
-        setAiWholeResult(null);
-        toast(isClean ? 'Formatting cleaned up' : 'Improved note applied', 'ok');
-      });
+  /**
+   * The undo path for a whole review.
+   *
+   * A review has no Undo of its own: approvals go into the document one at a time, autosave
+   * persists them, and by the time a student decides they preferred their own wording there
+   * is nothing left to press. History is the answer, and this is what puts an entry in it -
+   * ONE entry, taken before the first approval of a run writes anything, so restoring it
+   * rewinds the entire review rather than one arbitrary suggestion.
+   *
+   * Three things this has to get right, all of them load-bearing:
+   *
+   *  • ONCE PER RUN. The promise is cached in a ref, so eight approvals await the same
+   *    request and History gets one restore point instead of eight indistinguishable ones.
+   *  • BEFORE THE FIRST MUTATION. The rail awaits this before it dispatches an approval
+   *    (see AiReviewRail's `beforeApply`). A snapshot taken after the edit records the
+   *    reviewed note and is worse than no snapshot at all, because History would then
+   *    offer an entry that restores nothing.
+   *  • FLUSHED FIRST. `api.snapshot` copies what the SERVER holds, not what is on screen,
+   *    so a pending autosave has to land first or the restore point would be missing
+   *    whatever the student typed since the last save - and restoring it would lose their
+   *    typing along with the review.
+   *
+   * A failed snapshot does not block the approval - refusing to apply a suggestion because
+   * a history write failed would be a strange thing to do to someone mid-review - but it is
+   * said out loud, and the ref is cleared so the next approval tries again rather than
+   * leaving the run permanently un-undoable on one transient failure.
+   */
+  function snapshotBeforeReview(): Promise<void> {
+    if (!reviewSnapshotRef.current) {
+      reviewSnapshotRef.current = autosave
+        .flush()
+        .then(() => api.snapshot(note.id, 'Before AI review'))
+        .then(() => undefined)
+        .catch(() => {
+          reviewSnapshotRef.current = null;
+          toast("Couldn't save a restore point, so History won't have an undo for this review", 'error');
+        });
+    }
+    return reviewSnapshotRef.current;
   }
 
   /** Assistant "Add to note": append the gap analysis as a callout at the end -
@@ -609,11 +670,11 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     ed.chain().focus('end').insertContent(calloutHtml).run();
   }
   function applySummary() {
-    if (!aiWholeResult || !editorRef.current) return;
-    const bodyHtml = markdownToSafeHtml(aiWholeResult.markdown);
+    if (!summaryResult || !editorRef.current) return;
+    const bodyHtml = markdownToSafeHtml(summaryResult.markdown);
     const calloutHtml = `<div data-type="callout" data-emoji="🧭" data-tone="info"><h2>Summary</h2>${bodyHtml}</div>`;
     editorRef.current.chain().focus().insertContentAt(0, calloutHtml).run();
-    setAiWholeResult(null);
+    setSummaryResult(null);
     toast('Summary added to top of note', 'ok');
   }
 
@@ -661,8 +722,13 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
             onToggleInsertMenu={() => setInsertMenuOpen((v) => !v)}
             aiOn={aiOn}
             aiBusy={aiBusy}
-            onImprove={handleImprove}
-            onClean={handleClean}
+            onImprove={(close) => void runSuggestionReview('improve', close)}
+            onClean={(close) => void runSuggestionReview('clean', close)}
+            onGaps={handleGaps}
+            onOpenChecks={(close) => {
+              close();
+              setChecksOpen(true);
+            }}
             onSummarize={handleSummarize}
             onSuggestTitle={handleTitleSuggest}
             onFlashcards={handleFlashcards}
@@ -756,8 +822,16 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
           yet, and a rail that only appears while a review is running is not a panel the dock
           would toggle anyway - a later task moves it in. */}
       {reviewOpen && editorRef.current && (
-        <AiReviewRail editor={editorRef.current} onDone={() => setReviewOpen(false)} />
+        <AiReviewRail
+          editor={editorRef.current}
+          beforeApply={snapshotBeforeReview}
+          onDone={() => setReviewOpen(false)}
+        />
       )}
+
+      {/* Per notebook, not per note: a chemistry notebook and an essay notebook want
+          different checks, and every note in one of them wants the same ones. */}
+      <CheckPicker notebookId={note.notebookId} open={checksOpen} onClose={() => setChecksOpen(false)} />
 
       <HistoryPanel noteId={note.id} open={historyOpen} onClose={() => setHistoryOpen(false)} onRestored={resyncFromServer} />
 
@@ -787,25 +861,20 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
         onInsert={insertAssistantNotes}
       />
 
-      {aiWholeResult && (
+      {/* The last whole-note preview, and the only one that was ever right: a summary is
+          new text going in at the top, so there is no "before" to diff it against and
+          nothing to approve change by change. Improve and Clean used to share this modal
+          and a `before` truncated to 600 characters - a comparison that was silently
+          incomplete for any note longer than a paragraph. Both go through the review rail
+          now, and the truncation went with them. */}
+      {summaryResult && (
         <AiPreviewModal
           open
-          onClose={() => setAiWholeResult(null)}
-          heading={
-            aiWholeResult.kind === 'improve'
-              ? 'AI: Improve writing'
-              : aiWholeResult.kind === 'clean'
-                ? 'AI: Clean up formatting'
-                : 'AI: Summarize'
-          }
-          model={aiWholeResult.model}
-          before={aiWholeResult.kind !== 'summarize' ? note.contentText.slice(0, 600) : null}
-          afterMarkdown={aiWholeResult.markdown}
-          actions={[
-            aiWholeResult.kind === 'summarize'
-              ? { label: 'Insert summary', primary: true, onClick: applySummary }
-              : { label: 'Apply', primary: true, onClick: applyImprove },
-          ]}
+          onClose={() => setSummaryResult(null)}
+          heading="AI: Summarize"
+          model={summaryResult.model}
+          afterMarkdown={summaryResult.markdown}
+          actions={[{ label: 'Insert summary', primary: true, onClick: applySummary }]}
         />
       )}
 

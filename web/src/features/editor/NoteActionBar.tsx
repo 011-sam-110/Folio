@@ -27,6 +27,17 @@ import ShareButton from '../share/ShareButton';
 import type { Note } from '../../lib/types';
 import type { SaveStatus } from './useAutosave';
 
+/**
+ * Verbatim from `POST /api/ai/gaps/edits` (server/src/routes/ai.ts), which answers a note
+ * with no usable uploads with exactly this sentence.
+ *
+ * The route's own 400 is surfaced verbatim too (NotePage's `aiError` shows the server's
+ * message), and it stays reachable from here: an attachment can exist and still have no
+ * extracted text, in which case the button is enabled and the server is the one that says
+ * so. One sentence, one wording, whichever side of the wire it comes from.
+ */
+const GAPS_NO_UPLOADS = 'Import slides, a photo or a transcript first.';
+
 export interface NoteActionBarProps {
   note: Note;
   /** The LIVE title (NotePage's input state), not note.title - the share dialog and
@@ -49,6 +60,10 @@ export interface NoteActionBarProps {
   aiBusy: string | null;
   onImprove: (close: () => void) => void;
   onClean: (close: () => void) => void;
+  /** Find missing content from uploads. Only reachable when the note has uploads. */
+  onGaps: (close: () => void) => void;
+  /** Opens the check picker - what a run of the three above actually checks. */
+  onOpenChecks: (close: () => void) => void;
   onSummarize: (close: () => void) => void;
   onSuggestTitle: (close: () => void) => void;
   onFlashcards: (count: number, close: () => void) => void;
@@ -96,6 +111,8 @@ export default function NoteActionBar(props: NoteActionBarProps) {
     aiBusy,
     onImprove,
     onClean,
+    onGaps,
+    onOpenChecks,
     onSummarize,
     onSuggestTitle,
     onFlashcards,
@@ -123,12 +140,9 @@ export default function NoteActionBar(props: NoteActionBarProps) {
     onRetrySave,
   } = props;
 
-  // "Find missing content from uploads" compares the note against the source files it
-  // was built from, so with nothing uploaded there is nothing to compare against. The
-  // two disabled reasons are different problems and get different wording: one the
-  // student can fix right now (upload something), one they cannot (we haven't built it).
+  // "Find missing content from uploads" compares the note against the source files it was
+  // built from, so with nothing uploaded there is nothing to compare against.
   const hasUploads = (note.attachments ?? []).some((a) => a.status !== 'failed');
-  const gapsDisabledReason = hasUploads ? 'Not built yet' : 'Import slides, a photo or a transcript first';
 
   return (
     <div className="folio-action-bar">
@@ -165,22 +179,23 @@ export default function NoteActionBar(props: NoteActionBarProps) {
                 <button type="button" onClick={() => onClean(close)}>
                   Clean up formatting
                 </button>
-                {/* TODO: not wired - this needs a server route that diffs the note
-                    against its own attachments' extracted text and returns an
-                    APPLICABLE edit, e.g. `POST /api/ai/missing-from-uploads { noteId }`.
-                    Deliberately disabled rather than pointed at a stand-in: a control
-                    that looks live and silently does nothing (or fakes a result) is
-                    worse than one that admits it is pending.
-                    Worth knowing before building it: `POST /api/ai/gaps` already exists
-                    and does the comparison, but it returns advisory prose for the
-                    Assistant panel and never rewrites the note, so it is not a
-                    drop-in for this item as specified. */}
-                <span className="folio-menu-pending" title={gapsDisabledReason}>
-                  <button type="button" disabled>
+                {/* Live now: `POST /api/ai/gaps/edits` (NOT `/api/ai/gaps`, which answers
+                    the Assistant panel with advisory prose the rail cannot render). Still
+                    disabled with nothing imported, because the comparison has no second
+                    side - and the reason shown is the server's own sentence for that case
+                    rather than a second, differently-worded copy of it. */}
+                {hasUploads ? (
+                  <button type="button" onClick={() => onGaps(close)}>
                     Find missing content from uploads
-                    <span className="folio-menu-item__hint">{gapsDisabledReason}</span>
                   </button>
-                </span>
+                ) : (
+                  <span className="folio-menu-pending" title={GAPS_NO_UPLOADS}>
+                    <button type="button" disabled>
+                      Find missing content from uploads
+                      <span className="folio-menu-item__hint">{GAPS_NO_UPLOADS}</span>
+                    </button>
+                  </span>
+                )}
                 {!flashcardStep ? (
                   <button
                     type="button"
@@ -202,6 +217,14 @@ export default function NoteActionBar(props: NoteActionBarProps) {
                     ))}
                   </div>
                 )}
+
+                {/* Under a hairline: everything above acts on this note, this one changes
+                    what a run of the first two looks for - and what it costs, since the
+                    suggestion route issues one model request per enabled family. */}
+                <div className="folio-menu-divider" role="separator" />
+                <button type="button" onClick={() => onOpenChecks(close)}>
+                  Choose what to check…
+                </button>
               </>
             )}
           </DropdownButton>

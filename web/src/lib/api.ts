@@ -142,15 +142,19 @@ export const api = {
   aiFlashcards: (noteId: string, count?: number) => http<{ cards: Flashcard[] }>('/api/ai/flashcards', json('POST', { noteId, count })),
   aiAsk: (question: string, notebookId?: string) => http<{ answer: string; sources: Array<{ id: string; title: string }>; model: string }>('/api/ai/ask', json('POST', { question, notebookId })),
   aiTitle: (noteId: string) => http<{ title: string }>('/api/ai/title', json('POST', { noteId })),
-  aiClean: (noteId: string) => http<{ markdown: string; model: string }>('/api/ai/clean', json('POST', { noteId })),
   /** The review run. Unlike aiImprove, this returns individually approvable changes with a
    *  model-authored reason each, rather than a rewritten copy of the whole note - so the
    *  client can render them as decorations and let the reader take them one at a time.
    *  Priced per family server-side: `families` is the cost of the run, not a filter on it. */
   aiSuggest: (noteId: string, families: string[]) =>
     http<AiSuggestResult>('/api/ai/suggest', json('POST', { noteId, families })),
+  /** Advisory prose for the Assistant panel - NOT applicable edits. `aiGapEdits` is the
+   *  review-rail counterpart; the two answer different questions off the same comparison. */
   aiGaps: (noteId: string) =>
     http<{ markdown: string; model: string; sources: Array<{ name: string; kind: string }> }>('/api/ai/gaps', json('POST', { noteId })),
+  /** What the note's own uploads covered and the note did not, as reviewable inserts.
+   *  400s with a message written to be shown verbatim when the note has no usable uploads. */
+  aiGapEdits: (noteId: string) => http<AiSuggestResult>('/api/ai/gaps/edits', json('POST', { noteId })),
   /** Per-user: answers for the caller's own key when they have saved one. */
   aiHealth: () => http<AiHealthInfo>('/api/meta/ai-health'),
   aiUsage: () => http<AiUsage>('/api/ai/usage'),

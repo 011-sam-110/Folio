@@ -65,6 +65,21 @@ const SEVERITY_LABEL: Record<Severity, string> = {
 
 export interface AiReviewRailProps {
   editor: Editor | null;
+  /**
+   * Awaited before ANY approval writes to the document, including the first one and the
+   * first of an Approve all.
+   *
+   * The rail does not know or care what it does - NotePage uses it to take the run's one
+   * restore point, which is the only undo a review has. What matters here is the ordering:
+   * the approval is dispatched after this resolves, never beside it. A restore point
+   * recorded after the first edit landed would restore the reviewed note, which is worse
+   * than having none at all, because History would then be offering an undo that does
+   * nothing.
+   *
+   * Required, not optional. A default no-op would let a second caller mount this rail with
+   * no undo behind it and nothing would say so.
+   */
+  beforeApply: () => Promise<void>;
   /** The run is over - the caller unmounts the rail. */
   onDone: () => void;
 }
@@ -75,7 +90,7 @@ interface Group {
   edits: AiEdit[];
 }
 
-export default function AiReviewRail({ editor, onDone }: AiReviewRailProps) {
+export default function AiReviewRail({ editor, beforeApply, onDone }: AiReviewRailProps) {
   const [review, setReview] = useState<AiReviewState | null>(() => reviewStateOf(editor));
   const [catalogue, setCatalogue] = useState<CheckCatalogue | null>(null);
   const [catalogueFailed, setCatalogueFailed] = useState(false);
@@ -153,7 +168,21 @@ export default function AiReviewRail({ editor, onDone }: AiReviewRailProps) {
 
   const settledIds = Object.keys(settled);
 
-  function dispatchApprove(editId: string): void {
+  /**
+   * Approve one suggestion.
+   *
+   * `await beforeApply()` comes first and is the reason this is async at all: the run's
+   * restore point has to be requested before the document changes, and awaiting is the only
+   * way to be sure of that rather than to hope. It is cheap after the first call - the
+   * caller caches the request for the run - so the second and later approvals wait on an
+   * already-settled promise.
+   *
+   * The editor is re-checked afterwards because awaiting means time has passed, and the
+   * student can navigate away or close the note inside it.
+   */
+  async function dispatchApprove(editId: string): Promise<void> {
+    if (!editor || editor.isDestroyed) return;
+    await beforeApply();
     if (!editor || editor.isDestroyed) return;
     if (!approveEdit(editor.view, editId)) {
       toast('That suggestion no longer matches the note', 'error');
@@ -174,7 +203,11 @@ export default function AiReviewRail({ editor, onDone }: AiReviewRailProps) {
    * that one suggestion's approval consumes text a second one quoted - that second one comes
    * back as unapplied, and is counted and reported rather than passed over.
    */
-  function approveAll(): void {
+  async function approveAll(): Promise<void> {
+    if (!editor || editor.isDestroyed) return;
+    // The whole loop is one review, so it takes the same single restore point a one-at-a-time
+    // review does - and takes it before the first of them lands.
+    await beforeApply();
     if (!editor || editor.isDestroyed) return;
     let applied = 0;
     let refused = 0;
@@ -271,7 +304,7 @@ export default function AiReviewRail({ editor, onDone }: AiReviewRailProps) {
                         familyLabel={label}
                         severity={group.severity}
                         applicable={!!review && isApplicable(review, edit.id)}
-                        onApprove={() => dispatchApprove(edit.id)}
+                        onApprove={() => void dispatchApprove(edit.id)}
                         onDeny={() => dispatchDeny(edit.id)}
                       />
                     ))}
@@ -311,7 +344,7 @@ export default function AiReviewRail({ editor, onDone }: AiReviewRailProps) {
       </div>
 
       <div className="folio-ai-rail__foot">
-        <button type="button" className="folio-btn-primary" disabled={total === 0} onClick={approveAll}>
+        <button type="button" className="folio-btn-primary" disabled={total === 0} onClick={() => void approveAll()}>
           Approve all
         </button>
         <button type="button" className="folio-btn" onClick={finish}>

@@ -313,6 +313,13 @@
   padding-top: 6px;
 }
 
+/* A hairline between items that are NOT a group of their own - the AI menu's single
+   "Choose what to check…" line, which changes what a run does rather than doing one. */
+.folio-menu-divider {
+  border-top: 1px solid var(--line);
+  margin: 6px 0;
+}
+
 .folio-menu-label {
   font-size: 10.5px;
   text-transform: uppercase;
