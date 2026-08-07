@@ -166,20 +166,27 @@
 
 /* Typing is done by clipping width, never by rewriting textContent. The sentence stays in
    the DOM the whole time, so find-in-page, selection and a screen reader all see the
-   finished line while the eye watches it arrive. */
-.mkt-demo__type {
-  display: inline-block;
-  max-width: 100%;
-  vertical-align: bottom;
-}
-.mkt.is-armed .mkt-demo .mkt-demo__type {
-  width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.mkt.is-armed .mkt-demo.is-playing .mkt-demo__type {
-  animation: mkt-type-in var(--type-dur, 900ms) steps(var(--type-steps, 30), end)
-    var(--type-delay, 150ms) forwards;
+   finished line while the eye watches it arrive.
+   Scoped to widths that can hold the line on one row, for the reason the hero's typed line
+   already documents: `white-space: nowrap` sets the element's min-content to the whole
+   sentence, and an ancestor grid track sizes itself to that. Left unscoped it pushed the
+   AI band's column to 512px inside a 380px phone and clipped the copy. Below the
+   breakpoint the text simply renders and wraps. */
+@media (min-width: 761px) {
+  .mkt-demo__type {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: bottom;
+  }
+  .mkt.is-armed .mkt-demo .mkt-demo__type {
+    width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .mkt.is-armed .mkt-demo.is-playing .mkt-demo__type {
+    animation: mkt-type-in var(--type-dur, 900ms) steps(var(--type-steps, 30), end)
+      var(--type-delay, 150ms) forwards;
+  }
 }
 @keyframes mkt-type-in {
   to {
@@ -190,9 +197,24 @@
 /* A press on a button inside a mock, so the scene shows a choice being made rather than a
    button merely existing. */
 .mkt.is-armed .mkt-demo.is-playing .mkt-demo__press {
-  animation: mkt-press 280ms cubic-bezier(0.16, 1, 0.3, 1) var(--press-delay, 1900ms) both;
+  animation: mkt-press 280ms cubic-bezier(0.16, 1, 0.3, 1) var(--press-delay, 1900ms) forwards;
+}
+/* An element that both arrives AND is pressed needs both animations named in ONE
+   declaration. Listing them in two rules meant the press rule replaced the arrival, and
+   the graded button sat at opacity 0 for good - it was invisible on the finished page,
+   not merely un-animated. The order matters too: both touch transform, and the later
+   entry wins while it is running.
+   mkt-press fills forwards rather than both, so its first keyframe cannot reach back and
+   squash the button before the press is due. */
+.mkt.is-armed .mkt-demo.is-playing .mkt-demo__step.mkt-demo__press {
+  animation:
+    mkt-step-in 380ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--step, 0) * 130ms) forwards,
+    mkt-press 280ms cubic-bezier(0.16, 1, 0.3, 1) var(--press-delay, 1900ms) forwards;
 }
 @keyframes mkt-press {
+  0% {
+    transform: none;
+  }
   40% {
     transform: scale(0.9);
   }
@@ -403,6 +425,20 @@
 .mkt-nav__link:hover {
   color: var(--mkt-ink);
   background: var(--mkt-paper-2);
+}
+/* The nav links, the log-in link and the mobile sheet's links all reached keyboard focus
+   with no visible ring: something upstream clears the user-agent outline, and nothing here
+   put one back. That is eight of the page's twenty-three focusable elements invisible to
+   anyone tabbing through it. */
+.mkt-nav__link:focus-visible,
+.mkt-nav__login:focus-visible,
+.mkt-nav__sheet-link:focus-visible,
+.mkt-nav__brand:focus-visible,
+.mkt-foot__links a:focus-visible,
+.mkt-close__alt a:focus-visible {
+  outline: 2px solid var(--mkt-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 .mkt-nav__actions {
@@ -688,13 +724,17 @@
   filter: blur(48px);
 }
 
+/* The frame runs off the bottom of the hero rather than closing above it: a window into
+   the app that continues past the fold, instead of a screenshot sitting in a box. Its
+   bottom edge is the hero's own border. */
 .mkt-shot__frame {
   position: relative;
   z-index: 1;
   border: 1px solid var(--mkt-rule);
-  border-radius: var(--mkt-radius-lg);
+  border-bottom: none;
+  border-radius: var(--mkt-radius-lg) var(--mkt-radius-lg) 0 0;
   background: #fff;
-  box-shadow: var(--mkt-shadow-lg);
+  box-shadow: 0 40px 80px -40px rgba(60, 50, 30, 0.4);
   overflow: hidden;
 }
 
@@ -1821,9 +1861,11 @@
   color: var(--mkt-night-ink-2);
   text-wrap: pretty;
 }
+/* minmax(0, 1fr), not 1fr: a grid item's automatic minimum is its min-content, so one long
+   unbreakable line inside either column silently widens the whole band. */
 .mkt-ai__inner {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(36px, 6vw, 72px);
   /* Top-aligned. Centred, a 288px card beside a 668px column collected ~300px of void
      above it and ~270px below. */
@@ -1974,7 +2016,7 @@
 }
 .mkt-maker__inner {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(36px, 6vw, 72px);
   align-items: start;
 }
@@ -2031,8 +2073,10 @@
     radial-gradient(rgba(120, 105, 80, 0.11) 1px, transparent 1.5px);
   background-size: auto, 26px 26px;
 }
+/* Wide enough for the four assurances; the ask itself is kept narrow by the title's and
+   the lede's own measures rather than by this container. */
 .mkt-close__inner {
-  max-width: 720px;
+  max-width: 920px;
   margin: 0 auto;
 }
 .mkt-close__title {
@@ -2062,13 +2106,16 @@
   font-weight: 600;
 }
 
-/* Two columns for four items, so they fill 2+2. auto-fit resolved to three in this
-   720px container and orphaned the fourth on a row of its own. */
+/* Four across, in their own wider measure than the 720px column the ask sits in: these are
+   four short answers to four objections, and stacking them 2+2 made them read as two
+   pairs. Explicit columns, never auto-fit, which resolved to three and orphaned the
+   fourth on a row of its own. */
 .mkt-close__assurances {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px 32px;
-  margin: 64px 0 0;
+  width: min(920px, 100%);
+  margin: 64px auto 0;
   padding: 32px 0 0;
   border-top: 1px solid var(--mkt-rule);
   list-style: none;
@@ -2187,11 +2234,16 @@
   }
   .mkt-ai__inner,
   .mkt-maker__inner {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .mkt-ai__title,
   .mkt-maker__title {
     max-width: none;
+  }
+  /* Four short columns become two before they become one: at ~470px each the bodies were
+     down to three words a line. */
+  .mkt-close__assurances {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
