@@ -132,7 +132,7 @@ export default function MarketingNav() {
             to="/signup"
             onClick={() => setMenuOpen(false)}
           >
-            Start writing - it&apos;s free
+            Start writing, it&apos;s free
           </Link>
         </div>
       </header>
@@ -143,7 +143,7 @@ export default function MarketingNav() {
           to="/signup"
           tabIndex={dockVisible ? undefined : -1}
         >
-          Start writing - it&apos;s free
+          Start writing, it&apos;s free
         </Link>
       </div>
     </>

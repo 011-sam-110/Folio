@@ -8,9 +8,21 @@
 // stack and were rendered by a fallback font at a different size and baseline - visibly
 // mismatched, and on the card selling science degrees, mojibake.
 //
+// Each mock is a .mkt-demo: a scene that plays once, when it scrolls into view. The order
+// is set with --step rather than by source position, and typing is done by clipping width
+// rather than by rewriting text, so the finished sentence is always in the DOM. See the
+// scroll-motion block in marketing.css - none of it applies unless motion is allowed.
+//
 // All are decorative: the card's heading and body carry the meaning for a screen reader,
 // so each root is aria-hidden.
 import PencilSketch from './PencilSketch';
+
+/** Typing durations, sized to the line so the caret moves at a plausible speed. */
+const TYPE_LINE = { '--type-steps': 26, '--type-dur': '780ms' } as React.CSSProperties;
+const TYPE_SHORT = { '--type-steps': 20, '--type-dur': '620ms' } as React.CSSProperties;
+const TYPE_QUERY = { '--type-steps': 52, '--type-dur': '1100ms' } as React.CSSProperties;
+
+const step = (n: number) => ({ '--step': n }) as React.CSSProperties;
 
 /** One stroke weight, one style, for every icon in these mocks. */
 function VizIcon({ d }: { d: string }) {
@@ -31,13 +43,19 @@ const BLOCKS = [
 
 export function WriteVisual() {
   return (
-    <div className="mkt-viz mkt-viz--write" aria-hidden="true">
+    <div className="mkt-viz mkt-viz--write mkt-demo" aria-hidden="true">
       <div className="mkt-viz__line">
-        Turn this into a callout <span className="mkt-viz__caret">/</span>
+        <span className="mkt-demo__type" style={TYPE_LINE}>
+          Turn this into a callout <span className="mkt-viz__caret">/</span>
+        </span>
       </div>
       <div className="mkt-viz__menu">
         {BLOCKS.map((row, i) => (
-          <div key={row.label} className={`mkt-viz__row${i === 0 ? ' is-active' : ''}`}>
+          <div
+            key={row.label}
+            className={`mkt-viz__row mkt-demo__step${i === 0 ? ' is-active' : ''}`}
+            style={step(i + 7)}
+          >
             <span className="mkt-viz__row-icon">
               <VizIcon d={row.icon} />
             </span>
@@ -50,11 +68,15 @@ export function WriteVisual() {
   );
 }
 
+const BACKLINKS = ['Vertex Cover', 'NP-completeness', 'Reductions - week 7'];
+
 export function LinkVisual() {
   return (
-    <div className="mkt-viz mkt-viz--link" aria-hidden="true">
+    <div className="mkt-viz mkt-viz--link mkt-demo" aria-hidden="true">
       <div className="mkt-viz__note">
-        Reduces to <span className="mkt-viz__wiki">[[3-SAT]]</span>
+        <span className="mkt-demo__type" style={TYPE_SHORT}>
+          Reduces to <span className="mkt-viz__wiki">[[3-SAT]]</span>
+        </span>
       </div>
       {/* fill is set on the dot only. Filling the <svg> overrode the path's own
           fill="none" and the open curve rendered as a smudge with the dashes swallowed. */}
@@ -64,18 +86,24 @@ export function LinkVisual() {
         <circle cx="28" cy="8" r="2.6" className="mkt-viz__wire-dot" />
       </svg>
       <div className="mkt-viz__backlinks">
-        <span className="mkt-viz__backlinks-head">Linked from 3 notes</span>
-        <span>Vertex Cover</span>
-        <span>NP-completeness</span>
-        <span>Reductions - week 7</span>
+        <span className="mkt-viz__backlinks-head mkt-demo__step" style={step(6)}>
+          Linked from 3 notes
+        </span>
+        {BACKLINKS.map((name, i) => (
+          <span key={name} className="mkt-demo__step" style={step(i + 7)}>
+            {name}
+          </span>
+        ))}
       </div>
     </div>
   );
 }
 
+const GRADES = ['Again', 'Hard', 'Good', 'Easy'];
+
 export function StudyVisual() {
   return (
-    <div className="mkt-viz mkt-viz--study" aria-hidden="true">
+    <div className="mkt-viz mkt-viz--study mkt-demo" aria-hidden="true">
       <div className="mkt-viz__deck">
         <div className="mkt-viz__card mkt-viz__card--back" />
         <div className="mkt-viz__card mkt-viz__card--mid" />
@@ -84,13 +112,22 @@ export function StudyVisual() {
           <p className="mkt-viz__card-q">What is the time complexity of BFS?</p>
         </div>
       </div>
+      {/* "Good" is pressed and the interval only then appears, which is the mechanic the
+          card claims: the grade you give decides when the card comes back. */}
       <div className="mkt-viz__grades">
-        <span className="mkt-viz__grade">Again</span>
-        <span className="mkt-viz__grade">Hard</span>
-        <span className="mkt-viz__grade is-good">Good</span>
-        <span className="mkt-viz__grade">Easy</span>
+        {GRADES.map((g, i) => (
+          <span
+            key={g}
+            className={`mkt-viz__grade mkt-demo__step${g === 'Good' ? ' is-good mkt-demo__press' : ''}`}
+            style={{ '--step': i + 4, '--press-delay': '1500ms' } as React.CSSProperties}
+          >
+            {g}
+          </span>
+        ))}
       </div>
-      <p className="mkt-viz__due">Next review in 4 days</p>
+      <p className="mkt-viz__due mkt-demo__step" style={step(13)}>
+        Next review in 4 days
+      </p>
     </div>
   );
 }
@@ -98,9 +135,9 @@ export function StudyVisual() {
 /** A miniature slide: title rule, two bullet rules, a diagram block. The first draft used
  *  three empty boxes, which read as image-loading skeletons directly beneath the claim
  *  that a lecture recording becomes slides. */
-function MiniSlide() {
+function MiniSlide({ at }: { at: number }) {
   return (
-    <span className="mkt-viz__slide">
+    <span className="mkt-viz__slide mkt-demo__step" style={step(at)}>
       <svg viewBox="0 0 44 28" aria-hidden="true">
         <path d="M4 6h22M4 12h14M4 17h17" />
         <rect x="27" y="10" width="13" height="12" rx="1.5" className="mkt-viz__slide-fill" />
@@ -111,20 +148,20 @@ function MiniSlide() {
 
 export function CaptureVisual() {
   return (
-    <div className="mkt-viz mkt-viz--capture" aria-hidden="true">
-      <div className="mkt-viz__file">
+    <div className="mkt-viz mkt-viz--capture mkt-demo" aria-hidden="true">
+      <div className="mkt-viz__file mkt-demo__step" style={step(0)}>
         <span className="mkt-viz__file-kind">MP4</span>
         <span className="mkt-viz__file-name">lecture-04.mp4</span>
       </div>
-      <div className="mkt-viz__arrow">
+      <div className="mkt-viz__arrow mkt-demo__step" style={step(3)}>
         <VizIcon d="M8 3v10M4 9.5l4 4 4-4" />
       </div>
       <div className="mkt-viz__slides">
-        <MiniSlide />
-        <MiniSlide />
-        <MiniSlide />
+        {[0, 1, 2].map((i) => (
+          <MiniSlide key={i} at={i + 5} />
+        ))}
       </div>
-      <div className="mkt-viz__transcript">
+      <div className="mkt-viz__transcript mkt-demo__step" style={step(9)}>
         <span className="mkt-viz__stamp">12:04</span> so the invariant holds at every level…
       </div>
     </div>
@@ -132,6 +169,8 @@ export function CaptureVisual() {
 }
 
 export function CanvasVisual() {
+  // PencilSketch runs its own observer, because the stroke and the pencil riding it share
+  // one timeline that the generic step sequencer cannot express.
   return (
     <div className="mkt-viz mkt-viz--canvas" aria-hidden="true">
       <PencilSketch />
@@ -140,29 +179,42 @@ export function CanvasVisual() {
   );
 }
 
+const HITS = [
+  'Breadth-First Search',
+  'Deadlock avoidance',
+  'Page replacement',
+  'Scheduling - week 3',
+];
+
 export function FindVisual() {
   return (
-    <div className="mkt-viz mkt-viz--find" aria-hidden="true">
+    <div className="mkt-viz mkt-viz--find mkt-demo" aria-hidden="true">
       <div className="mkt-viz__query">
-        <span className="mkt-viz__op">tag:</span>algorithms{' '}
-        <span className="mkt-viz__op">notebook:</span>&quot;Operating Systems&quot;{' '}
-        <span className="mkt-viz__op">-</span>revision
+        <span className="mkt-demo__type" style={TYPE_QUERY}>
+          <span className="mkt-viz__op">tag:</span>algorithms{' '}
+          <span className="mkt-viz__op">notebook:</span>&quot;Operating Systems&quot;{' '}
+          <span className="mkt-viz__op">-</span>revision
+        </span>
       </div>
       <div className="mkt-viz__hits">
-        <span className="mkt-viz__hit">Breadth-First Search</span>
-        <span className="mkt-viz__hit">Deadlock avoidance</span>
-        <span className="mkt-viz__hit">Page replacement</span>
-        <span className="mkt-viz__hit">Scheduling - week 3</span>
+        {HITS.map((hit, i) => (
+          <span key={hit} className="mkt-viz__hit mkt-demo__step" style={step(i + 9)}>
+            {hit}
+          </span>
+        ))}
       </div>
     </div>
   );
 }
 
 export function NotationVisual() {
+  // The three tiles are the three things the card's copy now names. When the copy dropped
+  // the rotatable 3D model, the tile showing one had to go with it, or the card would be
+  // illustrating a claim it no longer makes.
   return (
-    <div className="mkt-viz mkt-viz--notation" aria-hidden="true">
+    <div className="mkt-viz mkt-viz--notation mkt-demo" aria-hidden="true">
       <div className="mkt-viz__tiles">
-        <span className="mkt-viz__tile">
+        <span className="mkt-viz__tile mkt-demo__step" style={step(0)}>
           {/* a real benzene ring with a hydroxyl, not an abstract polyline */}
           <svg viewBox="0 0 32 28" aria-hidden="true">
             <path d="M11 6.5 L19 6.5 L23 13.5 L19 20.5 L11 20.5 L7 13.5 Z" />
@@ -171,18 +223,16 @@ export function NotationVisual() {
           </svg>
           Chemistry
         </span>
-        <span className="mkt-viz__tile">
+        <span className="mkt-viz__tile mkt-demo__step" style={step(3)}>
           <span className="mkt-viz__math">
             ∫<sub>0</sub>
             <sup>∞</sup> e<sup>-x²</sup> dx
           </span>
         </span>
-        <span className="mkt-viz__tile">
-          <svg viewBox="0 0 32 28" aria-hidden="true">
-            <path d="M16 4 L27 10 L27 19 L16 25 L5 19 L5 10 Z" />
-            <path d="M16 4 L16 14.5 M5 10 L16 14.5 L27 10" />
-          </svg>
-          3D model
+        <span className="mkt-viz__tile mkt-demo__step" style={step(6)}>
+          <span className="mkt-viz__code">
+            <span className="mkt-viz__code-kw">def</span> bfs(g, root):
+          </span>
         </span>
       </div>
     </div>

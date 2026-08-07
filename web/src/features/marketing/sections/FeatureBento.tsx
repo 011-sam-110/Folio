@@ -36,7 +36,7 @@ const FEATURES: Feature[] = [
   {
     tag: 'capture',
     title: 'Drop in a lecture, get the notes back',
-    body: 'An MP4 becomes slides plus a timestamped transcript, processed in your browser. PDFs, slide decks and photos import too, with OCR on the ones that are only pictures of words.',
+    body: 'An MP4 becomes slides plus a timestamped transcript, processed in your browser. The video never leaves your machine. PDFs, slide decks and photos import too, with OCR on the ones that are only pictures of words.',
     visual: <CaptureVisual />,
   },
   {
@@ -61,7 +61,7 @@ const FEATURES: Feature[] = [
   {
     tag: 'notation',
     title: 'Built for science degrees',
-    body: 'Chemical structures from a name or SMILES string, LaTeX equations, and 3D models you can rotate - as blocks, in the note, next to the working.',
+    body: 'LaTeX equations, syntax-highlighted code and chemical structures live as blocks in the note, next to the working.',
     visual: <NotationVisual />,
   },
 ];
@@ -69,14 +69,14 @@ const FEATURES: Feature[] = [
 export default function FeatureBento() {
   return (
     <section className="mkt-features" id="features">
-      <header className="mkt-section-head">
+      <header className="mkt-section-head mkt-reveal">
         <p className="mkt-eyebrow">Everything in one place</p>
         <h2 className="mkt-section-title">
           The whole week, from the lecture hall to the exam.
         </h2>
         <p className="mkt-section-lede">
-          Unote is one app for the notes you take, the recordings you never re-watch, and the
-          revision you keep putting off.
+          One app for the notes you take, the recordings you never re-watch, and the revision you
+          keep putting off.
         </p>
       </header>
 
@@ -84,7 +84,10 @@ export default function FeatureBento() {
         {FEATURES.map((f, i) => (
           <article
             key={f.tag}
-            className={`mkt-card${f.wide ? ' mkt-card--wide' : ''}${i === FEATURES.length - 1 ? ' mkt-card--last' : ''}`}
+            className={`mkt-card mkt-reveal${f.wide ? ' mkt-card--wide' : ''}${i === FEATURES.length - 1 ? ' mkt-card--last' : ''}`}
+            /* Cards in the same row arrive one after the other rather than together, which
+               is what stops a row of three reading as a single block dropping in. */
+            data-reveal-delay={(i % 3) * 90}
           >
             <span className="mkt-card__tag">{f.tag}</span>
             <div className="mkt-card__text">
@@ -96,10 +99,10 @@ export default function FeatureBento() {
         ))}
       </div>
 
-      <div className="mkt-also-head">
+      <div className="mkt-also-head mkt-reveal">
         <p className="mkt-eyebrow">And also</p>
       </div>
-      <ul className="mkt-also">
+      <ul className="mkt-also mkt-reveal" data-reveal-delay="80">
         {[
           'Share a note or board behind a link, view-only or editable',
           'Guests join a shared note without making an account',

@@ -19,9 +19,9 @@ export default function Hero() {
       </div>
 
       <div className="mkt-hero__inner">
-        <p className="mkt-eyebrow">Built for university students</p>
+        <p className="mkt-eyebrow mkt-reveal">Built for university students</p>
 
-        <h1 className="mkt-hero__title">
+        <h1 className="mkt-hero__title mkt-reveal" data-reveal-delay="70">
           Where your whole{' '}
           <span className="mkt-mark">
             <span className="mkt-mark__word">degree</span>
@@ -30,14 +30,14 @@ export default function Hero() {
           comes together.
         </h1>
 
-        <p className="mkt-hero__lede">
-          Lecture notes, recordings, flashcards and boards in one place - with optional AI that only
+        <p className="mkt-hero__lede mkt-reveal" data-reveal-delay="140">
+          Lecture notes, recordings, flashcards and boards in one place, with optional AI that only
           helps when you ask it to.
         </p>
 
-        <div className="mkt-hero__cta">
+        <div className="mkt-hero__cta mkt-reveal" data-reveal-delay="210">
           <Link className="mkt-btn mkt-btn--primary mkt-btn--lg" to="/signup">
-            Start writing - it's free
+            Start writing, it's free
           </Link>
           <a className="mkt-btn mkt-btn--quiet mkt-btn--lg" href="#features">
             See how it works
@@ -46,8 +46,10 @@ export default function Hero() {
 
         {/* The lower-commitment door, kept out of the button row so it does not compete
             with the primary action. It opens the real editor rather than a demo, so the
-            trade it makes is stated in the same breath. */}
-        <p className="mkt-hero__trust">
+            trade it makes is stated in the same breath. Carries v2's reveal like every
+            other line in the hero - the door is part of the offer, not an afterthought
+            bolted on after the animation finishes. */}
+        <p className="mkt-hero__trust mkt-reveal" data-reveal-delay="260">
           Free to use. No card. Your notes stay yours. Or{' '}
           <Link className="mkt-hero__try" to="/try">
             try it without an account
