@@ -23,6 +23,8 @@ import NoteActionBar from './NoteActionBar';
 import InsertMenuPopover from './InsertMenuPopover';
 import ImportModal from '../import/ImportModal';
 import { useAiAvailable } from '../../lib/aiStatus';
+import { isGuest } from '../guest/guestMode';
+import { downloadGuestNote } from '../guest/guestExport';
 import { useAutosave } from './useAutosave';
 import { setActiveFlush } from './autosaveBus';
 import { markdownToSafeHtml } from './markdown';
@@ -737,7 +739,9 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
             onToggleAssistant={() => setAssistantOpen((v) => !v)}
             onOpenHistory={() => setHistoryOpen(true)}
             onImport={openImport}
-            onExport={() => window.open(api.exportUrl(note.id), '_blank')}
+            // A guest has no session for /api/notes/:id/export to authorise, and the note
+            // only exists in this browser anyway, so it is rendered here instead.
+            onExport={() => (isGuest() ? downloadGuestNote(note.id) : window.open(api.exportUrl(note.id), '_blank'))}
             onTogglePin={togglePin}
             infoOpen={infoOpen}
             onToggleInfo={() => setInfoOpen((v) => !v)}

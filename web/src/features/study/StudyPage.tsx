@@ -3,6 +3,7 @@ import { api, ApiError } from '../../lib/api';
 import type { StudyStats } from '../../lib/types';
 import { toast } from '../../components/Toast';
 import { useNotebooks } from '../../components/NotebooksContext';
+import GuestGate from '../guest/GuestGate';
 import ReviewTab from './ReviewTab';
 import BrowseTab from './BrowseTab';
 import './StudyPage.css';
@@ -69,6 +70,13 @@ export default function StudyPage() {
           </button>
         </div>
       </header>
+
+      {/* Flashcards need somewhere durable to keep a schedule, so a guest sees an empty
+          deck. Better to say why than to let it look like a broken page. */}
+      <GuestGate
+        title="Flashcards need an account"
+        detail="A review schedule has to survive this browser being closed, and nothing here does. Your notes still work without one."
+      />
 
       {tab === 'review' && visibleNotebooks.length > 1 && (
         <div className="sy-filter" role="group" aria-label="Filter review queue by notebook" data-testid="study-notebook-filter">

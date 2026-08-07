@@ -44,6 +44,17 @@ export function AuthShell({
         {/* The strongest objection-killer on the site, restored to the moment the
             objection is strongest. It was on the landing page and dropped here. */}
         <p className="auth-card__trust">Free to use. No card. Your notes stay yours.</p>
+
+        {/* The way past this screen for someone who is not ready to commit yet. Deliberate
+            about what it costs: this is the page where "I just want to see it" gets people
+            to close the tab, and an unqualified "skip" would be a promise we do not keep.
+            Gated on `footer` for the same reason the footer itself is - the recovery-key
+            screens must offer no way out, because leaving loses the key. */}
+        {footer ? (
+          <p className="auth-card__try">
+            <Link to="/try">Try it first without an account</Link> - nothing you write is saved until you make one.
+          </p>
+        ) : null}
       </main>
 
       {footer ? <p className="auth-alt">{footer}</p> : null}

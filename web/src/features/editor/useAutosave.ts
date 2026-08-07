@@ -9,6 +9,7 @@
 //  - Failed saves auto-retry with capped backoff, and the chip reflects saving/saved/error.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
+import { isGuest } from '../guest/guestMode';
 import type { Note } from '../../lib/types';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -116,6 +117,11 @@ export function useAutosave(noteId: string, getPayload: () => AutosavePayload | 
       if (!dirtyRef.current) return;
       const payload = getPayloadRef.current();
       if (!payload) return;
+      // The one place in the app that calls the API without going through lib/api, so it
+      // is also the one place guest mode has to be checked by hand. A guest's edits are
+      // already in localStorage by the time this fires (the store write is synchronous),
+      // and this request would only collect a 401.
+      if (isGuest()) return;
       try {
         fetch(`/api/notes/${noteIdRef.current}`, {
           method: 'PATCH',

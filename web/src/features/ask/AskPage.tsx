@@ -10,6 +10,7 @@ import EmptyState from '../../components/EmptyState';
 import { useAiEnabled } from '../../lib/aiPrefs';
 import { aiUnavailableMessage, refreshAiHealth, useAiHealth } from '../../lib/aiStatus';
 import { openAiSettings } from '../auth/aiSettingsBus';
+import { useGuest } from '../guest/guestMode';
 import { markdownToDoc } from './mdToTiptap';
 import './AskPage.css';
 
@@ -37,6 +38,7 @@ export default function AskPage() {
   // Must be called here, above the early returns below - a hook after a conditional
   // return would break the rules-of-hooks ordering.
   const aiHealth = useAiHealth();
+  const guest = useGuest();
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
@@ -76,6 +78,26 @@ export default function AskPage() {
   // gateway configured from a personal key that is not answering, and says which. "Try
   // again" is only offered for the second - a missing configuration will never fix itself
   // on a retry, and offering one there just wastes the reader's time.
+  // Answered before the health branch below, which would otherwise tell a guest that "AI
+  // is not set up on this site" and point them at a settings dialog. It is set up; they
+  // just have no account for it to run against.
+  if (guest) {
+    return (
+      <div className="ask-page" data-testid="ask-guest">
+        <EmptyState
+          icon="🔒"
+          title="Asking your notes needs an account"
+          hint="The answers are generated on the server from what you have written, and there is no account here to read from. Everything else works: writing, notebooks, search and tags."
+          action={
+            <Link className="btn btn-primary" to="/signup">
+              Make an account
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
   if (aiHealth.status === 'bad') {
     const message = aiUnavailableMessage(aiHealth);
     const retryable = aiHealth.reason !== 'not_configured';
