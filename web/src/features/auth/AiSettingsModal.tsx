@@ -16,6 +16,7 @@ import { errorMessage } from '../../lib/format';
 import { aiUnavailableMessage, refreshAiHealth, setAiHealth, useAiHealth } from '../../lib/aiStatus';
 import type { AiHealthInfo, AiUsage } from '../../lib/types';
 import { AuthAlert, Field } from './AuthShell';
+import { AI_PROVIDERS, providerById, providerForBaseUrl } from './aiProviders';
 import './auth.css';
 
 function formatResetDate(iso: string): string {
@@ -78,6 +79,9 @@ export default function AiSettingsModal({ open, onClose }: { open: boolean; onCl
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [models, setModels] = useState('');
+  // Which preset the endpoint came from. Derived from a saved key on open rather than
+  // stored: base_url is the truth, and a second stored field could disagree with it.
+  const [providerId, setProviderId] = useState('site');
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const health = useAiHealth();
@@ -88,6 +92,7 @@ export default function AiSettingsModal({ open, onClose }: { open: boolean; onCl
       setApiKey('');
       setBaseUrl('');
       setModels('');
+      setProviderId('site');
       setFormError(null);
       return;
     }
@@ -98,6 +103,7 @@ export default function AiSettingsModal({ open, onClose }: { open: boolean; onCl
         setUsage(u);
         setBaseUrl(u.baseUrl ?? '');
         setModels(u.models.join(', '));
+        setProviderId(providerForBaseUrl(u.baseUrl));
       })
       .catch((e: unknown) => setFormError(errorMessage(e, 'Could not load your AI usage')))
       .finally(() => setLoading(false));
@@ -166,21 +172,44 @@ export default function AiSettingsModal({ open, onClose }: { open: boolean; onCl
   // The credential fields are useful to everyone, not just people who have run out: on a
   // deployment whose shared gateway is unreachable, bringing a key is the ONLY way to have
   // AI at all, and hiding the form behind "using own key: false" hid the remedy too.
+  const provider = providerById(providerId);
+
   const keyForm = (
     <form onSubmit={onSubmit} noValidate>
       <p className="auth-form__note">
         Bring your own key from any OpenAI-compatible provider. It is encrypted before it is
         stored, and your calls stop counting against the free allowance.
       </p>
-      {/* The contract, stated where the mistake gets made. A key on its own is assumed to
-          belong to the gateway this site already uses; a key from a different provider
-          needs that provider's address and model names, or every call 404s on a model
-          the provider has never heard of. */}
-      <p className="auth-form__note">
-        A key on its own is used with this site's own AI gateway. For a key from somewhere
-        else - OpenAI, Groq, OpenRouter, your own gateway - also fill in the endpoint and at
-        least one model name from that provider.
-      </p>
+      {/* Pick the provider and the endpoint follows. The old form asked for a base URL as
+          free text, which assumed the user already knew that a Groq key wants
+          api.groq.com/openai/v1 - and getting it wrong produced a saved key that silently
+          failed every call. */}
+      <label className="auth-field">
+        <span className="auth-field__label">Where is your key from?</span>
+        <select
+          className="auth-field__input"
+          value={providerId}
+          disabled={saving}
+          onChange={(e) => {
+            const next = providerById(e.target.value);
+            setProviderId(next.id);
+            // 'custom' deliberately keeps whatever is already typed - it is the one option
+            // where the existing value is more likely right than an empty string.
+            if (next.id !== 'custom') {
+              setBaseUrl(next.baseUrl);
+              if (next.suggestedModels) setModels(next.suggestedModels);
+            }
+          }}
+        >
+          {AI_PROVIDERS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {provider.hint && <p className="auth-form__note">{provider.hint}</p>}
 
       <Field
         label="API key"
@@ -192,15 +221,28 @@ export default function AiSettingsModal({ open, onClose }: { open: boolean; onCl
         disabled={saving}
       />
 
-      <Field
-        label="Endpoint (needed for a key from another provider)"
-        type="text"
-        value={baseUrl}
-        onChange={setBaseUrl}
-        autoComplete="off"
-        placeholder="https://api.openai.com/v1"
-        disabled={saving}
-      />
+      {provider.keyUrl && (
+        <p className="auth-form__note">
+          <a href={provider.keyUrl} target="_blank" rel="noopener noreferrer">
+            Get a {provider.label} key →
+          </a>
+        </p>
+      )}
+
+      {/* Only the custom route still asks for a URL. Every preset already knows its own,
+          and showing a filled-in endpoint field next to a provider dropdown invites
+          someone to edit one into disagreeing with the other. */}
+      {providerId === 'custom' && (
+        <Field
+          label="Endpoint"
+          type="text"
+          value={baseUrl}
+          onChange={setBaseUrl}
+          autoComplete="off"
+          placeholder="https://your-gateway.example/v1"
+          disabled={saving}
+        />
+      )}
 
       <Field
         label="Models to try, in order (comma separated)"
@@ -208,9 +250,20 @@ export default function AiSettingsModal({ open, onClose }: { open: boolean; onCl
         value={models}
         onChange={setModels}
         autoComplete="off"
-        placeholder="gpt-4o-mini, gpt-4o"
+        placeholder={provider.suggestedModels || 'gpt-4o-mini, gpt-4o'}
         disabled={saving}
       />
+
+      {/* Named as a starting point on purpose. Providers rename and retire models, and a
+          suggestion baked in at build time goes stale - this deployment's own model list
+          had two names its gateway did not recognise. Save and test is what settles it. */}
+      {providerId !== 'site' && (
+        <p className="auth-form__note">
+          Model names change often, so treat these as a starting point - <strong>Save and test</strong>{' '}
+          will tell you if {provider.label === 'Something else…' ? 'your provider' : provider.label} does
+          not recognise one.
+        </p>
+      )}
 
       <div className="auth-form__actions">
         <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
