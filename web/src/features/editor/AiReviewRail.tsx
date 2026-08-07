@@ -246,17 +246,22 @@ export default function AiReviewRail({ editor, beforeApply, onDone, variant = 'p
       aria-label="AI review"
       data-testid="ai-review-rail"
     >
-      <div className="folio-ai-rail__head">
-        <h3>
-          <Icon name="sparkles" size={14} /> Review
-        </h3>
-        <span className="folio-ai-rail__count" data-testid="ai-review-count">
-          {total} {total === 1 ? 'suggestion' : 'suggestions'}
-        </span>
-        <button type="button" className="folio-btn-icon" onClick={finish} aria-label="Close review">
-          ✕
-        </button>
-      </div>
+      {/* Inline, the turn above already says which tool ran and how many suggestions it
+          produced, and Discard in the foot already ends the run. Repeating both here put two
+          headings and two ways out inside one card. */}
+      {variant === 'panel' && (
+        <div className="folio-ai-rail__head">
+          <h3>
+            <Icon name="sparkles" size={14} /> Review
+          </h3>
+          <span className="folio-ai-rail__count" data-testid="ai-review-count">
+            {total} {total === 1 ? 'suggestion' : 'suggestions'}
+          </span>
+          <button type="button" className="folio-btn-icon" onClick={finish} aria-label="Close review">
+            ✕
+          </button>
+        </div>
+      )}
 
       {staleCount > 0 && staleCount !== staleDismissedAt && (
         <div className="folio-ai-rail__stale" data-testid="ai-review-stale">

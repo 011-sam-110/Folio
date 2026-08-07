@@ -341,7 +341,12 @@ function insertionWidget(edit: AiEdit): () => HTMLElement {
     // considers editable is a place the caret can land and the student can type, and
     // anything typed there would be invisible to `getJSON()` and lost on the next render.
     span.contentEditable = 'false';
-    span.textContent = edit.after;
+    // Shown as the formatting it describes, matching the card's diff and matching what
+    // `approveEdit` will actually write. This is the preview the reader judges the
+    // suggestion by, in the place they judge it - the note itself - so raw `**` here would
+    // be the same lie the card used to tell, told closer to the text.
+    if (hasInlineMarkup(edit.after)) span.innerHTML = inlineMarkdownToSafeHtml(edit.after);
+    else span.textContent = edit.after;
     return span;
   };
 }

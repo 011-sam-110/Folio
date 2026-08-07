@@ -362,6 +362,55 @@ test.describe('AI review (stubbed suggestions)', () => {
     await expect(card(page, E_LATE.id)).toContainText("Dijkstra's assumes non-negative weights");
   });
 
+  /**
+   * A formatting suggestion has to arrive as formatting, in all three places it appears.
+   *
+   * The model answers in markdown, because markdown is how you write "make this bold" in
+   * text. For a long time every one of these treated that answer as literal characters: the
+   * preview in the note read `**closest**`, the card's diff read `**closest**`, and approving
+   * it wrote the asterisks into the student's note. An action called "clean up formatting"
+   * could not apply formatting.
+   *
+   * All three are asserted together on purpose. Any one of them fixed alone leaves the reader
+   * judging a suggestion by a preview that does not match what approving it will do, which is
+   * a worse failure than the original bug.
+   */
+  test('applies a formatting suggestion as formatting, in the preview, the card and the note', async ({ page, request }) => {
+    const note = await seedNote(request, uniqueName('AI Review Formatting'), [
+      { id: 'rvw-fmt', text: 'Dijkstra picks the closest unvisited node each step.' },
+    ]);
+    await stubSuggestions(page, [
+      {
+        id: 'rvw-e-fmt',
+        blockId: 'rvw-fmt',
+        op: 'replace',
+        before: 'picks the closest unvisited node',
+        after: 'always picks the **closest unvisited** node',
+        reason: 'Naming the invariant makes the greedy step obvious on a re-read.',
+        checkId: 'clarity.sentence-too-long',
+      },
+    ]);
+
+    await openNoteAndWait(page, note);
+    await openReview(page);
+
+    // 1. The preview inside the note, which is where the suggestion is actually judged.
+    const preview = page.locator('.folio-ai-ins').first();
+    await expect(preview.locator('strong')).toHaveText('closest unvisited');
+    await expect(preview).not.toContainText('**');
+
+    // 2. The card's diff, which has to agree with it.
+    const diff = card(page, 'rvw-e-fmt').locator('ins');
+    await expect(diff.locator('strong')).toHaveText('closest unvisited');
+
+    // 3. What approving it puts in the document: a real mark, not four asterisks.
+    await card(page, 'rvw-e-fmt').getByTestId('ai-review-approve').click();
+    const body = editorBody(page);
+    await expect(body.locator('strong')).toHaveText('closest unvisited');
+    await expect(body).not.toContainText('**');
+    await expect(body).toContainText('Dijkstra always picks the closest unvisited node each step.');
+  });
+
   test('says how many cards a family is holding back instead of truncating silently', async ({ page, request }) => {
     const words = ['alfa', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'];
     const note = await seedNote(request, uniqueName('AI Review Volume'), [
