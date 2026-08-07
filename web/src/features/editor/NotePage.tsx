@@ -33,6 +33,9 @@ import NoteInkOverlay from '../canvas/NoteInkOverlay';
 import FindReplaceBar, { type FindReplaceMode } from './FindReplaceBar';
 import { createFindReplacePlugin, FindReplacePluginKey } from './FindReplace';
 import { createHashtagPlugin, HashtagPluginKey } from './HashtagExtension';
+import AiReviewRail from './AiReviewRail';
+import { AiReviewPluginKey, createAiReviewPlugin, setReviewEdits } from './AiReviewPlugin';
+import { fetchCheckCatalogue, resolveFamilies } from '../../lib/checksApi';
 import { extractHashtags, normalizeTags, unionTags, invalidateTagVocabulary } from '../../lib/tags';
 import './notePage.css';
 
@@ -191,6 +194,10 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
   const [flashcardStep, setFlashcardStep] = useState(false);
   const [flashcardBanner, setFlashcardBanner] = useState<number | null>(null);
   const [aiWholeResult, setAiWholeResult] = useState<{ kind: 'improve' | 'summarize' | 'clean'; model: string; markdown: string } | null>(null);
+  // Whether the review rail is on screen. The suggestions themselves live in the editor's
+  // own plugin state (AiReviewPlugin.ts), not here: they are positional, and positions
+  // belong to the document, not to a React render.
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
   // Stylus annotation layer over this document. Off by default: it swallows
@@ -411,6 +418,13 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     if (!HashtagPluginKey.get(editor.state)) {
       editor.registerPlugin(createHashtagPlugin(openTag));
     }
+    // And the AI review decorations, third of the same kind. Registered unconditionally
+    // (not only when a review starts) so the plugin is already in the editor's state when
+    // `setReviewEdits` dispatches - and behind the same StrictMode guard, because a second
+    // registration would replace the plugin instance and take a review in progress with it.
+    if (!AiReviewPluginKey.get(editor.state)) {
+      editor.registerPlugin(createAiReviewPlugin());
+    }
     capturePending();
     setWordCount(editor.storage.characterCount?.words() ?? 0);
     setCharCount(editor.storage.characterCount?.characters() ?? 0);
@@ -472,12 +486,42 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
     else toast(e instanceof Error ? e.message : 'AI request failed', 'error');
   }
 
+  /**
+   * Improve writing: a per-change review, not a rewritten note.
+   *
+   * This is the route `POST /api/ai/suggest` exists for. It runs one model request per
+   * check family the notebook has enabled and comes back with individually approvable
+   * edits, each carrying the model's own reason - which is what the rail renders and what
+   * the old whole-note preview modal could never show, because a text diff can say what
+   * changed but never why.
+   *
+   * The families come from the catalogue the server serves, filtered by whatever this
+   * notebook has saved (see lib/checksApi.ts). Nothing here holds a second copy of the
+   * check list.
+   */
   async function handleImprove(close: () => void) {
     close();
     setAiBusy('improve');
     try {
-      const res = await api.aiImprove({ noteId: note.id });
-      setAiWholeResult({ kind: 'improve', model: res.model, markdown: res.markdown });
+      const catalogue = await fetchCheckCatalogue();
+      const families = resolveFamilies(note.notebookId, catalogue);
+      if (families.length === 0) {
+        toast('No checks are enabled for this notebook', 'error');
+        return;
+      }
+      const res = await api.aiSuggest(note.id, families);
+      const ed = editorRef.current;
+      if (!ed || ed.isDestroyed) return;
+      if (res.edits.length === 0) {
+        toast('Nothing to suggest - this note reads well', 'ok');
+        return;
+      }
+      setReviewEdits(ed.view, res.edits);
+      setReviewOpen(true);
+      // Families whose model request failed are absent from `ranFamilies`; saying so is the
+      // difference between "there was nothing to find" and "we did not actually look".
+      const missed = families.length - res.ranFamilies.length;
+      if (missed > 0) toast(`${missed} of ${families.length} checks didn't run`, 'error');
     } catch (e) {
       aiError(e);
     } finally {
@@ -707,6 +751,13 @@ function NoteWorkspace({ initialNote, initialBacklinks }: NoteWorkspaceProps) {
       )}
 
       {outlineOpen && <OutlinePane items={outline} editor={editorRef.current} />}
+
+      {/* Mounted directly beside the note for now. The chrome plan's NoteDock does not exist
+          yet, and a rail that only appears while a review is running is not a panel the dock
+          would toggle anyway - a later task moves it in. */}
+      {reviewOpen && editorRef.current && (
+        <AiReviewRail editor={editorRef.current} onDone={() => setReviewOpen(false)} />
+      )}
 
       <HistoryPanel noteId={note.id} open={historyOpen} onClose={() => setHistoryOpen(false)} onRestored={resyncFromServer} />
 

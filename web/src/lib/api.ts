@@ -1,5 +1,5 @@
 import type {
-  AiHealthInfo, AiKeyInfo, AiUsage, AuthProviderInfo,
+  AiHealthInfo, AiKeyInfo, AiSuggestResult, AiUsage, AuthProviderInfo,
   CanvasEdge, CanvasItem, CanvasItemData, CanvasItemKind,
   DashboardData, Flashcard, ImportJob, InkStroke, MetaInfo, Note, NoteKind, NoteLite, NotebookLite, Notebook,
   NoteComment, NoteVersion, NoteVersionMeta, QrCode, SearchParsed, SearchResult, SessionScope, StudyStats,
@@ -143,6 +143,12 @@ export const api = {
   aiAsk: (question: string, notebookId?: string) => http<{ answer: string; sources: Array<{ id: string; title: string }>; model: string }>('/api/ai/ask', json('POST', { question, notebookId })),
   aiTitle: (noteId: string) => http<{ title: string }>('/api/ai/title', json('POST', { noteId })),
   aiClean: (noteId: string) => http<{ markdown: string; model: string }>('/api/ai/clean', json('POST', { noteId })),
+  /** The review run. Unlike aiImprove, this returns individually approvable changes with a
+   *  model-authored reason each, rather than a rewritten copy of the whole note - so the
+   *  client can render them as decorations and let the reader take them one at a time.
+   *  Priced per family server-side: `families` is the cost of the run, not a filter on it. */
+  aiSuggest: (noteId: string, families: string[]) =>
+    http<AiSuggestResult>('/api/ai/suggest', json('POST', { noteId, families })),
   aiGaps: (noteId: string) =>
     http<{ markdown: string; model: string; sources: Array<{ name: string; kind: string }> }>('/api/ai/gaps', json('POST', { noteId })),
   /** Per-user: answers for the caller's own key when they have saved one. */

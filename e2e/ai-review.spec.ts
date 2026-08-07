@@ -1,0 +1,351 @@
+import type { APIRequestContext, Page } from '@playwright/test';
+import { expect, test } from './auth.fixture';
+import { TESTIDS, apiCreateNotebook, editorBody, uniqueName } from './utils';
+
+/**
+ * The per-change AI review: decorations in the note, cards in the rail, approve/deny one at
+ * a time.
+ *
+ * UNLIKE ai.spec.ts, THIS FILE DOES NOT CALL THE GATEWAY. `POST /api/ai/suggest` is stubbed
+ * with a fixed set of edits, for two reasons that both matter more here than realism does:
+ *
+ *   • What is under test is the plugin's position arithmetic, and that can only be asserted
+ *     against edits whose `before` and `after` are known to the character. A live model
+ *     returns different suggestions every run, so a live run could only ever assert "some
+ *     text changed" - which is exactly the assertion that would pass while the note was
+ *     being quietly corrupted.
+ *   • The free gateway's quota is spent often enough that ai.spec.ts already skips on it. A
+ *     correctness test for a text-mangling code path must not be skippable.
+ *
+ * `GET /api/ai/checks` is NOT stubbed. The rail's severity ordering comes from the real
+ * catalogue on purpose, so retuning a family server-side reorders this test with it.
+ */
+
+/** Ids are written into the seeded content so the stubbed edits can name them. TipTap's
+ *  UniqueID only mints an id for a node that has none, so these survive the load. */
+const ALPHA = 'rvw-alpha';
+const BETA = 'rvw-beta';
+const GAMMA = 'rvw-gamma';
+const DELTA = 'rvw-delta';
+
+const BLOCKS: Array<{ id: string; text: string }> = [
+  { id: ALPHA, text: 'Binary search trees keep the left subtree smaller and the right subtree larger.' },
+  { id: BETA, text: 'A hash map gives O(1) average lookup.' },
+  { id: GAMMA, text: "Dijkstra's algorithm works correctly with negative edge weights." },
+  { id: DELTA, text: 'Topological sort only applies to directed acyclic graphs.' },
+];
+
+/**
+ * The stubbed run.
+ *
+ * Chosen so severity order and document order DISAGREE: down the page the suggestions are
+ * clarity, grammar, accuracy, and the rail has to show accuracy, clarity, grammar.
+ *
+ * `E_EARLY` deliberately shortens its block by 38 characters. That is the point of the
+ * remapping assertions below: every position after it in the document moves back by 38, and
+ * `E_LATE` sits two blocks further down with a fourth block after that - so a position that
+ * failed to move lands in real text rather than off the end of the document, and corrupts
+ * silently instead of throwing.
+ */
+const E_EARLY = {
+  id: 'rvw-e-early',
+  blockId: ALPHA,
+  op: 'replace' as const,
+  before: 'keep the left subtree smaller and the right subtree larger',
+  after: 'order their subtrees',
+  reason: 'One clause per idea reads faster than a 13-word chain of comparisons.',
+  checkId: 'clarity.sentence-too-long',
+};
+
+const E_MINOR = {
+  id: 'rvw-e-minor',
+  blockId: BETA,
+  // Regex metacharacters in `before`, on purpose: the plugin matches with a pattern built
+  // from this string, and an unescaped "O(1)" would either throw or match the wrong thing.
+  op: 'replace' as const,
+  before: 'O(1) average lookup',
+  after: 'O(1) average-case lookup',
+  reason: 'Average-case is the precise term; "O(1) average" reads as a claim about all cases.',
+  checkId: 'grammar.technical-term-typo',
+};
+
+const E_LATE = {
+  id: 'rvw-e-late',
+  blockId: GAMMA,
+  op: 'replace' as const,
+  before: 'works correctly with negative edge weights',
+  after: 'does not work with negative edge weights',
+  reason: "Dijkstra's assumes non-negative weights; this contradicts the rest of the note.",
+  checkId: 'accuracy.factual-error',
+};
+
+/** Names a block that is not in the document. Must be reported, never silently dropped. */
+const E_STALE = {
+  id: 'rvw-e-stale',
+  blockId: 'rvw-does-not-exist',
+  op: 'replace' as const,
+  before: 'anything at all',
+  after: 'something else',
+  reason: 'Anchored to a block that is not in this note.',
+  checkId: 'structure.wall-of-text',
+};
+
+const EXPECTED_AFTER_REVIEW = [
+  'Binary search trees order their subtrees.',
+  'A hash map gives O(1) average lookup.',
+  "Dijkstra's algorithm does not work with negative edge weights.",
+  'Topological sort only applies to directed acyclic graphs.',
+];
+
+async function seedNote(
+  request: APIRequestContext,
+  title: string,
+  blocks: Array<{ id: string; text: string }>,
+): Promise<{ id: string; title: string }> {
+  const notebook = await apiCreateNotebook(request, uniqueName('E2E Review Notebook'));
+  const res = await request.post('/api/notes', {
+    data: {
+      notebookId: notebook.id,
+      title,
+      contentText: blocks.map((b) => b.text).join('\n'),
+      contentJson: {
+        type: 'doc',
+        content: blocks.map((b) => ({
+          type: 'paragraph',
+          attrs: { id: b.id },
+          content: [{ type: 'text', text: b.text }],
+        })),
+      },
+    },
+  });
+  expect(res.ok(), `seed note failed: ${res.status()}`).toBeTruthy();
+  const { note } = await res.json();
+  return note;
+}
+
+/** Fixes the run's response, and keeps the AI menu on screen whatever the gateway is doing. */
+async function stubSuggestions(page: Page, edits: unknown[]): Promise<void> {
+  await page.route('**/api/meta/ai-health', (route) =>
+    route.fulfill({ json: { ok: true, model: 'stub', source: 'shared-pool' } }),
+  );
+  await page.route('**/api/ai/suggest', (route) =>
+    route.fulfill({ json: { edits, rejected: 0, ranFamilies: ['accuracy', 'clarity', 'grammar', 'structure'] } }),
+  );
+}
+
+/**
+ * The DOCUMENT's text, block by block, with the review widgets taken out.
+ *
+ * This is the distinction the whole feature rests on. A paragraph's `textContent` includes
+ * the proposed text, because a suggestion renders as a widget INSIDE the paragraph it is
+ * about; the document itself contains no such thing until an approval puts it there.
+ * Stripping `.folio-ai-ins` is what makes an assertion here an assertion about the note
+ * rather than about the overlay.
+ */
+async function documentBlocks(page: Page): Promise<string[]> {
+  return page.evaluate((testid) => {
+    const root = document.querySelector(`[data-testid="${testid}"]`);
+    if (!root) return [];
+    return Array.from(root.children).map((child) => {
+      const clone = child.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('.folio-ai-ins').forEach((w) => w.remove());
+      return (clone.textContent ?? '').trim();
+    });
+  }, TESTIDS.noteEditor);
+}
+
+async function openReview(page: Page): Promise<void> {
+  const main = page.getByRole('main');
+  await main.getByRole('button', { name: /^ai\b/i }).click();
+  await main.getByRole('button', { name: /improve writing/i }).first().click();
+  await expect(page.getByTestId('ai-review-rail')).toBeVisible({ timeout: 15_000 });
+}
+
+function card(page: Page, editId: string) {
+  return page.locator(`[data-testid="ai-review-card"][data-edit-id="${editId}"]`);
+}
+
+/** The struck-through range for one suggestion, inside the note. */
+function struck(page: Page, editId: string) {
+  return page.locator(`.folio-ai-del[data-edit-id="${editId}"]`);
+}
+
+function group(page: Page, familyId: string) {
+  return page.locator(`[data-testid="ai-review-group"][data-family="${familyId}"]`);
+}
+
+/** Minor families arrive folded, so anything grammar has to be opened first. */
+async function expand(page: Page, familyId: string): Promise<void> {
+  await group(page, familyId).getByRole('button').first().click();
+}
+
+/** The note as the SERVER has it, polled until a pending autosave has landed. */
+async function storedText(request: APIRequestContext, noteId: string, settles: string): Promise<string> {
+  await expect
+    .poll(
+      async () => {
+        const res = await request.get(`/api/notes/${noteId}`);
+        const body = await res.json();
+        return body.note.contentText as string;
+      },
+      { timeout: 20_000, message: `autosave never persisted "${settles}"` },
+    )
+    .toContain(settles);
+  const res = await request.get(`/api/notes/${noteId}`);
+  const body = await res.json();
+  return `${body.note.contentText} ${JSON.stringify(body.note.contentJson)}`;
+}
+
+test.describe('AI review (stubbed suggestions)', () => {
+  test('renders suggestions as decorations and never writes them into the note', async ({ page, request }) => {
+    const note = await seedNote(request, uniqueName('AI Review Decorations'), BLOCKS);
+    await stubSuggestions(page, [E_EARLY, E_MINOR, E_LATE, E_STALE]);
+
+    await page.goto(`/note/${note.id}`);
+    await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
+    await openReview(page);
+
+    // Three of the four resolve; the fourth names a block that is not in this note.
+    await expect(page.locator('.folio-ai-del')).toHaveCount(3);
+    await expect(struck(page, E_EARLY.id)).toHaveText(E_EARLY.before);
+    await expect(struck(page, E_MINOR.id)).toHaveText(E_MINOR.before);
+    await expect(struck(page, E_LATE.id)).toHaveText(E_LATE.before);
+    await expect(page.locator('.folio-ai-ins')).toHaveCount(3);
+
+    // The fourth is reported, not dropped.
+    await expect(page.getByTestId('ai-review-stale')).toContainText('1 suggestion no longer applies');
+
+    // The document itself is untouched: every block still reads exactly as it was seeded.
+    expect(await documentBlocks(page)).toEqual(BLOCKS.map((b) => b.text));
+
+    // And it stays untouched through a REAL autosave with the review on screen. Typing at
+    // the end of the last block forces the save the debounce would otherwise sit on, so this
+    // asserts what the server actually stored while three suggestions were rendered.
+    await editorBody(page).locator('p').last().click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' Confirmed.');
+
+    const saved = await storedText(request, note.id, 'Confirmed.');
+    for (const proposal of [E_EARLY.after, E_MINOR.after, E_LATE.after]) {
+      expect(saved).not.toContain(proposal);
+    }
+
+    // An edit elsewhere in the note does not move a suggestion off its words.
+    await expect(struck(page, E_LATE.id)).toHaveText(E_LATE.before);
+  });
+
+  test('remaps the remaining suggestions after each approval', async ({ page, request }) => {
+    const note = await seedNote(request, uniqueName('AI Review Remapping'), BLOCKS);
+    await stubSuggestions(page, [E_EARLY, E_MINOR, E_LATE]);
+
+    await page.goto(`/note/${note.id}`);
+    await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
+    await openReview(page);
+
+    // --- Approve the EARLY one. Its block loses 38 characters, so every position after it
+    // --- in the document shifts back by 38.
+    await card(page, E_EARLY.id).getByTestId('ai-review-approve').click();
+    await expect
+      .poll(async () => (await documentBlocks(page))[0])
+      .toBe('Binary search trees order their subtrees.');
+
+    // THE ASSERTION THIS SPEC EXISTS FOR. The late suggestion was resolved against the
+    // document as it was BEFORE that approval. Had its position been carried over unmapped
+    // it would now sit 38 characters past the phrase it is about - still inside real text,
+    // because two more blocks follow - so approving it would quietly rewrite words that
+    // were never flagged. The decoration says where it actually points.
+    await expect(struck(page, E_LATE.id)).toHaveText('works correctly with negative edge weights');
+    await expect(struck(page, E_MINOR.id)).toHaveText('O(1) average lookup');
+
+    // --- Now approve the LATE one, two blocks further down.
+    await card(page, E_LATE.id).getByTestId('ai-review-approve').click();
+    await expect
+      .poll(async () => (await documentBlocks(page))[2])
+      .toBe("Dijkstra's algorithm does not work with negative edge weights.");
+
+    // Deny the third, so the run ends with one of each verdict.
+    await expand(page, 'grammar');
+    await card(page, E_MINOR.id).getByTestId('ai-review-deny').click();
+    const settled = page.getByTestId('ai-review-settled');
+    await expect(settled.locator(`[data-edit-id="${E_MINOR.id}"]`)).toContainText('Denied');
+    await expect(settled.locator(`[data-edit-id="${E_LATE.id}"]`)).toContainText('Approved');
+    // A denied suggestion leaves the text it quoted exactly as the student wrote it, and
+    // takes its strikethrough with it.
+    await expect(struck(page, E_MINOR.id)).toHaveCount(0);
+
+    // The whole note, end to end: two approvals landed on their own words, and nothing else
+    // in the document moved.
+    expect(await documentBlocks(page)).toEqual(EXPECTED_AFTER_REVIEW);
+
+    // And that is what reaches the server.
+    const saved = await storedText(request, note.id, 'order their subtrees');
+    expect(saved).toContain("Dijkstra's algorithm does not work with negative edge weights.");
+    expect(saved).toContain('A hash map gives O(1) average lookup.');
+    expect(saved).not.toContain('average-case');
+  });
+
+  test('groups cards by severity rather than by document order', async ({ page, request }) => {
+    const note = await seedNote(request, uniqueName('AI Review Ordering'), BLOCKS);
+    await stubSuggestions(page, [E_EARLY, E_MINOR, E_LATE]);
+
+    await page.goto(`/note/${note.id}`);
+    await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
+    await openReview(page);
+
+    // Down the page the suggestions are clarity, grammar, accuracy. The rail is not.
+    const groups = page.getByTestId('ai-review-group');
+    await expect(groups).toHaveCount(3);
+    expect(await groups.evaluateAll((els) => els.map((el) => el.getAttribute('data-family')))).toEqual([
+      'accuracy',
+      'clarity',
+      'grammar',
+    ]);
+
+    // The critical card is open on arrival; the minor family is folded away with its count
+    // showing, so a pile of small fixes cannot push a factual error off the screen.
+    await expect(card(page, E_LATE.id)).toBeVisible();
+    await expect(card(page, E_MINOR.id)).toHaveCount(0);
+    await expect(group(page, 'grammar')).toContainText('Grammar');
+    await expand(page, 'grammar');
+    await expect(card(page, E_MINOR.id)).toBeVisible();
+
+    // The reason is the card's whole purpose - a diff can say what changed, never why.
+    await expect(card(page, E_LATE.id)).toContainText("Dijkstra's assumes non-negative weights");
+  });
+
+  test('says how many cards a family is holding back instead of truncating silently', async ({ page, request }) => {
+    const words = ['alfa', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'];
+    const note = await seedNote(request, uniqueName('AI Review Volume'), [
+      { id: 'rvw-cap', text: `${words.join(' ')}.` },
+    ]);
+
+    await stubSuggestions(
+      page,
+      words.map((w, i) => ({
+        id: `rvw-cap-${i}`,
+        blockId: 'rvw-cap',
+        op: 'replace' as const,
+        before: w,
+        after: w.toUpperCase(),
+        reason: `Proper nouns in this note are capitalised; "${w}" is not.`,
+        checkId: 'grammar.inconsistent-capitalisation',
+      })),
+    );
+
+    await page.goto(`/note/${note.id}`);
+    await expect(page.getByPlaceholder('Untitled')).toHaveValue(note.title, { timeout: 10_000 });
+    await openReview(page);
+
+    // Eight distinct words, eight strikethroughs: every suggestion is anchored even though
+    // only some of them get a card.
+    await expect(page.locator('.folio-ai-del')).toHaveCount(8);
+
+    await expand(page, 'grammar');
+    await expect(page.getByTestId('ai-review-card')).toHaveCount(5);
+    await expect(page.getByTestId('ai-review-more')).toHaveText('3 more in Grammar');
+
+    await page.getByTestId('ai-review-more').click();
+    await expect(page.getByTestId('ai-review-card')).toHaveCount(8);
+    await expect(page.getByTestId('ai-review-more')).toHaveCount(0);
+  });
+});
