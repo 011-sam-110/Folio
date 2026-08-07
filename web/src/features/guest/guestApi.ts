@@ -31,6 +31,7 @@ import {
   wordCountOf,
   writeData,
   type GuestNote,
+  type GuestNotebook,
 } from './guestStore';
 
 /**
@@ -158,7 +159,16 @@ export const guestApi = {
     return { notebook: toNotebook(nb, readData().notes) };
   },
   updateNotebook: async (id: string, b: Partial<Notebook>): Promise<{ notebook: Notebook }> => {
-    const nb = storeUpdateNotebook(id, b);
+    // Copied field by field rather than spread: the DTO also carries noteCount and
+    // lastNoteAt, which are derived, and writing them into the store would persist a
+    // stale count that later reads would trust.
+    const patch: Partial<GuestNotebook> = {};
+    if (b.name !== undefined) patch.name = b.name;
+    if (b.emoji !== undefined) patch.emoji = b.emoji;
+    if (b.color !== undefined) patch.color = b.color;
+    if (b.position !== undefined) patch.position = b.position;
+    if (b.archived !== undefined) patch.archived = b.archived;
+    const nb = storeUpdateNotebook(id, patch);
     if (!nb) notFound('notebook');
     return { notebook: toNotebook(nb, readData().notes) };
   },
