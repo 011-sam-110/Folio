@@ -2325,6 +2325,28 @@
    scoped to a no-preference query. */
 
 @media (prefers-reduced-motion: reduce) {
+  /* useReveals declines to arm under this preference, so none of the hiding rules should
+     ever be in play here. This is belt and braces for the case where the class is already
+     on the root when the preference changes mid-session: everything returns to the
+     finished state rather than staying hidden waiting for an animation that will not run. */
+  .mkt.is-armed .mkt-reveal,
+  .mkt.is-armed .mkt-demo .mkt-demo__step {
+    opacity: 1;
+    transform: none;
+    transition: none;
+    animation: none;
+  }
+  .mkt.is-armed .mkt-demo .mkt-demo__type {
+    width: auto;
+    overflow: visible;
+    white-space: normal;
+    animation: none;
+  }
+  .mkt.is-armed .mkt-strip__strike {
+    transform: scaleX(1);
+    animation: none;
+  }
+
   .mkt-mark__ink {
     animation: none;
     clip-path: none;
