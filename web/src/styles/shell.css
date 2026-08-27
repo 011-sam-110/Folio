@@ -9,7 +9,10 @@
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-  background: var(--bg);
+  /* The desk, not a page. Everything else in the shell is a surface resting on this,
+     so it is the one background that must NOT be --bg (which is now a raised surface -
+     see the --desk note in tokens.css). */
+  background: var(--desk);
 }
 
 .app-sidebar-wrap {
@@ -163,21 +166,23 @@
 /* --- Sidebar internals --- */
 
 .sidebar__brand {
-  padding: 16px 14px 10px;
+  padding: 14px 14px 12px;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
 }
 /* A drawn monogram rather than the 📓 emoji. The emoji rendered as a different
    picture on every OS and was the one element of the chrome the app did not control;
-   a serif U in an ink tile is the wordmark, and it matches at any DPI. */
+   a serif U in an accent tile is the wordmark, and it matches at any DPI.
+   The gradient is the one place the brand blue appears at full strength - everything
+   else in the chrome is neutral, so this reads as the mark rather than as a button. */
 .sidebar__brand-mark {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   flex: 0 0 auto;
   border-radius: 7px;
-  background: var(--solid);
-  color: var(--solid-ink);
+  background: linear-gradient(180deg, #5b6ce0, #3e49b8);
+  color: #fff;
   display: grid;
   place-items: center;
   font-family: var(--font-display);
@@ -187,7 +192,7 @@
 }
 .sidebar__brand-name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   letter-spacing: -0.01em;
   color: var(--ink);
 }
@@ -196,60 +201,87 @@
 }
 
 .sidebar__search {
-  margin: 2px 10px 10px;
+  margin: 0 12px 12px;
 }
+/* Dressed as the text input it stands in for - --field is the "writable" surface in
+   both themes - rather than as a button, because pressing it puts a caret on screen. */
 .sidebar__search-btn {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius);
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
   border: 1px solid var(--line);
-  background: var(--bg-elevated);
+  background: var(--field);
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: 12.5px;
+  cursor: text;
   transition: background var(--dur) var(--ease-out), border-color var(--dur), color var(--dur);
 }
 .sidebar__search-btn:hover {
-  border-color: var(--ink-3);
+  border-color: var(--line-2);
   color: var(--ink-2);
 }
 .sidebar__search-btn kbd {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 400;
-  border-bottom-width: 1px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  padding: 2px 4px;
   background: transparent;
   color: var(--ink-3);
 }
 
 .sidebar__nav {
-  padding: 0 10px;
+  padding: 0 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 .sidebar__nav-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-radius: var(--radius);
-  font-size: 13.5px;
+  gap: 11px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--ink-2);
+  position: relative;
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast);
 }
 .sidebar__nav-link:hover {
-  background: var(--bg-hover);
+  background: var(--bg-hover-soft);
   color: var(--ink);
 }
 .sidebar__nav-link.active {
   background: var(--bg-active);
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 500;
+}
+/* A rail on the leading edge rather than a heavier fill. The selected row already has
+   a fill; the rail is what survives when the fill is only a 7% veil, and it is the part
+   the eye finds when scanning the column. */
+.sidebar__nav-link.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--accent-solid);
+}
+/* The icon carries the accent on the selected row; the label stays plain ink so the
+   colour marks position without shouting. */
+.sidebar__nav-link.active svg {
+  color: var(--accent-solid);
 }
 /* A soft count, not a solid alert dot. Nothing here is urgent - it says "there are
    three" - and a filled accent circle was reading as a notification badge. */
@@ -257,10 +289,10 @@
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: 10.5px;
-  font-weight: 600;
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-radius: 999px;
+  font-weight: 500;
+  background: var(--count-bg);
+  color: var(--ink);
+  border-radius: 20px;
   min-width: 20px;
   display: flex;
   align-items: center;

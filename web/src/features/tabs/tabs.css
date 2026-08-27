@@ -1,10 +1,15 @@
 /* The tab strip, and the panes it switches between. */
 
+/* Browser-style tabs: the strip is chrome, and the active tab is a raised surface that
+   MERGES into the workspace below it by covering the strip's bottom border. That merge
+   is the whole idea - it is what makes a tab read as the front edge of the page rather
+   than as a button that happens to be selected. */
 .folio-tabstrip {
   flex: 0 0 auto;
   display: flex;
-  align-items: stretch;
-  height: 36px;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 8px 12px 0;
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
@@ -18,17 +23,19 @@
 .folio-tab {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
+  height: 34px;
   /* Less padding on the right than the left: the close button carries its own. */
-  padding: 0 6px 0 11px;
+  padding: 0 10px 0 12px;
   min-width: 0;
   /* Shrinks before it scrolls, down to a floor where the label is still worth reading. */
   flex: 0 1 auto;
   max-width: 200px;
   min-width: 92px;
-  border-right: 1px solid var(--line);
+  border: 1px solid transparent;
+  border-radius: 9px 9px 0 0;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: 12.5px;
   cursor: default;
   user-select: none;
   position: relative;
@@ -36,25 +43,19 @@
 }
 
 .folio-tab:hover {
-  background: var(--bg-hover);
+  background: var(--bg-hover-soft);
   color: var(--ink);
 }
 
 .folio-tab[data-tab-active='true'] {
-  background: var(--bg);
+  background: var(--tab-active);
   color: var(--ink);
   font-weight: 500;
-}
-
-/* Drawn on top rather than as a border, so the tab's own height never changes between
-   states and the row cannot shift by a pixel as you click along it. */
-.folio-tab[data-tab-active='true']::after {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 2px;
-  background: var(--accent);
-  pointer-events: none;
+  border-color: var(--line);
+  /* Bottom edge painted in the tab's own fill and pulled down over the strip's border,
+     so the two surfaces join with no seam. */
+  border-bottom-color: var(--tab-active);
+  margin-bottom: -1px;
 }
 
 .folio-tab:focus-visible {
@@ -69,9 +70,9 @@
 }
 
 .folio-tab__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
 }
 
 .folio-tab__label {
@@ -113,8 +114,13 @@
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 34px;
+  width: 28px;
+  height: 28px;
+  /* Sits on the strip's baseline beside the tabs rather than filling its height, so it
+     reads as an action in the chrome and not as another tab. */
+  margin: 0 0 4px 4px;
   border: 0;
+  border-radius: 7px;
   background: transparent;
   color: var(--ink-3);
   cursor: pointer;

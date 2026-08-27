@@ -4,25 +4,35 @@
 
 :root {
   /* ---- contract: light (default) ---- */
-  /* Warm paper neutrals, not white. The whole surface family is pulled off the grey axis
-     towards paper, so the page reads as something written on rather than a document
-     viewer. Every value below comes from the redesign except --ink-3, see its note. */
-  --bg: #fcfbf9;
-  --bg-sidebar: #f6f4f0;
-  --bg-hover: #f2efe9;
-  --bg-active: #edeae3;
-  --ink: #1b1a17;
-  --ink-2: #57534b;
-  /* Meta/secondary text. Tuned against the DARKEST surface it lands on, not just
-     --bg. The redesign draws this tier at #a39c90, which measures 2.63:1 on --bg and
-     2.27:1 on --bg-active - well under AA, and this tier carries real text (timestamps,
-     word counts, notebook counts, search hints), not decoration. Same warm hue,
-     dropped in value until it clears: bg 5.39, sidebar 5.07, hover 4.85, active 4.64,
-     accent-soft 4.91, tint 4.81 - all >= 4.5. */
-  --ink-3: #6f675c;
-  --line: #e9e5dd;
-  --accent: #4f46e5;
-  --accent-soft: #eef0fe;
+  /* The "dark chrome" redesign, light variant. The governing idea is a DESK and things
+     resting ON it: the workspace is a recessed grey-beige surface, the chrome around it
+     is raised and lighter, and the note itself is a white sheet floating above both.
+     That inverts the old palette, where --bg was the lightest thing on screen.
+
+     --bg therefore keeps its old ROLE (a raised content surface: cards, panels,
+     popovers, pickers - 94 rules depend on it) and only changes value. The recessed
+     workspace is a new token, --desk, applied deliberately rather than inherited. */
+  --bg: #faf8f4;
+  --bg-sidebar: #f0eeea;
+  /* Hover and selection are veils, not colours, so a row keeps its tint on the sidebar,
+     a card and the desk alike rather than needing one value per surface. */
+  --bg-hover: rgba(0, 0, 0, 0.07);
+  --bg-active: rgba(0, 0, 0, 0.06);
+  --ink: #24221e;
+  --ink-2: rgba(36, 34, 30, 0.74);
+  /* Meta/secondary text: timestamps, word counts, notebook counts, search hints, the
+     breadcrumb. Tuned against every surface it lands on, not just --bg. The design
+     draws this tier at rgba(36,34,30,.54), which measures 3.19:1 on the desk - under
+     AA, and this tier carries real text, not decoration. Same warm hue, dropped in
+     value until it clears on all of them: desk 5.22, sidebar 6.40, toolbar 6.70,
+     sunken 5.96, card 7.42, elevated 7.00, hover-over-desk 4.49 - all >= 4.5. */
+  --ink-3: #585550;
+  --line: rgba(0, 0, 0, 0.09);
+  /* Text-safe accent: --accent is used as `color` in 161 rules and as a fill in 34, so
+     it has to read as text first. Measured 4.66:1 at worst. The design's brighter
+     #5b6ce0 is kept as --accent-solid for the one filled button per screen. */
+  --accent: #3b46b5;
+  --accent-soft: rgba(91, 108, 224, 0.1);
   --danger: #d1242f;
   --ok: #1a7f37;
   --warn: #9a6700;
@@ -31,20 +41,63 @@
   --shadow-pop: 0 8px 30px rgba(27, 26, 23, 0.13);
 
   /* ---- extensions ---- */
-  /* Barely above --bg: on a paper page a popover lifts with a shadow and a border,
-     not with a jump to white, which would read as a hole cut in the paper. */
-  --bg-elevated: #fffefb;
-  /* Second paper tone - the AI panel and any inset "aside" column. */
-  --bg-paper: #f8f6f2;
+  /* The recessed workspace the note sheet floats on. Deliberately DARKER than every
+     surface above it - this is the desk, not a page. */
+  --desk: #dcd8d0;
+  /* Above --bg: a popover lifts to plain white where the page is a warm off-white. */
+  --bg-elevated: #ffffff;
+  /* The second card tone the design pairs with it, for gradient card faces. */
+  --bg-elevated-2: #faf8f4;
+  /* The document toolbar, the AI panel and any inset "aside" column. */
+  --bg-paper: #f5f3ef;
+  /* Recessed chrome: the status bar and the track a segmented control sits in. */
+  --bg-sunken: #e9e6e0;
+  /* Text inputs and the active tab - the brightest, most "writable" surfaces. */
+  --field: #ffffff;
+  --tab-active: #ffffff;
+  /* A lighter veil for rows that hover without being selectable targets. */
+  --bg-hover-soft: rgba(0, 0, 0, 0.04);
   /* Flat chip/token fill. Distinct from --bg-active, which means "selected". */
-  --tint: #f1eee8;
-  --accent-line: #e4e3f8;
+  --tint: #edeae4;
+  --tint-hover: #e6e2da;
+  /* The face of a secondary button sitting on chrome. */
+  --btn-face: rgba(255, 255, 255, 0.75);
+  --btn-face-hover: #ffffff;
+  /* A second, stronger hairline for control borders and dividers. */
+  --line-2: rgba(0, 0, 0, 0.13);
+  --accent-line: rgba(91, 108, 224, 0.3);
   --accent-wash: #f4f2fc;
+  --accent-soft-hover: rgba(91, 108, 224, 0.17);
+  --accent-solid: #5b6ce0;
+  /* Count badges in the nav. */
+  --count-bg: rgba(91, 108, 224, 0.14);
   --danger-soft: #fdeceb;
   --ok-soft: #e9f7ee;
   --warn-soft: #fdf6e0;
-  --accent-ink: #fcfbf9;
+  --accent-ink: #ffffff;
   --danger-ink: #ffffff;
+  /* The title voice - a shade beyond --ink, for the Newsreader note title and card
+     headings. */
+  --ink-title: #191713;
+  /* DECORATION ONLY - never text. The design's fourth tier measures 2.07:1 here and
+     cannot be lifted to AA without collapsing into --ink-3: the band between 4.5 and
+     --ink-2's 5.56 is too narrow to hold a fourth distinct step. It is kept for what it
+     is genuinely good at - an inactive icon tint, a separator glyph, a chevron - and
+     every place the design used it for TEXT (the search placeholder, the ⌘K hint, the
+     NOTEBOOKS caption, the account email, "Add a tag…", the FORMAT label) uses --ink-3
+     instead. */
+  --ink-4: rgba(36, 34, 30, 0.36);
+  /* The "AI ON" pill. Its own hue rather than --ok: it reports a capability being
+     available, not an operation succeeding. Darkened from the design's #2c6a61, which
+     measured 3.81:1 on the veiled desk. */
+  --teal: #26605a;
+  --teal-soft: rgba(95, 176, 165, 0.18);
+  /* The faint accent bloom at the top of the workspace. */
+  --glow: rgba(91, 108, 224, 0.07);
+  /* The note sheet: a warm white page lifted off the desk by a shadow and a hairline
+     rather than a border, so it reads as paper rather than as another panel. */
+  --paper: #fbf9f5;
+  --paper-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.08);
   /* Near-black paper ink, used for the one primary button per screen. */
   --solid: #1b1a17;
   --solid-hover: #312f2a;
@@ -66,7 +119,7 @@
   --code-variable: #c0392b;
   --code-type: #8a5d00;
 
-  --sidebar-w: 274px;
+  --sidebar-w: 258px;
   --sidebar-collapsed-w: 0px;
   --topbar-h: 52px;
   /* Dashboard's right-hand rail. */
@@ -77,8 +130,10 @@
   --font-ui: 'IBM Plex Sans', 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   /* The reading voice: note bodies, page titles, card titles, flashcard fronts. */
   --font-display: 'Newsreader Variable', Newsreader, Georgia, 'Iowan Old Style', 'Times New Roman', serif;
-  /* Captions, counts, timestamps, shortcuts - anything ABOUT the content. */
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', Consolas, 'SFMono-Regular', Menlo, monospace;
+  /* Captions, counts, timestamps, shortcuts - anything ABOUT the content. The redesign
+     sets every one of these in JetBrains Mono, which the app already self-hosts for
+     code, so the caption voice and the code voice are now one face at two sizes. */
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Consolas, 'SFMono-Regular', Menlo, monospace;
   /* Code specifically, where ligatures and a wider set earn the separate face. */
   --font-code: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Consolas, Menlo, monospace;
 
@@ -117,21 +172,29 @@
 
 :root[data-theme='dark'] {
   /* ---- contract: dark ---- */
-  /* The same paper warmth pulled down rather than a neutral grey ramp: a warm light
-     theme that goes cold in the dark reads as two different products. */
-  --bg: #1a1917;
-  --bg-sidebar: #211f1c;
-  --bg-hover: #272521;
-  --bg-active: #2e2b26;
-  --ink: #ede9e1;
-  --ink-2: #a8a196;
-  /* Same rule as light - measured against every surface it lands on, including
-     --accent-soft composited over each of them. Measured: bg 6.68, sidebar 6.25,
-     paper 6.39, hover 5.81, active 5.36, tint 5.66, accent-soft 4.95-5.32. */
-  --ink-3: #a59f93;
-  --line: #34312b;
-  --accent: #9da5fa;
-  --accent-soft: rgba(157, 165, 250, 0.13);
+  /* The theme the redesign was drawn in, and the one that explains the rest of the
+     file. It is NOT a grey ramp: the desk (--desk #100f0e) is the DARKEST thing on
+     screen and the chrome sits ABOVE it, so the hierarchy runs
+        sunken #0e0d0c < desk #100f0e < toolbar #141312 < chrome #171614 < card #1c1b19
+     Warmth is carried in the hue, not the value - every neutral here is pulled a
+     point or two towards red so the near-black reads as ink rather than as slate. */
+  --bg: #171614;
+  --bg-sidebar: #171614;
+  /* Veils, matching light. A white veil keeps its weight on the desk, the chrome and a
+     card alike, which a per-surface hex cannot do. */
+  --bg-hover: rgba(255, 255, 255, 0.09);
+  --bg-active: rgba(255, 255, 255, 0.075);
+  --ink: #eae7e2;
+  --ink-2: rgba(234, 231, 226, 0.72);
+  /* Same rule as light. The design draws this tier at rgba(234,231,226,.5), which
+     measures 4.43:1 on a card - just under AA. Lifted to a solid warm grey and
+     measured on every surface it lands on: desk 6.19, chrome 5.84, toolbar 6.00,
+     sunken 6.27, card 5.56, field 6.23, hover-over-card 4.51 - all >= 4.5. */
+  --ink-3: #95928f;
+  --line: rgba(255, 255, 255, 0.06);
+  /* Text-safe accent, from the design's own --accent-txt. Measured 8.12:1 at worst. */
+  --accent: #b9c3f8;
+  --accent-soft: rgba(139, 156, 243, 0.1);
   --danger: #f0605a;
   --ok: #4cbb6c;
   --warn: #d9a441;
@@ -140,11 +203,37 @@
   --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);
 
   /* ---- extensions ---- */
-  --bg-elevated: #232120;
-  --bg-paper: #1f1d1a;
-  --tint: #2a2721;
-  --accent-line: #3a3950;
-  --accent-wash: rgba(157, 165, 250, 0.07);
+  --desk: #100f0e;
+  --bg-elevated: #1c1b19;
+  --bg-elevated-2: #191816;
+  --bg-paper: #141312;
+  --bg-sunken: #0e0d0c;
+  --field: #0f0e0d;
+  --tab-active: #100f0e;
+  --bg-hover-soft: rgba(255, 255, 255, 0.045);
+  --tint: rgba(255, 255, 255, 0.05);
+  --tint-hover: rgba(255, 255, 255, 0.09);
+  --btn-face: rgba(255, 255, 255, 0.04);
+  --btn-face-hover: rgba(255, 255, 255, 0.1);
+  --line-2: rgba(255, 255, 255, 0.1);
+  --accent-line: rgba(139, 156, 243, 0.28);
+  --accent-wash: rgba(139, 156, 243, 0.05);
+  --accent-soft-hover: rgba(139, 156, 243, 0.18);
+  /* The filled Insert button keeps the design's brighter blue in both themes: white on
+     #5b6ce0 measures 4.50:1, so it carries its own label without help. */
+  --accent-solid: #5b6ce0;
+  --count-bg: rgba(139, 156, 243, 0.16);
+  --ink-title: #f4f1ec;
+  /* DECORATION ONLY - see the light block. Measures 2.52:1 here. */
+  --ink-4: rgba(234, 231, 226, 0.32);
+  /* Measured 10.82:1 at worst, so the design's value stands unchanged in the dark. */
+  --teal: #9fd8cf;
+  --teal-soft: rgba(95, 176, 165, 0.14);
+  --glow: rgba(139, 156, 243, 0.05);
+  /* The sheet stays warm white in the dark - a note is paper under a desk lamp, not an
+     inverted document. The hairline is the only part that flips. */
+  --paper: #fbf9f5;
+  --paper-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06);
   --danger-soft: rgba(240, 96, 90, 0.14);
   --ok-soft: rgba(76, 187, 108, 0.14);
   --warn-soft: rgba(217, 164, 65, 0.14);
