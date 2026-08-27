@@ -33,9 +33,16 @@
      #5b6ce0 is kept as --accent-solid for the one filled button per screen. */
   --accent: #3b46b5;
   --accent-soft: rgba(91, 108, 224, 0.1);
-  --danger: #d1242f;
-  --ok: #1a7f37;
-  --warn: #9a6700;
+  /* Darkened from #d1242f / #1a7f37 / #9a6700. Those were tuned when --bg was the
+     lightest thing on screen; the desk is a much darker ground, and all three fell under
+     AA on it once the surfaces inverted - warn worst of all at 3.43:1, on the very
+     surface the "this block is taller than one page" warning is drawn. Measured on every
+     surface each lands on (paper / card / bg / sidebar / desk / sunken), worst case:
+     danger 4.52, ok 4.51, warn 4.57. --accent (5.41) and --teal (5.09) already cleared
+     and are unchanged. The dark theme's four all clear 5.35 or better untouched. */
+  --danger: #b82029;
+  --ok: #166d2f;
+  --warn: #805500;
   --radius: 9px;
   --radius-lg: 14px;
   --shadow-pop: 0 8px 30px rgba(27, 26, 23, 0.13);

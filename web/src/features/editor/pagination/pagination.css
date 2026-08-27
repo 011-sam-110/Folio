@@ -89,6 +89,13 @@
   --accent-wash: #f4f2fc;
   --count-bg: rgba(91, 108, 224, 0.14);
   --teal: #26605a;
+  /* The semantic three, not just their -soft fills. Overriding the fills alone left the
+     DARK theme's --warn (#d9a441, a light amber meant for a near-black ground) drawing
+     the "this block is taller than one page" warning onto warm white paper at 2.14:1 -
+     found by measuring, invisible in a green test suite. */
+  --danger: #b82029;
+  --ok: #166d2f;
+  --warn: #805500;
   --danger-soft: #fdeceb;
   --ok-soft: #e9f7ee;
   --warn-soft: #fdf6e0;
