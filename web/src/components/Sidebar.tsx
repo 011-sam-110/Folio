@@ -406,7 +406,7 @@ export default function Sidebar({
           the button. To the right there is only page. */}
       <div className="sidebar__footer">
         <Tooltip content={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} placement="right">
-          <button type="button" className="sidebar__icon-btn" aria-label="Toggle theme" onClick={toggleTheme}>
+          <button type="button" className="sidebar__icon-btn is-theme" aria-label="Toggle theme" onClick={toggleTheme}>
             <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} />
           </button>
         </Tooltip>

@@ -192,22 +192,28 @@ export default function NoteActionBar(props: NoteActionBarProps) {
           Find
         </SegButton>
 
-        {/* The assistant is a side panel you keep open while you work, so it belongs
-            with the other panel toggles rather than among the AI transforms - those
-            change the document, this one only answers questions about it. Gated on
-            aiOn for the same reason the AI menu is. */}
-        {aiOn && (
-          <SegButton
-            on={assistantOpen}
-            onClick={onToggleAssistant}
-            title="Ask a question about this note"
-            testId="assistant-open"
-          >
-            <Icon name="sparkles" size={12} />
-            Assistant
-          </SegButton>
-        )}
       </div>
+
+      {/* The assistant is a panel toggle like the four above it, but it sits OUTSIDE the
+          switch bank and carries the accent. The others reveal something already in the
+          note - its headings, its comments, its ink; this one brings something new to
+          it, and a student scanning the bar should be able to find the AI without
+          reading five labels. It still carries aria-pressed, so the state is exposed the
+          same way the segments' is and colour is never the only carrier.
+          Gated on aiOn for the same reason the AI menu is. */}
+      {aiOn && (
+        <button
+          type="button"
+          className={`folio-btn-assistant${assistantOpen ? ' on' : ''}`}
+          aria-pressed={assistantOpen}
+          onClick={onToggleAssistant}
+          title="Ask a question about this note"
+          data-testid="assistant-open"
+        >
+          <Icon name="sparkles" size={16} />
+          Assistant
+        </button>
+      )}
 
       {/* Collapses to nothing when the bar is crowded (flex-basis 0), so it pushes the
           note actions right without ever forcing a wrap of its own. */}

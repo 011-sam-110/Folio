@@ -319,12 +319,14 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 2px 12px 6px 18px;
+  /* The big top gap is the only separation between the nav and the notebook list -
+     the divider that used to sit here was doing a job whitespace does better. */
+  padding: 22px 12px 8px 18px;
   font-family: var(--font-mono);
-  font-size: var(--caption-size);
+  font-size: 9.5px;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: var(--caption-tracking);
+  letter-spacing: 0.14em;
   color: var(--ink-3);
   flex: 0 0 auto;
 }
@@ -345,12 +347,15 @@
   gap: 1px;
 }
 
+/* Same 34px row and 8px radius as the nav above it, so the two lists in the column read
+   as one system rather than as two lists that happen to be stacked. */
 .notebook-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 6px 6px 9px;
-  border-radius: var(--radius);
+  height: 34px;
+  padding: 0 6px 0 10px;
+  border-radius: 8px;
   font-size: 13px;
   color: var(--ink-2);
   cursor: pointer;
@@ -358,12 +363,13 @@
 }
 .notebook-row:hover,
 .notebook-row.is-menu-open {
-  background: var(--bg-hover);
+  background: var(--bg-hover-soft);
+  color: var(--ink);
 }
 .notebook-row.active {
   background: var(--bg-active);
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 500;
 }
 .notebook-row__emoji {
   font-size: 14px;
@@ -379,7 +385,7 @@
 }
 .notebook-row__count {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--ink-3);
   flex: 0 0 auto;
 }
@@ -473,53 +479,73 @@
 .sidebar__footer {
   flex: 0 0 auto;
   margin-top: auto;
-  padding: 8px 10px;
+  padding: 7px 8px;
   border-top: 1px solid var(--line);
   display: flex;
   align-items: center;
   gap: 2px;
 }
 .sidebar__icon-btn {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border-radius: var(--radius);
-  color: var(--ink-2);
+  border-radius: 7px;
+  color: var(--ink-3);
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast);
 }
 .sidebar__icon-btn:hover {
   background: var(--bg-hover);
   color: var(--ink);
 }
+/* The theme toggle is the one control in this row that changes the whole app rather
+   than opening something, so it carries a face and a border and the rest do not. */
+.sidebar__icon-btn.is-theme {
+  border: 1px solid var(--line-2);
+  background: var(--btn-face);
+  color: var(--ink-2);
+}
+.sidebar__icon-btn.is-theme:hover {
+  background: var(--btn-face-hover);
+  color: var(--ink);
+}
 /* AI kill-switch: dimmed slashed-sparkles state while AI features are off */
 .sidebar__icon-btn.is-ai-off {
   color: var(--ink-3);
 }
+/* A pill rather than a bare dot and caption. It is a standing status, not an event, so
+   it gets a quiet enclosure that holds it together at the end of the icon row. */
 .sidebar__ai-status {
   margin-left: auto;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 2px 4px 6px;
+  gap: 5px;
+  padding: 3px 8px 3px 6px;
+  border-radius: 20px;
+  background: var(--teal-soft);
+  white-space: nowrap;
 }
 .sidebar__ai-status-label {
   font-family: var(--font-mono);
-  font-size: var(--caption-size);
-  letter-spacing: 0.06em;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: var(--teal);
   white-space: nowrap;
 }
 .sidebar__ai-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
   border-radius: 50%;
   transition: background var(--dur), box-shadow var(--dur);
 }
+/* Teal, not --ok: this reports a capability being available, not an operation that
+   succeeded. Inside the pill it needs no halo to be found. */
 .sidebar__ai-dot.ok {
-  background: var(--ok);
-  box-shadow: 0 0 0 3px var(--ok-soft);
+  background: var(--teal-dot);
 }
 .sidebar__ai-dot.bad {
   background: var(--danger);
