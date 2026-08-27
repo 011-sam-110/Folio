@@ -40,13 +40,76 @@
   left: 0;
 }
 
+/* Actual paper, not another panel. --paper is a warm white in BOTH themes: a note is a
+   sheet under a desk lamp, and inverting it to dark grey in the dark theme turned the
+   one thing on screen you are meant to read into more chrome. The hairline is carried in
+   the shadow token rather than as a border, so the edge is a lift off the desk instead
+   of a drawn outline. */
 .folio-sheet__paper {
   position: absolute;
   inset: 0;
-  background: var(--bg-paper);
-  border: 1px solid var(--line);
-  border-radius: 2px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 12px 28px -18px rgb(0 0 0 / 45%);
+  background: var(--paper);
+  border-radius: 6px;
+  box-shadow: var(--paper-shadow);
+}
+
+/* THE PAPER IS LIGHT IN BOTH THEMES, SO THE INK INSIDE IT MUST BE TOO.
+   Without this the dark theme sets --ink to a near-white and the note is white text on
+   white paper - the single most destructive thing this redesign could have shipped.
+
+   Scoped to .folio-paged because that is the only place paper exists: with pagination
+   off the note renders straight onto --bg and the theme's own ink is correct there. The
+   values are the light palette from tokens.css verbatim; keep them in step if that block
+   changes. This works at all because the app is token-driven - re-declaring the tokens
+   on one container carries the body, headings, links, captions, tables and code across
+   with it, with no component needing to know it is sitting on paper. */
+:root[data-theme='dark'] .folio-paged {
+  --bg: #faf8f4;
+  --bg-elevated: #ffffff;
+  --bg-elevated-2: #faf8f4;
+  --bg-paper: #f5f3ef;
+  --bg-sunken: #e9e6e0;
+  --bg-hover: rgba(0, 0, 0, 0.07);
+  --bg-hover-soft: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.06);
+  --field: #ffffff;
+  --tint: #edeae4;
+  --tint-hover: #e6e2da;
+  --ink: #24221e;
+  --ink-2: rgba(36, 34, 30, 0.74);
+  --ink-3: #585550;
+  --ink-4: rgba(36, 34, 30, 0.36);
+  --ink-title: #191713;
+  --line: rgba(0, 0, 0, 0.09);
+  --line-2: rgba(0, 0, 0, 0.13);
+  --accent: #3b46b5;
+  --accent-soft: rgba(91, 108, 224, 0.1);
+  --accent-soft-hover: rgba(91, 108, 224, 0.17);
+  --accent-line: rgba(91, 108, 224, 0.3);
+  --accent-wash: #f4f2fc;
+  --count-bg: rgba(91, 108, 224, 0.14);
+  --teal: #26605a;
+  /* The semantic three, not just their -soft fills. Overriding the fills alone left the
+     DARK theme's --warn (#d9a441, a light amber meant for a near-black ground) drawing
+     the "this block is taller than one page" warning onto warm white paper at 2.14:1 -
+     found by measuring, invisible in a green test suite. */
+  --danger: #b82029;
+  --ok: #166d2f;
+  --warn: #805500;
+  --danger-soft: #fdeceb;
+  --ok-soft: #e9f7ee;
+  --warn-soft: #fdf6e0;
+  --code-keyword: #8b2d8a;
+  --code-string: #3d7c3c;
+  --code-number: #7a5200;
+  --code-title: #2f62cc;
+  --code-variable: #c0392b;
+  --code-type: #8a5d00;
+  --spell-underline: #d2342a;
+  --shadow-1: 0 1px 2px rgba(27, 26, 23, 0.06);
+  --shadow-2: 0 4px 16px rgba(27, 26, 23, 0.09);
+  --ring-subtle: rgba(27, 26, 23, 0.08);
+  color-scheme: light;
 }
 
 /* An overflowing sheet is not a normal sheet, and the difference has to be visible or the

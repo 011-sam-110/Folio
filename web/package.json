@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "predev": "node scripts/vendor-tesseract.mjs",
     "prebuild": "node scripts/vendor-tesseract.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gen:icons": "node scripts/gen-icons.mjs"
   },
   "// @huggingface/transformers": "PINNED TO 3.x. 4.x (tried 4.2.0) breaks Whisper in the browser: every model/dtype combination fails at session creation with 'TransposeDQWeightsForMatMulNBits Missing required scale' from the bundled onnxruntime-web. Verified 3.8.1 works. Do not widen this range to ^4. NOTE: this must stay a TOP-LEVEL key - inside `dependencies` npm reads it as a package name and `npm install` dies with EINVALIDPACKAGENAME, which broke every deploy.",
   "dependencies": {
@@ -62,6 +63,7 @@
     "three": "^0.183.2"
   },
   "devDependencies": {
+    "@material-symbols/svg-300": "^0.47.0",
     "@tesseract.js-data/eng": "^1.0.0",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",

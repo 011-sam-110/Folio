@@ -4,24 +4,25 @@
    not the viewport - several panes are mounted at once and the right-hand drawers inset the
    content column, so a fixed bar would sit under the AI panel and appear on hidden tabs. */
 
+/* A flat band of chrome across the foot of the pane, not a floating card. The rounded,
+   shadowed card read as a palette hovering over the note; this is part of the window,
+   the same way the toolbar at the top is. The negative side margins bleed it past the
+   page's own padding so it runs the full width of the column. */
 .folio-format-bar {
   position: sticky;
   bottom: 0;
   z-index: 20;
-  margin-top: 24px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--line);
-  border-radius: 8px 8px 0 0;
-  border-bottom: 0;
-  box-shadow: 0 -2px 14px -8px rgb(0 0 0 / 25%);
+  margin: 24px -32px 0;
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--line);
   font-family: var(--font-ui);
 }
 
 .folio-format-bar__row {
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 6px 10px;
+  gap: 8px;
+  padding: 7px 14px;
   flex-wrap: wrap;
 }
 
@@ -30,13 +31,38 @@
 }
 
 /* The status row is about the document, not the selection, so it is quieter: mono, small,
-   and in the secondary ink. Same weight as the two rows would make them read as one
-   undifferentiated wall of controls. */
+   and in the secondary ink. It also sits on the SUNKEN surface - the recessed bottom of
+   the stack - which is what separates "what this document is" from "what I am about to
+   do to this text" above it, without needing a second heavy rule. */
 .folio-format-bar__status {
   font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--bg-sunken);
+  border-top: 1px solid var(--line);
+  gap: 12px;
+  padding: 0 14px;
+  height: 36px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.folio-format-bar__status::-webkit-scrollbar {
+  height: 0;
+}
+/* The row is mono-uppercase, but its buttons are UI text - they are controls, not
+   readings, and setting a dropdown label in 10px mono caps made them hard to hit and
+   harder to read. */
+.folio-format-bar__status .folio-fmt-btn {
+  font-family: var(--font-ui);
   font-size: 11.5px;
-  color: var(--ink-2);
-  gap: 8px;
+  letter-spacing: 0;
+  text-transform: none;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 6px;
 }
 
 .folio-format-bar__spacer { flex: 1 1 auto; }
@@ -53,31 +79,38 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 6px;
+  min-width: 29px;
+  height: 29px;
+  padding: 0 7px;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: 7px;
   background: none;
-  color: var(--ink);
+  color: var(--ink-2);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 }
 
-.folio-fmt-btn--wide { padding: 0 10px; font-size: 11.5px; }
+.folio-fmt-btn--wide { padding: 0 9px; font-size: 12px; }
 
-.folio-fmt-btn:hover:not(:disabled) { background: var(--bg-hover); }
+.folio-fmt-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
 
 .folio-fmt-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
+/* A neutral fill, not the accent. Twenty controls sit in this bar and several are on at
+   once - bold inside a heading inside a list - and an accent-tinted "on" state made the
+   bar look like a christmas tree while the note itself was the quiet thing. The fill is
+   the same --bg-active the selected sidebar row uses, so "on" means one thing app-wide. */
 .folio-fmt-btn.on {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--bg-active);
+  border-color: transparent;
+  color: var(--ink);
 }
 
 .folio-fmt-btn:disabled {
@@ -106,22 +139,36 @@
 
 .folio-fmt-group .folio-fmt-btn { border-radius: 4px; }
 
+/* A recessed track, like the panel switches in the toolbar: minus, a readout, plus is one
+   control, and three loose buttons in the status row did not say so. */
 .folio-fmt-zoom {
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--bg-active);
+  flex: none;
 }
 
 .folio-fmt-zoom__value {
-  min-width: 40px;
+  min-width: 38px;
   text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  /* The readout changes as you click, and proportional digits make the whole row jump
+     by a pixel or two at every step. */
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
 }
 
+/* --line-2, not --line. A divider between control clusters has to survive being drawn
+   on chrome; at --line's 6% it disappears in the dark theme and the clusters merge. */
 .folio-fmt-sep {
   width: 1px;
-  height: 18px;
-  background: var(--line);
-  margin: 0 4px;
+  height: 20px;
+  background: var(--line-2);
+  margin: 0;
   flex: none;
 }
 
